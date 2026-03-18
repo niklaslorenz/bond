@@ -1,0 +1,17 @@
+{
+  "providers": [
+    {
+      "name": "openai",
+      "endpoint": "https://api.openai.com/v1/chat/completions",
+      "api_key": "ENV:OPENAI_API_KEY",
+      "models": [
+        "gpt-5-nano"
+      ]
+    },
+    {
+      "name": "ollama",
+      "endpoint": "http://localhost:11434/",
+      "model_endpoint": "http://localhost:11434/v1/models"
+    }
+  ]
+}
