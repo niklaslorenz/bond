@@ -4,6 +4,7 @@ from typing import Any, Literal, Protocol
 from pydantic import BaseModel, field_validator
 from requests import Response
 
+from bond.endpoints.model_options import ModelOptions
 from bond.util import http_retry_loop
 
 
@@ -143,30 +144,56 @@ class ChatCompletionsProvider(Protocol):
         self,
         model: str,
         messages: list[Message],
-        temperature: float = 0.7,
-        max_tokens: int = 1024,
+        tools: list[dict[str, Any]],
         **additional_fields,
     ) -> Response: ...
 
 
-class ChatCompletionsWrapper:
+class ChatCompletionsWrapper[ModelArgumentType: ModelOptions]:
     provider: ChatCompletionsProvider
 
-    def __init__(self, provider: ChatCompletionsProvider):
+    def __init__(
+        self,
+        provider: ChatCompletionsProvider,
+        general_arguments: ModelArgumentType | None = None,
+        model_specific_arguments: dict[str, ModelArgumentType] = {},
+        arguments_type: type[ModelArgumentType] | None = None,
+    ):
         self.provider = provider
+        self.general_arguments = (
+            general_arguments.parse() if general_arguments is not None else {}
+        )
+        self.model_specific_arguments = {
+            name: model.parse() for name, model in model_specific_arguments.items()
+        }
+        self.arguments_type = arguments_type
 
     def chat_completion(
         self,
         model: str,
         messages: list[Message],
-        temperature: float = 0.7,
-        max_tokens: int = 1024,
+        tools: list[dict[str, Any]] | None = None,
+        additional_arguments: ModelArgumentType | dict[str, Any] | None = None,
         max_retries: int = 3,
-        **additional_fields,
     ) -> ChatCompletionResponse:
+        additional_fields = self.general_arguments.copy()
+        for k, v in (self.model_specific_arguments.get(model) or {}).items():
+            additional_fields[k] = v
+        if additional_arguments is not None:
+            if self.arguments_type is None:
+                raise ValueError(
+                    "Passing a raw value dictionary to chat_completion is not allowed, when the arguments type of the wrapper is not set."
+                )
+            args: ModelArgumentType = (
+                self.arguments_type.model_validate(additional_arguments)
+                if isinstance(additional_arguments, dict)
+                else additional_arguments
+            )
+            for k, v in args.parse().items():
+                additional_fields[k] = v
         response = http_retry_loop(
             lambda: self.provider.chat_completion(
-                model, messages, temperature, max_tokens, **additional_fields
+                model, messages, tools if tools is not None else [], **additional_fields
             ),
             max_retries,
         )
