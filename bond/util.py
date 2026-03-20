@@ -1,5 +1,6 @@
 import email.utils
 import logging
+import os
 from datetime import datetime, timezone
 from time import sleep
 from typing import Callable
@@ -46,3 +47,14 @@ def http_retry_loop(
     )
     response.raise_for_status()
     raise RuntimeError("Unreachable")
+
+
+def resolve_api_key(api_key_raw: str) -> str:
+    if api_key_raw.startswith("ENV:"):
+        api_key = os.getenv(api_key_raw[4:])
+        if api_key is None:
+            raise RuntimeError(
+                f"Could not read api key from environment variable {api_key_raw[4:]}"
+            )
+        return api_key
+    return api_key_raw

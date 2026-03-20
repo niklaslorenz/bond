@@ -1,46 +1,75 @@
+from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel
 
-from bond.endpoints.chat_completions import (Message, SystemMessage, TextChunk,
-                                             ToolCall, ToolMessage,
-                                             UserMessage)
+from bond.bond_environment import BondEnvironment
+from bond.conversation_storage import ConversationStorage, JSONConversationStorage
+from bond.endpoints.chat_completions import (
+    Message,
+    SystemMessage,
+    TextChunk,
+    ToolCall,
+    ToolMessage,
+    UserMessage,
+)
+from bond.persona import Persona
 
 # TODO: Add a size attribute to the history objects and update them
 # whenever a prompt returns a usage report.
 # Use this to prune the context window
 
 
-class Conversation(BaseModel):
-    history: list[Message] = []
-    system_message: SystemMessage | None
+class ConversationMessage(BaseModel):
+    message: Message
+    author: str | None = None
 
     @classmethod
-    def create(cls, system_prompt: str | None = None) -> "Conversation":
-        return Conversation(
-            system_message=(
-                SystemMessage(content=[TextChunk(text=system_prompt)])
-                if system_prompt is not None
-                else None
-            )
+    def create_system_message(
+        cls, msg: str, system_name: str = "System"
+    ) -> "ConversationMessage":
+        return ConversationMessage(
+            author=system_name, message=SystemMessage(content=[TextChunk(text=msg)])
         )
 
-    def add_user_message(self, content: str):
-        self.history.append(UserMessage(content=[TextChunk(text=content)]))
+    @classmethod
+    def create_user_message(
+        cls, msg: str, user_name: str = "User"
+    ) -> "ConversationMessage":
+        return ConversationMessage(
+            author=user_name, message=UserMessage(content=[TextChunk(text=msg)])
+        )
 
-    def add_tool_str_response(self, tool_call: ToolCall, tool_output: str):
-        self.history.append(
-            ToolMessage(
+    @classmethod
+    def create_tool_response_message(
+        cls, response: str, tool_call: ToolCall, tool_name: str | None = None
+    ) -> "ConversationMessage":
+        return ConversationMessage(
+            author=tool_name or tool_call.function.name,
+            message=ToolMessage(
                 name=tool_call.function.name,
                 tool_call_id=tool_call.id,
-                content=[TextChunk(text=tool_output)],
+                content=[TextChunk(text=response)],
             ),
         )
 
-    def get_messages(self) -> list[Message]:
-        messages: list[Message] = []
-        if self.system_message is not None:
-            messages.append(self.system_message)
-        messages += self.history
-        return messages
 
-    def add_message(self, message: Message):
+class Conversation(BaseModel):
+    history: list[ConversationMessage] = []
+    current_persona_name: str
+    user_name: str
+
+    @classmethod
+    def create(cls, persona: str, user: str = "User") -> "Conversation":
+        return Conversation(current_persona_name=persona, user_name=user)
+
+    def add_message(self, message: ConversationMessage):
         self.history.append(message)
+
+    def get_chat_completion_messages(
+        self, skip_system_messages: bool = False
+    ) -> list[Message]:
+        return [
+            m.message
+            for m in self.history
+            if m.message.role != "system" or not skip_system_messages
+        ]
