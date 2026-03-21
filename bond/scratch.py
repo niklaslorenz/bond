@@ -1,40 +1,18 @@
 import logging
 import sys
+from pathlib import Path
 
 from bond.behaviours.single_turn import SingleTurn
-from bond.providers.mistral import Mistral
-from bond.tools.tool import Toolbox
-from bond.tools.web_access import access_web
-from bond.tools.web_search import search_the_web
+from bond.bond_environment import DynamicBondEnvironment
+from bond.tools import tool
+from bond.tools.global_toolbox import build_global_toolsets
 
 logger = logging.getLogger("bond")
+tool.set_interactive(True)
 
-tools = [
-    (
-        {
-            "type": "function",
-            "function": {
-                "name": "search_the_web",
-                "description": "searches the web based on the provided query",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "query": {
-                            "type": "string",
-                            "description": "The query to search for",
-                        }
-                    },
-                },
-            },
-        },
-        search_the_web,
-    )
-]
 
-mistral = Mistral()
-toolbox = Toolbox([search_the_web, access_web])
-turn = SingleTurn(mistral.api, "mistral-small-latest", toolbox)
-
+env = DynamicBondEnvironment(Path("~/.config/bond"), build_global_toolsets())
+turn = SingleTurn(env, "executor")
 
 logging.basicConfig(
     stream=sys.stdout,
