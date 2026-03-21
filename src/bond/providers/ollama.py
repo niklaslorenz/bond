@@ -120,7 +120,7 @@ class Ollama:
     def parse_tool(self, tool: Tool) -> tuple[str, dict[str, Any]]:
         raw = get_json_schema(tool)
         if "return" in raw["function"]:
-            raw["function"].pop["return"]
+            raw["function"].pop("return")
         return raw["function"]["name"], raw
 
 
