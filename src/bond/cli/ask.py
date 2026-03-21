@@ -9,8 +9,8 @@ from bond.tools import global_toolbox, tool
 
 def main():
     parser = ArgumentParser("Ask Bond")
-    parser.add_argument("first")
-    parser.add_argument("second", nargs="?")
+    parser.add_argument("first", type=str)
+    parser.add_argument("second", type=str, nargs="?")
 
     args = parser.parse_args()
 
@@ -27,7 +27,9 @@ def main():
         },
     )
 
-    persona = config.ask.get_default_persona() if args.second is None else args.first
+    persona: str = (
+        config.ask.get_default_persona() if args.second is None else args.first
+    )
     if persona not in config.ask.personas:
         raise ValueError(
             f"not a valid persona: {persona}. Available personas: {'\n'.join(config.ask.personas)}"
@@ -35,8 +37,9 @@ def main():
     request = args.first if args.second is None else args.second
 
     tool.set_interactive(True)
+    allow_shell = "shell" in env.get_persona(persona).toolbox
 
-    turn = SingleTurn(env, persona)
+    turn = SingleTurn(env, persona, allow_shell_executions=allow_shell)
     result, conversation = turn.run(request)
     print(result)
 
