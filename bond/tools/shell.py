@@ -1,9 +1,24 @@
 import subprocess
-from shlex import shlex
+from contextlib import contextmanager
+from threading import local
 
 from bond.tools import tool
 
-from . import logger
+_shell_command_locals = local()
+
+
+@contextmanager
+def allow_shell_commands():
+    global _shell_command_locals
+    if not hasattr(_shell_command_locals, "allow_shell_commands"):
+        _shell_command_locals.allow_shell_commands = False
+    if _shell_command_locals.allow_shell_commands:
+        raise RuntimeError("Cannot nest shell context managers")
+    _shell_command_locals.allow_shell_commands = True
+    try:
+        yield
+    finally:
+        _shell_command_locals.allow_shell_commands = False
 
 
 def run_shell_commands(commands: str, explaination: str):
@@ -20,6 +35,14 @@ def run_shell_commands(commands: str, explaination: str):
     Returns:
         str: The last 10 lines of the output
     """
+    global _shell_command_locals
+    if (
+        not hasattr(_shell_command_locals, "allow_shell_commands")
+        or not _shell_command_locals.allow_shell_commands
+    ):
+        raise RuntimeError(
+            "Shell commands are disabled. Wrap the call with 'with allow_shell_commands():'"
+        )
     print(
         "\n\n\nBond wants to run the following commands:\n  "
         + "\n  ".join(commands.splitlines())
@@ -27,12 +50,15 @@ def run_shell_commands(commands: str, explaination: str):
     print("Bond: " + explaination)
     print("Do you want to run these commands?")
     if tool.is_interactive():
-        while True:
-            grant = input("[yes|no] > ").lower()
-            if grant == "no" or grant == "n":
-                return "error: the user has rejected your request."
-            if grant == "yes" or grant == "y":
-                break
+        try:
+            while True:
+                grant = input("[yes|no] > ").lower()
+                if grant == "no" or grant == "n":
+                    return "error: the user has rejected your request."
+                if grant == "yes" or grant == "y":
+                    break
+        except Exception as e:
+            return f"error: {e}"
     else:
         return "error: the user cannot accept your requests right now."
 

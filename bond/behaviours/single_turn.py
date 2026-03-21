@@ -4,9 +4,14 @@ from returns.result import Success
 
 from bond.bond_environment import BondEnvironment
 from bond.conversation import Conversation, ConversationMessage
-from bond.endpoints.chat_completions import (AssistantMessage, FunctionCall,
-                                             SystemMessage, TextChunk)
+from bond.endpoints.chat_completions import (
+    AssistantMessage,
+    FunctionCall,
+    SystemMessage,
+    TextChunk,
+)
 from bond.providers.provider import build_toolbox
+from bond.tools.shell import allow_shell_commands
 from bond.tools.tool import Toolbox
 
 logger = logging.getLogger(__name__)
@@ -27,11 +32,13 @@ class SingleTurn:
         environment: BondEnvironment,
         persona: str,
         user_name: str = "user",
+        allow_shell_executions: bool = False,
         **additional_chat_completion_arguments,
     ):
         self.environment = environment
         self.persona = environment.get_persona(persona)
         self.user_name = user_name
+        self.allow_shell_executions = allow_shell_executions
         self.model = self.persona.model
         self.provider = self.environment.get_provider(self.persona.provider)
         self.system_message = (
@@ -89,7 +96,11 @@ class SingleTurn:
 
             # Handle Tool calls
             for tool_call in message.tool_calls:
-                result = _do_tool_call(toolbox, tool_call.function)
+                if self.allow_shell_executions:
+                    with allow_shell_commands():
+                        result = _do_tool_call(toolbox, tool_call.function)
+                else:
+                    result = _do_tool_call(toolbox, tool_call.function)
                 conversation.add_message(
                     ConversationMessage.create_tool_response_message(result, tool_call)
                 )
