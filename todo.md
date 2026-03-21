@@ -24,7 +24,7 @@ with custom behaviors, tools, and workflows.
 
 ## 2. Tool Integration
 - [x] **Implement web search tool** (done in `web_search.py`).
-- [ ] **Integrate tools with memory system**:
+- [x] **Integrate tools with memory system**:
   - Append tool calls and responses to `ConversationMemory`.
   - Handle tool errors and retries.
 - [ ] **Add more tools** (e.g., code interpreter, file I/O).
@@ -37,7 +37,7 @@ with custom behaviors, tools, and workflows.
   - Support switching personas at runtime.
 
 ## 4. Agent Loop
-- [ ] **Implement simple agent loop** (single response):
+- [x] **Implement simple agent loop** (single response):
   - Use `ConversationMemory` and `MistralAPI` for direct responses.
 - [ ] **Implement multi-step agent loop**:
   - Use memory to chain thoughts, tool calls, and responses.
