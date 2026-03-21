@@ -1,7 +1,7 @@
 import json
 from typing import Any, Literal, Protocol
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_serializer, field_validator
 from requests import Response
 
 from bond.endpoints.model_options import ModelOptions
@@ -64,6 +64,10 @@ class FunctionCall(BaseModel):
         if isinstance(val, str):
             return json.loads(val)
         return val
+
+    @field_serializer("arguments", mode="plain", when_used="always")
+    def arguments_to_string(self, arguments: dict[str, Any]) -> str:
+        return json.dumps(arguments)
 
 
 class ToolCall(BaseModel):
