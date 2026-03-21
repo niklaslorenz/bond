@@ -5,14 +5,14 @@ from typing import Protocol
 from bond.persona import Persona
 from bond.providers.provider import (Provider, ProviderConfig,
                                      construct_provider, load_config_from)
-from bond.tools.tool import Tool
+from bond.tools.tool import Tool, Toolset
 
 
 class BondEnvironment(Protocol):
     def list_toolsets(self) -> list[str]: ...
     def list_personas(self) -> list[str]: ...
     def list_providers(self) -> list[str]: ...
-    def get_toolset(self, toolset_name: str) -> list[Tool]: ...
+    def get_toolset(self, toolset_name: str) -> Toolset: ...
     def get_persona(self, persona_name: str) -> Persona: ...
     def get_provider(self, provider_name: str) -> Provider: ...
 
@@ -22,7 +22,7 @@ class StaticBondEnvironment:
         self,
         providers: dict[str, Provider],
         personas: dict[str, Persona],
-        tools: dict[str, Tool | list[Tool]],
+        tools: dict[str, Toolset],
     ):
         self.providers = providers
         self.personas = personas
@@ -38,8 +38,7 @@ class StaticBondEnvironment:
         return list(self.providers.keys())
 
     def get_toolset(self, toolset_name: str) -> list[Tool]:
-        toolset = self.tools[toolset_name]
-        return toolset if isinstance(toolset, list) else [toolset]
+        return self.tools[toolset_name]
 
     def get_persona(self, persona_name: str) -> Persona:
         return self.personas[persona_name]
@@ -50,14 +49,14 @@ class StaticBondEnvironment:
 
 class DynamicBondEnvironment:
     base_path: Path
-    tools: dict[str, Tool | list[Tool]]
+    tools: dict[str, Toolset]
     provider_names: list[str] | None = None
     provider_configs: dict[str, ProviderConfig] = {}
     providers: dict[str, Provider] = {}
     persona_names: list[str] | None = None
     personas: dict[str, Persona] = {}
 
-    def __init__(self, environment_path: Path, tools: dict[str, Tool | list[Tool]]):
+    def __init__(self, environment_path: Path, tools: dict[str, Toolset]):
         self.base_path = environment_path.expanduser().absolute()
         self.tools = tools
 
@@ -79,8 +78,7 @@ class DynamicBondEnvironment:
         self.persona_names = None
 
     def get_toolset(self, toolset_name: str) -> list[Tool]:
-        toolset = self.tools[toolset_name]
-        return toolset if isinstance(toolset, list) else [toolset]
+        return self.tools[toolset_name]
 
     def get_persona(self, persona_name: str) -> Persona:
         persona = self.personas.get(persona_name)

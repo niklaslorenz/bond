@@ -43,23 +43,17 @@ def run_shell_commands(commands: str, explaination: str):
         raise RuntimeError(
             "Shell commands are disabled. Wrap the call with 'with allow_shell_commands():'"
         )
-    print(
+    env = tool.get_tool_environment()
+    if not env.is_interactive():
+        return "error: the tool is not running in interactive mode, so the user cannot grant you access to the shell tool right now."
+    prompt = (
         "\n\n\nBond wants to run the following commands:\n  "
         + "\n  ".join(commands.splitlines())
+        + "\nBond: "
+        + explaination
+        + "\nDo you want to run these commands?"
     )
-    print("Bond: " + explaination)
-    print("Do you want to run these commands?")
-    if tool.is_interactive():
-        try:
-            while True:
-                grant = input("[yes|no] > ").lower()
-                if grant == "no" or grant == "n":
-                    return "error: the user has rejected your request."
-                if grant == "yes" or grant == "y":
-                    break
-        except Exception as e:
-            return f"error: {e}"
-    else:
+    if not env.ask_confirmation(prompt):
         return "error: the user cannot accept your requests right now."
 
     result = subprocess.run(commands, text=True, shell=True, capture_output=True)

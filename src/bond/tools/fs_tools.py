@@ -4,23 +4,19 @@ from pathlib import Path
 from bond.tools import tool
 
 
-def _check_access(cwd: Path, path: Path):
+def _check_access(env: tool.ToolEnvironment, cwd: Path, path: Path):
     if path.is_relative_to(cwd):
         return True, ""
-    if not tool.is_interactive():
-        return False, f"permission denied, cannot access files outside of '{cwd}'"
-    print(
-        f"Bond wants to access the contents of {path} which lies outside of the current working directory. Do you want to grant access?"
-    )
-    while True:
-        access = input("[yes|no] > ")
-        if access == "yes" or access == "y":
-            return True, ""
-        if access == "no" or access == "n":
-            return (
-                False,
-                f"the user has denied access to that path which lies outside of the current directory '{cwd}'",
-            )
+    if env.is_interactive() is None:
+        return (
+            False,
+            f"Permission denied, this tool is not run in interactive mode. Cannot access files outside of '{cwd}'",
+        )
+    if not env.ask_confirmation(
+        f"Bond wants to access the contents of {path}, which lies outside of the current working directory.\nDo you want to grant access?"
+    ):
+        return False, "Permission denied, the user has declined your request."
+    return True, ""
 
 
 def create_file(file_path: str, content: str) -> str:
@@ -36,9 +32,10 @@ def create_file(file_path: str, content: str) -> str:
     Returns:
         None
     """
+    env = tool.get_tool_environment()
     current_directory = Path(os.getcwd()).absolute()
     path = current_directory / Path(file_path)
-    has_access, why_not = _check_access(current_directory, path)
+    has_access, why_not = _check_access(env, current_directory, path)
     if not has_access:
         return why_not
     if path.exists():
@@ -61,9 +58,10 @@ def read_file(file_path: str, lines: int = 0) -> str:
     Returns:
         str: The contents of the file
     """
+    env = tool.get_tool_environment()
     current_directory = Path(os.getcwd()).absolute()
     path = current_directory / Path(file_path)
-    has_access, why_not = _check_access(current_directory, path)
+    has_access, why_not = _check_access(env, current_directory, path)
     if not has_access:
         return why_not
     if not path.is_file():
@@ -86,9 +84,10 @@ def list_directory(dir_path: str) -> str:
     Returns:
         str: The contents of the directory
     """
+    env = tool.get_tool_environment()
     current_directory = Path(os.getcwd()).absolute()
     path = current_directory / Path(dir_path)
-    has_access, why_not = _check_access(current_directory, path)
+    has_access, why_not = _check_access(env, current_directory, path)
     if not has_access:
         return why_not
     if not path.is_dir():

@@ -1,5 +1,8 @@
 import json
-from typing import Any, Callable
+from contextlib import contextmanager
+from dataclasses import dataclass
+from threading import local
+from typing import Any, Callable, TextIO
 
 from returns.result import Failure, Result, Success
 
@@ -7,17 +10,58 @@ from . import logger
 
 Tool = Callable[..., str | list[str] | dict[str, Any] | list[dict[str, Any]]]
 
-_interactive = False
+_tool_locals = local()
 
 
-def is_interactive():
-    global _interactive
-    return _interactive
+@dataclass
+class BidirectionalTextIO:
+    text_in: TextIO
+    text_out: TextIO
 
 
-def set_interactive(interactive: bool):
-    global _interactive
-    _interactive = interactive
+@dataclass
+class ToolEnvironment:
+    tool_out: TextIO | None = None
+    tool_in: TextIO | None = None
+    interaction_io: BidirectionalTextIO | None = None
+
+    @contextmanager
+    def activate(self):
+        global _tool_locals
+        if not hasattr(_tool_locals, "env"):
+            _tool_locals.env = None
+        old_env = _tool_locals.env
+        _tool_locals.env = self
+        try:
+            yield
+        finally:
+            _tool_locals.env = old_env
+
+    def ask_confirmation(self, prompt: str) -> bool:
+        if self.interaction_io is None:
+            return False
+        self.interaction_io.text_out.write(prompt + "[yes|no] > ")
+        try:
+            while True:
+                access = self.interaction_io.text_in.readline()
+                if access == "yes" or access == "y":
+                    return True
+                if access == "no" or access == "n":
+                    return False
+                self.interaction_io.text_out.write("\nInvalid input\n[yes|no] > ")
+        except Exception as e:
+            logger.error(e)
+            return False
+
+    def is_interactive(self) -> bool:
+        return self.interaction_io is not None
+
+
+def get_tool_environment() -> ToolEnvironment:
+    global _tool_locals
+    if not hasattr(_tool_locals, "env") or _tool_locals.env is None:
+        raise RuntimeError("No tool environment")
+    return _tool_locals.env
 
 
 class Toolbox:
@@ -41,3 +85,6 @@ class Toolbox:
 
     def get_tool_descriptions(self):
         return self.tool_descriptions
+
+
+Toolset = list[Tool]
