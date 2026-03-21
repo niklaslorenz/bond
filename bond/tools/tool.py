@@ -7,6 +7,18 @@ from . import logger
 
 Tool = Callable[..., str | list[str] | dict[str, Any] | list[dict[str, Any]]]
 
+_interactive = False
+
+
+def is_interactive():
+    global _interactive
+    return _interactive
+
+
+def set_interactive(interactive: bool):
+    global _interactive
+    _interactive = interactive
+
 
 class Toolbox:
 

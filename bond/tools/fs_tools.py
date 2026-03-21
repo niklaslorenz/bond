@@ -1,13 +1,13 @@
 import os
 from pathlib import Path
 
-_interactive = False
+from bond.tools import tool
 
 
 def _check_access(cwd: Path, path: Path):
     if path.is_relative_to(cwd):
         return True, ""
-    if not _interactive:
+    if not tool.is_interactive():
         return False, f"permission denied, cannot access files outside of '{cwd}'"
     print(
         f"Bond wants to access the contents of {path} which lies outside of the current working directory. Do you want to grant access?"
@@ -21,11 +21,6 @@ def _check_access(cwd: Path, path: Path):
                 False,
                 f"the user has denied access to that path which lies outside of the current directory '{cwd}'",
             )
-
-
-def set_interactive(interactive: bool):
-    global _interactive
-    _interactive = interactive
 
 
 def create_file(file_path: str, content: str) -> str:
