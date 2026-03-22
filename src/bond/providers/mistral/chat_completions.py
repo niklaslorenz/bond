@@ -12,17 +12,13 @@ from bond.endpoints.chat_completions import (AssistantMessage,
                                              Message, ReferenceChunk,
                                              TextChunk, ThinkChunk, Tool,
                                              ToolCall, UsageInfo)
-from bond.endpoints.model_options import ModelOptions
-from bond.providers.mistral.mistral import MistralConfig
+from bond.providers.mistral.config import (MistralChatCompletionOptions,
+                                           MistralConfig)
 from bond.util import http_retry_loop, resolve_api_key
 
 
 class _MistralCompletionEvent(BaseModel):
     data: CompletionChunk
-
-
-class MistralChatCompletionOptions(ModelOptions):
-    temperature: float = 0.7
 
 
 def _build_response(chunks: list[CompletionChunk]) -> CompletionResponse:

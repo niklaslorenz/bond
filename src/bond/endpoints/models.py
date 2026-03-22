@@ -2,9 +2,6 @@ from datetime import datetime
 from typing import Literal, Protocol
 
 from pydantic import BaseModel
-from requests import Response
-
-from bond.util import http_retry_loop
 
 
 class ModelCapabilities(BaseModel):
@@ -37,24 +34,5 @@ class BaseModelCard(BaseModel):
 
 
 class ModelsProvider(Protocol):
-    def retrieve_model(self, id: str) -> Response: ...
-    def list_models(self) -> Response: ...
-
-
-class ModelsWrapper:
-    provider: ModelsProvider
-
-    def __init__(self, provider: ModelsProvider):
-        self.provider = provider
-
-    def retrieve_model(self, id: str, max_retries: int = 3) -> BaseModelCard:
-        response = http_retry_loop(
-            lambda: self.provider.retrieve_model(id), max_retries
-        )
-        return BaseModelCard.model_validate(response.json())
-
-    def list_models(self, max_retries: int = 3) -> list[BaseModelCard]:
-        response = http_retry_loop(lambda: self.provider.list_models(), max_retries)
-        response_json = response.json()
-        assert response_json.get("object") == "list"
-        return [BaseModelCard.model_validate(x) for x in response_json["data"]]
+    def retrieve_model(self, id: str, max_retries: int = 3) -> BaseModelCard: ...
+    def list_models(self, max_retries: int = 3) -> list[BaseModelCard]: ...

@@ -1,28 +1,22 @@
-from typing import Literal
+import os
 
-from pydantic import BaseModel
-
-from bond.providers.mistral.chat_completions import (
-    MistralChatCompletionOptions, MistralChatCompletions)
-
-
-class MistralConfig(BaseModel):
-    type: Literal["mistral"] = "mistral"
-    api_key: str
-    models: list[str] | None = None
-    chat_completion_options: MistralChatCompletionOptions | None = None
-    model_specific_chat_completion_options: (
-        dict[str, MistralChatCompletionOptions] | None
-    ) = None
-
-    def construct(self) -> "Mistral":
-        return Mistral(self)
+from bond.providers.mistral.chat_completions import MistralChatCompletions
+from bond.providers.mistral.config import MistralConfig
+from bond.providers.mistral.models import MistralModels
 
 
 class Mistral:
     def __init__(self, config: MistralConfig):
         self.config = config
         self._chat_completions = MistralChatCompletions(self.config)
+        self._models = MistralModels(self.config)
 
     def chat_completions(self) -> MistralChatCompletions:
         return self._chat_completions
+
+    def models(self) -> MistralModels:
+        return self._models
+
+    @classmethod
+    def default(cls) -> "Mistral":
+        return Mistral(config=MistralConfig(api_key=os.getenv("MISTRAL_API_KEY") or ""))
