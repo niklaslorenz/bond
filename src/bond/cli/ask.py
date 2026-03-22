@@ -17,6 +17,8 @@ def main():
     parser.add_argument("second", type=str, nargs="?")
     parser.add_argument("--show-thoughts", action="store_true")
     parser.add_argument("--non-interactive", action="store_true")
+    parser.add_argument("--input-file", "-i", type=str)
+    parser.add_argument("--output-file", "-o", type=str)
 
     args = parser.parse_args()
     request = args.first if args.second is None else args.second
@@ -33,7 +35,15 @@ def main():
             tool.BidirectionalTextIO(text_in=sys.stdin, text_out=sys.stdout)
             if not args.non_interactive
             else None
-        )
+        ),
+        tool_in=(
+            open(args.input_file, "r")
+            if args.input_file is not None
+            else sys.stdin if not sys.stdin.isatty() else None
+        ),
+        tool_out=(
+            open(args.output_file, "w") if args.output_file is not None else sys.stdout
+        ),
     )
     io_environment = IOEnvironment(
         text_in=sys.stdin,
@@ -51,6 +61,7 @@ def main():
         )
     allow_shell = "shell" in env.get_persona(persona).toolbox
 
+    # Run turn
     turn = SingleTurn(
         env,
         persona,
