@@ -6,7 +6,7 @@ import requests
 from pydantic import BaseModel
 from smolagents.tools import get_json_schema
 
-from bond.endpoints.chat_completions import ChatCompletionsWrapper, Message
+from bond.endpoints.chat_completions import Message
 from bond.endpoints.model_options import ModelOptions
 from bond.endpoints.models import ModelsWrapper
 from bond.tools.tool import Tool
@@ -26,18 +26,21 @@ class MistralAPI:
         model: str,
         messages: list[Message],
         tools: list[dict[str, Any]],
+        stream: bool,
         **additional_fields,
     ) -> requests.Response:
         payload = {
             "model": model,
             "messages": [msg.model_dump() for msg in messages],
             "tools": tools,
+            "stream": stream,
             **additional_fields,
         }
         response = requests.post(
             urljoin(self.base_url, "chat/completions"),
             headers=self.headers,
             json=payload,
+            stream=stream,
         )
         return response
 

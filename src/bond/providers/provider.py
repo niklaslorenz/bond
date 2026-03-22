@@ -3,10 +3,10 @@ from typing import Annotated, Any, Protocol, Union
 
 from pydantic import Field, TypeAdapter
 
-from bond.endpoints.chat_completions import ChatCompletionsWrapper
+from bond.endpoints.chat_completions import ChatCompletionsEndpoint
 from bond.endpoints.model_options import ModelOptions
 from bond.endpoints.models import ModelsWrapper
-from bond.providers.mistral import MistralConfig
+from bond.providers.mistral.mistral import Mistral, MistralConfig
 from bond.providers.ollama import OllamaConfig
 from bond.providers.openai import OpenAIConfig
 from bond.tools.tool import Tool, Toolbox
@@ -27,7 +27,7 @@ def load_config_from(path: Path) -> ProviderConfig:
 
 class Provider[ModelArgumentType: ModelOptions](Protocol):
     def models(self) -> ModelsWrapper: ...
-    def chat_completions(self) -> ChatCompletionsWrapper[ModelArgumentType]: ...
+    def chat_completions(self) -> ChatCompletionsEndpoint[ModelArgumentType]: ...
     def parse_tool(self, tool: Tool) -> tuple[str, dict[str, Any]]: ...
 
 
@@ -37,7 +37,9 @@ def build_toolbox(provider: Provider, tools: list[Tool]) -> Toolbox:
 
 
 def construct_provider(config: ProviderConfig) -> Provider:
-    if isinstance(config, MistralConfig) or isinstance(config, OllamaConfig):
+    if isinstance(config, MistralConfig):
+        return Mistral(config)
+    if isinstance(config, OllamaConfig):
         return config.construct()
     else:
         raise NotImplementedError()

@@ -1,11 +1,9 @@
 import json
-from typing import Any, Literal, Protocol
+from typing import Any, Callable, Literal, Protocol
 
 from pydantic import BaseModel, field_serializer, field_validator
-from requests import Response
 
 from bond.endpoints.model_options import ModelOptions
-from bond.util import http_retry_loop
 
 
 class FunctionParameter(BaseModel):
@@ -55,10 +53,18 @@ class ThinkChunk(BaseModel):
     thinking: list[TextChunk | ToolReferenceChunk | ReferenceChunk]
 
 
+AssistantMessageChunk = TextChunk | ReferenceChunk | ThinkChunk
+UserMessageChunk = TextChunk | ReferenceChunk | ThinkChunk
+SystemMessageChunk = ThinkChunk | TextChunk
+ToolMessageChunk = TextChunk | ReferenceChunk | ThinkChunk
+
+
 class FunctionCall(BaseModel):
     name: str
     arguments: dict[str, Any]
 
+    # The mistral api defines arguments to be a json string
+    # so the validator and serializer convert it to/from the dictionary
     @field_validator("arguments", mode="before")
     def arguments_string_to_dict(cls, val):
         if isinstance(val, str):
@@ -79,7 +85,7 @@ class ToolCall(BaseModel):
 class AssistantMessage(BaseModel):
     role: Literal["assistant"] = "assistant"
     tool_calls: list[ToolCall] | None = None
-    content: list[TextChunk | ReferenceChunk | ThinkChunk] | None = None
+    content: list[AssistantMessageChunk] | None = None
 
     @field_validator("content", mode="before")
     def content_string_to_list(cls, val):
@@ -90,7 +96,7 @@ class AssistantMessage(BaseModel):
 
 class UserMessage(BaseModel):
     role: Literal["user"] = "user"
-    content: list[TextChunk | ReferenceChunk | ThinkChunk] | None = None
+    content: list[UserMessageChunk] | None = None
 
     @classmethod
     def create(cls, msg: str) -> "UserMessage":
@@ -99,7 +105,7 @@ class UserMessage(BaseModel):
 
 class SystemMessage(BaseModel):
     role: Literal["system"] = "system"
-    content: list[ThinkChunk | TextChunk]
+    content: list[SystemMessageChunk]
 
     @field_validator("content", mode="before")
     def content_string_to_list(cls, val):
@@ -116,7 +122,7 @@ class ToolMessage(BaseModel):
     role: Literal["tool"] = "tool"
     name: str | None = None
     tool_call_id: str | None = None
-    content: list[TextChunk | ReferenceChunk | ThinkChunk] | None = None
+    content: list[ToolMessageChunk] | None = None
 
 
 Message = AssistantMessage | UserMessage | SystemMessage | ToolMessage
@@ -129,13 +135,16 @@ class UsageInfo(BaseModel):
     total_tokens: int
 
 
-class ChatCompletionChoice(BaseModel):
-    finish_reason: Literal["stop", "length", "model_length", "error", "tool_calls"]
+FinishReason = Literal["stop", "length", "model_length", "error", "tool_calls"]
+
+
+class CompletionChoice(BaseModel):
+    finish_reason: FinishReason
     message: AssistantMessage
 
 
-class ChatCompletionResponse(BaseModel):
-    choices: list[ChatCompletionChoice]
+class CompletionResponse(BaseModel):
+    choices: list[CompletionChoice]
     created: int
     id: str
     model: str
@@ -143,62 +152,52 @@ class ChatCompletionResponse(BaseModel):
     usage: UsageInfo
 
 
-class ChatCompletionsProvider(Protocol):
+class DeltaMessage(BaseModel):
+    content: AssistantMessageChunk | None = None
+    role: Literal["assistant"] | None = None
+    tool_calls: list[ToolCall] | None = None
+
+    @field_validator("content", mode="before")
+    def content_string_to_chunk(cls, val):
+        if isinstance(val, str):
+            return TextChunk(text=val)
+        return val
+
+
+class CompletionResponseStreamChoice(BaseModel):
+    finish_reason: FinishReason
+    delta: DeltaMessage
+    index: int
+
+
+class CompletionChunk(BaseModel):
+    choices: list[CompletionResponseStreamChoice]
+    created: int
+    id: str
+    model: str
+    object: Literal["chat.completion.chunk"] = "chat.completion.chunk"
+    usage: UsageInfo | None = None
+
+
+ChatCompletionStreamCallback = Callable[[CompletionChunk], None]
+
+
+class ChatCompletionsEndpoint[ChatCompletionArgType: ModelOptions](Protocol):
     def chat_completion(
         self,
         model: str,
         messages: list[Message],
-        tools: list[dict[str, Any]],
-        **additional_fields,
-    ) -> Response: ...
-
-
-class ChatCompletionsWrapper[ModelArgumentType: ModelOptions]:
-    provider: ChatCompletionsProvider
-
-    def __init__(
-        self,
-        provider: ChatCompletionsProvider,
-        general_arguments: ModelArgumentType | None = None,
-        model_specific_arguments: dict[str, ModelArgumentType] = {},
-        arguments_type: type[ModelArgumentType] | None = None,
-    ):
-        self.provider = provider
-        self.general_arguments = (
-            general_arguments.parse() if general_arguments is not None else {}
-        )
-        self.model_specific_arguments = {
-            name: model.parse() for name, model in model_specific_arguments.items()
-        }
-        self.arguments_type = arguments_type
-
-    def chat_completion(
-        self,
-        model: str,
-        messages: list[Message],
-        tools: list[dict[str, Any]] | None = None,
-        additional_arguments: ModelArgumentType | dict[str, Any] | None = None,
+        tools: list[Tool],
+        options: ChatCompletionArgType,
         max_retries: int = 3,
-    ) -> ChatCompletionResponse:
-        additional_fields = self.general_arguments.copy()
-        for k, v in (self.model_specific_arguments.get(model) or {}).items():
-            additional_fields[k] = v
-        if additional_arguments is not None:
-            if self.arguments_type is None:
-                raise ValueError(
-                    "Passing a raw value dictionary to chat_completion is not allowed, when the arguments type of the wrapper is not set."
-                )
-            args: ModelArgumentType = (
-                self.arguments_type.model_validate(additional_arguments)
-                if isinstance(additional_arguments, dict)
-                else additional_arguments
-            )
-            for k, v in args.parse().items():
-                additional_fields[k] = v
-        response = http_retry_loop(
-            lambda: self.provider.chat_completion(
-                model, messages, tools if tools is not None else [], **additional_fields
-            ),
-            max_retries,
-        )
-        return ChatCompletionResponse.model_validate(response.json())
+    ) -> CompletionResponse: ...
+    def stream_chat_completions(
+        self,
+        model: str,
+        messages: list[Message],
+        tools: list[Tool],
+        callback: ChatCompletionStreamCallback,
+        options: ChatCompletionArgType,
+        max_retries: int = 3,
+    ) -> CompletionResponse: ...
+    def supports_streaming(self) -> bool: ...
