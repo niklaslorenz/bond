@@ -33,7 +33,7 @@ class WebScraper:
                 )
                 crawl_delay = 1
             return rp.can_fetch(self.user_agent, url), crawl_delay
-        except Exception as e:
+        except Exception:
             logger.debug(f"Could not find robots.txt for '{url}'")
             return True, 1  # Assume allowed if robots.txt is unreachable
 
