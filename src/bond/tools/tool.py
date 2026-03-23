@@ -10,6 +10,31 @@ from returns.result import Failure, Result, Success
 from . import logger
 
 ToolFn = Callable[..., str | list[str] | dict[str, Any] | list[dict[str, Any]]]
+Toolset = list[ToolFn]
+
+
+class FunctionParameter(BaseModel):
+    type: Literal["string", "number", "integer", "boolean", "array", "object"]
+    description: str
+
+
+class FunctionParameters(BaseModel):
+    type: Literal["object"]
+    properties: dict[str, FunctionParameter]
+    required: list[str] | None = None
+
+
+class Function(BaseModel):
+    name: str
+    description: str = ""
+    parameters: FunctionParameters
+    strict: bool = False
+
+
+class Tool(BaseModel):
+    type: Literal["function"]
+    function: Function
+
 
 _tool_locals = local()
 
@@ -65,29 +90,6 @@ def get_tool_environment() -> ToolEnvironment:
     return _tool_locals.env
 
 
-class FunctionParameter(BaseModel):
-    type: Literal["string", "number", "integer", "boolean", "array", "object"]
-    description: str
-
-
-class FunctionParameters(BaseModel):
-    type: Literal["object"]
-    properties: dict[str, FunctionParameter]
-    required: list[str] | None = None
-
-
-class Function(BaseModel):
-    name: str
-    description: str = ""
-    parameters: FunctionParameters
-    strict: bool = False
-
-
-class Tool(BaseModel):
-    type: Literal["function"]
-    function: Function
-
-
 class Toolbox:
     tool_map: dict[str, ToolFn]
     tool_descriptions: list[Tool]
@@ -111,6 +113,3 @@ class Toolbox:
 
     def get_tool_descriptions(self) -> list[Tool]:
         return self.tool_descriptions
-
-
-Toolset = list[ToolFn]
