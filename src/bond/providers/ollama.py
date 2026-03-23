@@ -5,12 +5,11 @@ import requests
 from pydantic import BaseModel
 from smolagents.tools import get_json_schema
 
-from bond.endpoints.chat_completions import (ChatCompletionsWrapper, Message,
-                                             ReferenceChunk, TextChunk,
-                                             ThinkChunk, ToolReferenceChunk)
+from bond.endpoints.chat_completions import (Message, ReferenceChunk,
+                                             TextChunk, ThinkChunk,
+                                             ToolReferenceChunk)
 from bond.endpoints.model_options import ModelOptions
-from bond.endpoints.models import ModelsWrapper
-from bond.tools.tool import Tool
+from bond.tools.tool import ToolFn
 from bond.util import resolve_api_key
 
 
@@ -106,18 +105,18 @@ class OllamaChatCompletionOptions(ModelOptions):
 class Ollama:
     def __init__(self, base_url: str, api_key: str | None = None):
         self.api = OllamaAPI.create(base_url, api_key)
-        self._models = ModelsWrapper(self.api)
-        self._chat_completions = ChatCompletionsWrapper[OllamaChatCompletionOptions](
+        self._models = OllamaModels(self.api)
+        self._chat_completions = OllamaChatCompletions[OllamaChatCompletionOptions](
             self.api, arguments_type=OllamaChatCompletionOptions
         )
 
-    def models(self) -> ModelsWrapper:
+    def models(self) -> OllamaModels:
         return self._models
 
-    def chat_completions(self) -> ChatCompletionsWrapper:
+    def chat_completions(self) -> OllamaChatCompletions:
         return self._chat_completions
 
-    def parse_tool(self, tool: Tool) -> tuple[str, dict[str, Any]]:
+    def parse_tool(self, tool: ToolFn) -> tuple[str, dict[str, Any]]:
         raw = get_json_schema(tool)
         if "return" in raw["function"]:
             raw["function"].pop("return")

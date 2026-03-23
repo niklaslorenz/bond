@@ -6,29 +6,7 @@ from typing import Any, Callable, Literal, Protocol
 from pydantic import BaseModel, field_serializer, field_validator
 
 from bond.endpoints.model_options import ModelOptions
-
-
-class FunctionParameter(BaseModel):
-    type: Literal["string", "number", "integer", "boolean", "array", "object"]
-    description: str
-
-
-class FunctionParameters(BaseModel):
-    type: Literal["object"]
-    properties: dict[str, FunctionParameter]
-    required: list[str] | None = None
-
-
-class Function(BaseModel):
-    name: str
-    description: str = ""
-    parameters: FunctionParameters
-    strict: bool = False
-
-
-class Tool(BaseModel):
-    type: Literal["function"]
-    function: Function
+from bond.tools.tool import Tool
 
 
 class TextChunk(BaseModel):

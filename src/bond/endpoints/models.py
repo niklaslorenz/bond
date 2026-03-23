@@ -33,6 +33,6 @@ class BaseModelCard(BaseModel):
     type: Literal["base"]
 
 
-class ModelsProvider(Protocol):
+class ModelsEndpoint(Protocol):
     def retrieve_model(self, id: str, max_retries: int = 3) -> BaseModelCard: ...
     def list_models(self, max_retries: int = 3) -> list[BaseModelCard]: ...

@@ -5,7 +5,7 @@ from typing import Protocol
 from bond.persona import Persona
 from bond.providers.provider import (Provider, ProviderConfig,
                                      construct_provider, load_config_from)
-from bond.tools.tool import Tool, Toolset
+from bond.tools.tool import ToolFn, Toolset
 
 
 class BondEnvironment(Protocol):
@@ -37,7 +37,7 @@ class StaticBondEnvironment:
     def list_providers(self) -> list[str]:
         return list(self.providers.keys())
 
-    def get_toolset(self, toolset_name: str) -> list[Tool]:
+    def get_toolset(self, toolset_name: str) -> list[ToolFn]:
         return self.tools[toolset_name]
 
     def get_persona(self, persona_name: str) -> Persona:
@@ -77,7 +77,7 @@ class DynamicBondEnvironment:
         self.provider_names = None
         self.persona_names = None
 
-    def get_toolset(self, toolset_name: str) -> list[Tool]:
+    def get_toolset(self, toolset_name: str) -> list[ToolFn]:
         return self.tools[toolset_name]
 
     def get_persona(self, persona_name: str) -> Persona:

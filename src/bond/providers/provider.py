@@ -1,15 +1,15 @@
 from pathlib import Path
-from typing import Annotated, Any, Protocol, Union
+from typing import Annotated, Protocol, Union
 
 from pydantic import Field, TypeAdapter
 
-from bond.endpoints.chat_completions import ChatCompletionsEndpoint
+from bond.endpoints.chat_completions import ChatCompletionsEndpoint, Tool
 from bond.endpoints.model_options import ModelOptions
-from bond.endpoints.models import ModelsWrapper
+from bond.endpoints.models import ModelsEndpoint
 from bond.providers.mistral.mistral import Mistral, MistralConfig
 from bond.providers.ollama import OllamaConfig
 from bond.providers.openai import OpenAIConfig
-from bond.tools.tool import Tool, Toolbox
+from bond.tools.tool import Toolbox, ToolFn
 
 ProviderConfig = Annotated[
     Union[MistralConfig, OpenAIConfig, OllamaConfig], Field(discriminator="type")
@@ -26,12 +26,12 @@ def load_config_from(path: Path) -> ProviderConfig:
 
 
 class Provider[ModelArgumentType: ModelOptions](Protocol):
-    def models(self) -> ModelsWrapper: ...
+    def models(self) -> ModelsEndpoint: ...
     def chat_completions(self) -> ChatCompletionsEndpoint[ModelArgumentType]: ...
-    def parse_tool(self, tool: Tool) -> tuple[str, dict[str, Any]]: ...
+    def parse_tool(self, tool: ToolFn) -> tuple[str, Tool]: ...
 
 
-def build_toolbox(provider: Provider, tools: list[Tool]) -> Toolbox:
+def build_toolbox(provider: Provider, tools: list[ToolFn]) -> Toolbox:
     parsed_tools = [(provider.parse_tool(tool), tool) for tool in tools]
     return Toolbox({name: (tool, desc) for (name, desc), tool in parsed_tools})
 
