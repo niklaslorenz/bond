@@ -58,3 +58,27 @@ def resolve_api_key(api_key_raw: str) -> str:
             )
         return api_key
     return api_key_raw
+
+
+def parse_sse_stream(stream):
+    """
+    Parses an SSE stream (iterator of bytes or lines) into events.
+    Yields each event's data as a string.
+    """
+    event_buffer = []
+    for line in stream:
+        if not line.strip():
+            # Empty line: end of event
+            if event_buffer:
+                event_data = b"\n".join(event_buffer).decode("utf-8")
+                # Remove 'data:' prefix and strip
+                if event_data.startswith("data:"):
+                    yield event_data[5:].strip()
+                event_buffer = []
+        else:
+            event_buffer.append(line)
+    # Handle any remaining data after stream ends
+    if event_buffer:
+        event_data = b"\n".join(event_buffer).decode("utf-8")
+        if event_data.startswith("data:"):
+            yield event_data[5:].strip()
