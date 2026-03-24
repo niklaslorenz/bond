@@ -1,7 +1,13 @@
 from pydantic import BaseModel
 
-from bond.conversation.types import (Message, SystemMessage, TextChunk,
-                                     ToolCall, ToolMessage, UserMessage)
+from bond.conversation.types import (
+    Message,
+    SystemMessage,
+    TextChunk,
+    ToolCall,
+    ToolMessage,
+    UserMessage,
+)
 
 # TODO: Add a size attribute to the history objects and update them
 # whenever a prompt returns a usage report.
@@ -44,12 +50,6 @@ class ConversationMessage(BaseModel):
 
 class Conversation(BaseModel):
     history: list[ConversationMessage] = []
-    current_persona_name: str
-    user_name: str
-
-    @classmethod
-    def create(cls, persona: str, user: str = "User") -> "Conversation":
-        return Conversation(current_persona_name=persona, user_name=user)
 
     def add_message(self, message: ConversationMessage):
         self.history.append(message)

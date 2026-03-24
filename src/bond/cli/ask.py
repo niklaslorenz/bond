@@ -73,7 +73,7 @@ def main():
     )
 
     # Setup conversation
-    conversation = Conversation.create(persona.name, user_name)
+    conversation = Conversation()
     if persona.system_prompt is not None:
         conversation.add_message(
             ConversationMessage.create_system_message(persona.system_prompt)
