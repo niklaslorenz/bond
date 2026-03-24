@@ -131,7 +131,6 @@ def build_response(chunks: list[CompletionChunk]) -> CompletionResponse:
             return acc
 
         # No need to merge ToolReferenceChunks
-
         acc.append(content_chunk)
         return acc
 
@@ -144,7 +143,8 @@ def build_response(chunks: list[CompletionChunk]) -> CompletionResponse:
         CompletionChoice(
             finish_reason=finish_reasons[idx],
             message=AssistantMessage(
-                tool_calls=tool_calls[idx], content=content_chunks
+                tool_calls=tool_calls[idx] if len(tool_calls[idx]) > 0 else None,
+                content=content_chunks,
             ),
         )
         for idx, content_chunks in final_content
