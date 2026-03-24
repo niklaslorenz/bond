@@ -5,9 +5,8 @@ import requests
 from pydantic import BaseModel
 from smolagents.tools import get_json_schema
 
-from bond.endpoints.chat_completions import (Message, ReferenceChunk,
-                                             TextChunk, ThinkChunk,
-                                             ToolReferenceChunk)
+from bond.conversation.types import (Message, ReferenceChunk, TextChunk,
+                                     ThinkChunk, ToolReferenceChunk)
 from bond.endpoints.model_options import ModelOptions
 from bond.tools.tool import ToolFn
 from bond.util import resolve_api_key
@@ -91,17 +90,6 @@ class OllamaAPI:
         return OllamaAPI(api_key=api_key or "", base_url=base_url)
 
 
-class OllamaChatCompletionOptions(ModelOptions):
-    frequency_penalty: float | None = None
-    presence_penalty: float | None = None
-    seed: int | None = None
-    stop: str | list[str] | None = None
-    stream: bool | None = None
-    temperature: float | None = None
-    top_p: float | None = None
-    reasoning_effort: Literal["high", "medium", "low", "none"]
-
-
 class Ollama:
     def __init__(self, base_url: str, api_key: str | None = None):
         self.api = OllamaAPI.create(base_url, api_key)
@@ -121,20 +109,3 @@ class Ollama:
         if "return" in raw["function"]:
             raw["function"].pop("return")
         return raw["function"]["name"], raw
-
-
-class OllamaConfig(BaseModel):
-    type: Literal["ollama"]
-    base_url: str
-    api_key: str | None = None
-    models: list[str] | None = None
-    chat_completion_options: OllamaChatCompletionOptions | None = None
-    model_specific_chat_completion_options: (
-        dict[str, OllamaChatCompletionOptions] | None
-    ) = None
-
-    def construct(self) -> Ollama:
-        return Ollama(
-            self.base_url,
-            resolve_api_key(self.api_key) if self.api_key is not None else None,
-        )

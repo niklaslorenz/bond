@@ -7,7 +7,7 @@ from bond.endpoints.chat_completions import ChatCompletionsEndpoint, Tool
 from bond.endpoints.model_options import ModelOptions
 from bond.endpoints.models import ModelsEndpoint
 from bond.providers.mistral.mistral import Mistral, MistralConfig
-from bond.providers.ollama import OllamaConfig
+from bond.providers.ollama.config import OllamaConfig
 from bond.providers.openai import OpenAIConfig
 from bond.tools.tool import Toolbox, ToolFn
 
@@ -40,6 +40,6 @@ def construct_provider(config: ProviderConfig) -> Provider:
     if isinstance(config, MistralConfig):
         return Mistral(config)
     if isinstance(config, OllamaConfig):
-        return config.construct()
+        raise NotImplementedError()
     else:
         raise NotImplementedError()
