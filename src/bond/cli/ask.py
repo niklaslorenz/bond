@@ -5,11 +5,15 @@ from pathlib import Path
 from bond.behaviours.single_turn import SingleTurn
 from bond.bond_environment import DynamicBondEnvironment
 from bond.config import BondConfig
+from bond.conversation.conversation import Conversation, ConversationMessage
 from bond.io.io_env import IOEnvironment
+from bond.io.stream import WritethroughWrapper
+from bond.providers.provider import build_toolbox
 from bond.tools import global_toolbox, tool
 
 
 def main():
+    user_name = "user"
 
     # Parse args
     parser = ArgumentParser("Ask Bond")
@@ -19,9 +23,11 @@ def main():
     parser.add_argument("--non-interactive", action="store_true")
     parser.add_argument("--input-file", "-i", type=str)
     parser.add_argument("--output-file", "-o", type=str)
+    parser.add_argument("--no-stream", action="store_true")
 
     args = parser.parse_args()
-    request = args.first if args.second is None else args.second
+    request: str = args.first if args.second is None else args.second
+    stream: bool = not args.no_stream
 
     # Setup environment
     env_path = Path("~/.config/bond").expanduser().absolute()
@@ -47,29 +53,48 @@ def main():
     )
     io_environment = IOEnvironment(
         text_in=sys.stdin,
-        text_out=sys.stdout,
+        text_out=WritethroughWrapper(sys.stdout),
         thought_out=sys.stdout if args.show_thoughts else None,
     )
 
-    # Get persona
-    persona: str = (
+    # Get environment entities
+    persona_name: str = (
         config.ask.get_default_persona() if args.second is None else args.first
     )
-    if persona not in config.ask.personas:
+    if persona_name not in config.ask.personas:
         raise ValueError(
-            f"not a valid persona: {persona}. Available personas: {'\n'.join(config.ask.personas)}"
+            f"not a valid persona: {persona_name}. Available personas: {'\n'.join(config.ask.personas)}"
         )
-    allow_shell = "shell" in env.get_persona(persona).toolbox
+    persona = env.get_persona(persona_name)
+    provider = env.get_provider(persona.provider)
+    toolbox: tool.Toolbox = build_toolbox(
+        provider,
+        [tool for toolset in persona.toolbox for tool in env.get_toolset(toolset)],
+    )
+
+    # Setup conversation
+    conversation = Conversation.create(persona.name, user_name)
+    if persona.system_prompt is not None:
+        conversation.add_message(
+            ConversationMessage.create_system_message(persona.system_prompt)
+        )
+    conversation.add_message(
+        ConversationMessage.create_user_message(request, user_name)
+    )
 
     # Run turn
+    allow_shell = "shell" in persona.toolbox
     turn = SingleTurn(
-        env,
-        persona,
-        tool_environment=tool_environment,
+        provider,
+        persona.model,
+        toolbox,
         io_environment=io_environment,
+        tool_environment=tool_environment,
+        model_display_name=persona_name,
+        stream=stream,
         allow_shell_executions=allow_shell,
     )
-    conversation = turn.run(request)
+    turn.run(conversation)
     # TODO: save conversation as last-ask so the user can followup
 
 
