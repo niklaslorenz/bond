@@ -2,13 +2,17 @@ import logging
 
 from returns.result import Success
 
-from bond.bond_environment import BondEnvironment
-from bond.conversation import Conversation, ConversationMessage
-from bond.endpoints.chat_completions import (AssistantMessage, FunctionCall,
-                                             SystemMessage, TextChunk,
-                                             ThinkChunk)
+from bond.conversation.conversation import Conversation, ConversationMessage
+from bond.conversation.types import (
+    AssistantMessage,
+    AssistantMessageChunk,
+    FunctionCall,
+    TextChunk,
+    ThinkChunk,
+)
+from bond.endpoints.chat_completions import CompletionChunk, CompletionResponse
 from bond.io.io_env import IOEnvironment
-from bond.providers.provider import build_toolbox
+from bond.providers.provider import Provider
 from bond.tools.shell import allow_shell_commands
 from bond.tools.tool import Toolbox, ToolEnvironment
 
@@ -24,81 +28,97 @@ def _do_tool_call(toolbox: Toolbox, function_call: FunctionCall) -> str:
         return f"An error occured before the tool execution: {result.failure()}"
 
 
+def _handle_chunk(environment, chunk: AssistantMessageChunk):
+    if isinstance(chunk, TextChunk):
+        environment.handle_text(chunk.text)
+    if isinstance(chunk, ThinkChunk):
+        for think_chunk in chunk.thinking:
+            if isinstance(think_chunk, TextChunk):
+                environment.handle_thought(think_chunk.text)
+
+
+def _handle_completion_chunk(environment: IOEnvironment, chunk: CompletionChunk):
+    if len(chunk.choices) == 0:
+        return
+    content = chunk.choices[0].delta.content
+    if content is not None:
+        _handle_chunk(environment, content)
+
+
+def _handle_response(environment: IOEnvironment, response: CompletionResponse):
+    if len(response.choices) == 0:
+        return
+    message = response.choices[0].message
+    if message.content is None:
+        return
+    for chunk in message.content:
+        _handle_chunk(environment, chunk)
+
+
 class SingleTurn:
     def __init__(
         self,
-        environment: BondEnvironment,
-        persona: str,
-        user_name: str = "user",
+        provider: Provider,
+        model: str,
+        toolbox: Toolbox | None = None,
         io_environment: IOEnvironment | None = None,
         tool_environment: ToolEnvironment | None = None,
+        model_display_name: str | None = None,
+        stream: bool = False,
         allow_shell_executions: bool = False,
         **additional_chat_completion_arguments,
     ):
-        self.environment = environment
-        self.persona = environment.get_persona(persona)
-        self.user_name = user_name
+        self.provider = provider
+        self.model = model
+        self.toolbox = toolbox if toolbox is not None else Toolbox({})
+        self.tool_descriptions = self.toolbox.get_tool_descriptions()
         self.io_environment = io_environment or IOEnvironment(None, None, None)
         self.tool_environment = tool_environment or ToolEnvironment()
+        self.model_display_name = model_display_name
+        self.stream = stream
         self.allow_shell_executions = allow_shell_executions
         self.additional_model_arguments = additional_chat_completion_arguments
 
-        self.model = self.persona.model
-        self.provider = self.environment.get_provider(self.persona.provider)
-        self.system_message = (
-            SystemMessage.create(self.persona.system_prompt)
-            if self.persona.system_prompt is not None
-            else None
-        )
-        self.toolbox = build_toolbox(
-            self.provider,
-            [
-                tool
-                for toolset in self.persona.toolbox
-                for tool in self.environment.get_toolset(toolset)
-            ],
-        )
-
-    def run(self, user_message: str) -> Conversation:
-        conversation = Conversation.create(self.persona.name, self.user_name)
-        if self.system_message is not None:
-            conversation.add_message(
-                ConversationMessage(author="System", message=self.system_message)
+        if stream and not self.provider.chat_completions().supports_streaming():
+            raise RuntimeError(
+                "The provider does not support streaming for chat completions"
             )
-        conversation.add_message(
-            ConversationMessage.create_user_message(user_message, self.user_name)
-        )
 
+    def run(self, conversation: Conversation) -> Conversation:
         while True:
-            response = self.provider.chat_completions().chat_completion(
-                self.model,
-                conversation.get_chat_completion_messages(),
-                tools=self.toolbox.get_tool_descriptions(),
-                **self.additional_model_arguments,
-            )
+            if self.stream:
+                response = self.provider.chat_completions().stream_chat_completion(
+                    self.model,
+                    conversation.get_chat_completion_messages(),
+                    tools=self.tool_descriptions,
+                    callback=lambda chunk: _handle_completion_chunk(
+                        self.io_environment, chunk
+                    ),
+                    **self.additional_model_arguments,
+                )
+            else:
+                response = self.provider.chat_completions().chat_completion(
+                    self.model,
+                    conversation.get_chat_completion_messages(),
+                    tools=self.tool_descriptions,
+                    **self.additional_model_arguments,
+                )
+
+            if not self.stream:
+                _handle_response(self.io_environment, response)
+            else:
+                self.io_environment.handle_text("\n")
+                pass
+
             message = response.choices[0].message
             conversation.add_message(
                 ConversationMessage(
-                    author=self.persona.name,
+                    author=self.model_display_name or self.model,
                     message=AssistantMessage(
                         content=message.content, tool_calls=message.tool_calls
                     ),
                 )
             )
-
-            # Add text content to the output
-            if message.content is not None:
-                for chunk in message.content:
-                    if isinstance(chunk, TextChunk):
-                        if self.io_environment.text_out is not None:
-                            self.io_environment.text_out.write(chunk.text + "\n")
-                    if isinstance(chunk, ThinkChunk):
-                        if self.io_environment.thought_out is not None:
-                            for think_chunk in chunk.thinking:
-                                if isinstance(think_chunk, TextChunk):
-                                    self.io_environment.thought_out.write(
-                                        think_chunk.text + "\n"
-                                    )
 
             # Return when no tools are called
             if message.tool_calls is None:

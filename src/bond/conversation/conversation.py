@@ -1,8 +1,7 @@
 from pydantic import BaseModel
 
-from bond.endpoints.chat_completions import (Message, SystemMessage, TextChunk,
-                                             ToolCall, ToolMessage,
-                                             UserMessage)
+from bond.conversation.types import (Message, SystemMessage, TextChunk,
+                                     ToolCall, ToolMessage, UserMessage)
 
 # TODO: Add a size attribute to the history objects and update them
 # whenever a prompt returns a usage report.
