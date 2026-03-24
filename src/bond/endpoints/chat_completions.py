@@ -4,9 +4,16 @@ from typing import Callable, Literal, Protocol
 
 from pydantic import BaseModel, field_validator
 
-from bond.conversation.types import (AssistantMessage, AssistantMessageChunk,
-                                     Message, ReferenceChunk, TextChunk,
-                                     ThinkChunk, ToolCall, UsageInfo)
+from bond.conversation.types import (
+    AssistantMessage,
+    AssistantMessageChunk,
+    Message,
+    ReferenceChunk,
+    TextChunk,
+    ThinkChunk,
+    ToolCall,
+    UsageInfo,
+)
 from bond.endpoints.model_options import ModelOptions
 from bond.tools.tool import Tool
 
@@ -28,14 +35,14 @@ class CompletionResponse(BaseModel):
 
 
 class DeltaMessage(BaseModel):
-    content: AssistantMessageChunk | None = None
+    content: list[AssistantMessageChunk] | None = None
     role: Literal["assistant"] | None = None
     tool_calls: list[ToolCall] | None = None
 
     @field_validator("content", mode="before")
     def content_string_to_chunk(cls, val):
         if isinstance(val, str):
-            return TextChunk(text=val)
+            return [TextChunk(text=val)] if val != "" else None
         return val
 
 
@@ -102,7 +109,8 @@ def build_response(chunks: list[CompletionChunk]) -> CompletionResponse:
             if choice.delta.tool_calls is not None:
                 tool_calls[idx] += choice.delta.tool_calls
             if choice.delta.content is not None:
-                content[idx].append(choice.delta.content)
+                for content_chunk in choice.delta.content:
+                    content[idx].append(content_chunk)
 
     # Fold content
     def absorb_chunk[T](acc: list[T], content_chunk: T):

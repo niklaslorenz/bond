@@ -7,7 +7,7 @@ from bond.bond_environment import DynamicBondEnvironment
 from bond.config import BondConfig
 from bond.conversation.conversation import Conversation, ConversationMessage
 from bond.io.io_env import IOEnvironment
-from bond.io.stream import WritethroughWrapper
+from bond.io.stream import ThoughtWrapper, WritethroughWrapper
 from bond.providers.provider import build_toolbox
 from bond.tools import global_toolbox, tool
 
@@ -27,7 +27,8 @@ def main():
 
     args = parser.parse_args()
     request: str = args.first if args.second is None else args.second
-    stream: bool = not args.no_stream
+    show_thoughts: bool = args.show_thoughts
+    stream: bool = not args.no_stream if not show_thoughts else False
 
     # Setup environment
     env_path = Path("~/.config/bond").expanduser().absolute()
@@ -54,7 +55,9 @@ def main():
     io_environment = IOEnvironment(
         text_in=sys.stdin,
         text_out=WritethroughWrapper(sys.stdout),
-        thought_out=sys.stdout if args.show_thoughts else None,
+        thought_out=(
+            WritethroughWrapper(ThoughtWrapper(sys.stdout)) if show_thoughts else None
+        ),
     )
 
     # Get environment entities
@@ -95,7 +98,10 @@ def main():
         allow_shell_executions=allow_shell,
     )
     turn.run(conversation)
-    # TODO: save conversation as last-ask so the user can followup
+
+    save_path = env_path / "last-ask.json"
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+    save_path.write_text(conversation.model_dump_json(), encoding="utf-8")
 
 
 if __name__ == "__main__":

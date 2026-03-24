@@ -28,31 +28,49 @@ def _do_tool_call(toolbox: Toolbox, function_call: FunctionCall) -> str:
         return f"An error occured before the tool execution: {result.failure()}"
 
 
-def _handle_chunk(environment, chunk: AssistantMessageChunk):
-    if isinstance(chunk, TextChunk):
-        environment.handle_text(chunk.text)
-    if isinstance(chunk, ThinkChunk):
-        for think_chunk in chunk.thinking:
-            if isinstance(think_chunk, TextChunk):
-                environment.handle_thought(think_chunk.text)
+class _OutputHandler:
+    _has_unfinished_text: bool = False
+    _has_unfinished_thoughts: bool = False
 
+    def __init__(self, environment: IOEnvironment):
+        self._environment = environment
 
-def _handle_completion_chunk(environment: IOEnvironment, chunk: CompletionChunk):
-    if len(chunk.choices) == 0:
-        return
-    content = chunk.choices[0].delta.content
-    if content is not None:
-        _handle_chunk(environment, content)
+    def start(self):
+        self._has_unfinished_text = False
+        self._has_unfinished_thoughts = False
 
+    def finalize(self):
+        if self._has_unfinished_text:
+            self._environment.handle_text("\n")
+        if self._has_unfinished_thoughts:
+            self._environment.handle_thought("\n")
 
-def _handle_response(environment: IOEnvironment, response: CompletionResponse):
-    if len(response.choices) == 0:
-        return
-    message = response.choices[0].message
-    if message.content is None:
-        return
-    for chunk in message.content:
-        _handle_chunk(environment, chunk)
+    def _handle_message_chunk(self, chunk: AssistantMessageChunk):
+        if isinstance(chunk, TextChunk) and chunk.text != "":
+            self._environment.handle_text(chunk.text)
+            self._has_unfinished_text = True
+        if isinstance(chunk, ThinkChunk):
+            for think_chunk in chunk.thinking:
+                if isinstance(think_chunk, TextChunk) and think_chunk.text != "":
+                    self._environment.handle_thought(think_chunk.text)
+                    self._has_unfinished_thoughts = True
+
+    def handle_completion_chunk(self, chunk: CompletionChunk):
+        if len(chunk.choices) == 0:
+            return
+        content = chunk.choices[0].delta.content
+        if content is not None:
+            for content_chunk in content:
+                self._handle_message_chunk(content_chunk)
+
+    def handle_response(self, response: CompletionResponse):
+        if len(response.choices) == 0:
+            return
+        message = response.choices[0].message
+        if message.content is None:
+            return
+        for chunk in message.content:
+            self._handle_message_chunk(chunk)
 
 
 class SingleTurn:
@@ -85,14 +103,16 @@ class SingleTurn:
             )
 
     def run(self, conversation: Conversation) -> Conversation:
+        output_handler = _OutputHandler(self.io_environment)
         while True:
+            output_handler.start()
             if self.stream:
                 response = self.provider.chat_completions().stream_chat_completion(
                     self.model,
                     conversation.get_chat_completion_messages(),
                     tools=self.tool_descriptions,
-                    callback=lambda chunk: _handle_completion_chunk(
-                        self.io_environment, chunk
+                    callback=lambda chunk: output_handler.handle_completion_chunk(
+                        chunk
                     ),
                     **self.additional_model_arguments,
                 )
@@ -103,12 +123,8 @@ class SingleTurn:
                     tools=self.tool_descriptions,
                     **self.additional_model_arguments,
                 )
-
-            if not self.stream:
-                _handle_response(self.io_environment, response)
-            else:
-                self.io_environment.handle_text("\n")
-                pass
+                output_handler.handle_response(response)
+            output_handler.finalize()
 
             message = response.choices[0].message
             conversation.add_message(
