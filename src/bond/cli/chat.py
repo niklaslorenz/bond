@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 
@@ -24,7 +25,12 @@ def main():
         env_path, global_toolbox.get_toolsets(config.chat.tools)
     )
     tool_environment = ToolEnvironment(
-        interaction_io=user_io, tool_in=None, tool_out=None
+        interaction_io=user_io,
+        tool_in=None,
+        tool_out=None,
+        work_dir=Path(os.getcwd()),
+        shell_out=sys.stdout,
+        shell_in=sys.stdin,
     )
     aoe = AgentOutputEnvironment(WritethroughWrapper(sys.stdout), None)
     persona_name = get_default_persona(config.chat)

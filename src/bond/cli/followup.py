@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 
@@ -24,16 +25,22 @@ def main():
         env_path, global_toolbox.get_toolsets(config.chat.tools)
     )
     tool_environment = ToolEnvironment(
-        interaction_io=user_io, tool_in=None, tool_out=None
+        interaction_io=user_io,
+        tool_in=None,
+        tool_out=None,
+        shell_in=sys.stdin,
+        shell_out=sys.stdout,
+        work_dir=Path(os.getcwd()),
     )
     aoe = AgentOutputEnvironment(WritethroughWrapper(sys.stdout), None)
     persona_name = get_default_persona(config.chat)
 
-    last_conv_path = conv_path / "last-ask.json"
+    last_ask_path = conv_path / "last-ask.json"
+    last_conv_path = conv_path / "last-conv.json"
 
     conversation = (
-        Conversation.model_validate_json(last_conv_path.read_text())
-        if last_conv_path.is_file()
+        Conversation.model_validate_json(last_ask_path.read_text())
+        if last_ask_path.is_file()
         else Conversation()
     )
     if len(conversation.history) == 0:

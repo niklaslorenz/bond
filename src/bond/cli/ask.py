@@ -1,3 +1,4 @@
+import os
 import sys
 from argparse import ArgumentParser
 from pathlib import Path
@@ -54,6 +55,9 @@ def main():
         tool_out=(
             open(args.output_file, "w") if args.output_file is not None else sys.stdout
         ),
+        shell_in=sys.stdin,
+        shell_out=sys.stdout,
+        work_dir=lambda: Path(os.getcwd()),
     )
     aoe = AgentOutputEnvironment(
         text_out=WritethroughWrapper(sys.stdout),
