@@ -3,13 +3,8 @@ import logging
 from returns.result import Success
 
 from bond.conversation.conversation import Conversation, ConversationMessage
-from bond.conversation.types import (
-    AssistantMessage,
-    AssistantMessageChunk,
-    FunctionCall,
-    TextChunk,
-    ThinkChunk,
-)
+from bond.conversation.types import (AssistantMessage, AssistantMessageChunk,
+                                     FunctionCall, TextChunk, ThinkChunk)
 from bond.endpoints.chat_completions import CompletionChunk, CompletionResponse
 from bond.io.agent_output_environment import AgentOutputEnvironment
 from bond.providers.provider import Provider
@@ -126,6 +121,8 @@ class SingleTurn:
                 output_handler.handle_response(response)
             output_handler.finalize()
 
+            if len(response.choices) == 0:
+                raise RuntimeError(f"Received empty response: {response}")
             message = response.choices[0].message
             conversation.add_message(
                 ConversationMessage(

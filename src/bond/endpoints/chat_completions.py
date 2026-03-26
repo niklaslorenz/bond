@@ -4,16 +4,9 @@ from typing import Callable, Literal, Protocol
 
 from pydantic import BaseModel, field_validator
 
-from bond.conversation.types import (
-    AssistantMessage,
-    AssistantMessageChunk,
-    Message,
-    ReferenceChunk,
-    TextChunk,
-    ThinkChunk,
-    ToolCall,
-    UsageInfo,
-)
+from bond.conversation.types import (AssistantMessage, AssistantMessageChunk,
+                                     Message, ReferenceChunk, TextChunk,
+                                     ThinkChunk, ToolCall, UsageInfo)
 from bond.endpoints.model_options import ModelOptions
 from bond.tools.tool import Tool
 
@@ -142,20 +135,23 @@ def build_response(chunks: list[CompletionChunk]) -> CompletionResponse:
         acc.append(content_chunk)
         return acc
 
-    final_content: list[tuple[int, list[AssistantMessageChunk]]] = [
-        (idx, functools.reduce(absorb_chunk, content_chunks, []))
+    reduced_content: dict[int, list[AssistantMessageChunk]] = {
+        idx: functools.reduce(absorb_chunk, content_chunks, [])
         for idx, content_chunks in content.items()
-    ]
-    final_content.sort(key=lambda x: x[0])
+    }
+
+    indices = list(set(reduced_content.keys()) | set(tool_calls.keys()))
+    indices.sort()
+
     choices = [
         CompletionChoice(
             finish_reason=finish_reasons[idx],
             message=AssistantMessage(
                 tool_calls=tool_calls[idx] if len(tool_calls[idx]) > 0 else None,
-                content=content_chunks,
+                content=reduced_content.get(idx),
             ),
         )
-        for idx, content_chunks in final_content
+        for idx in indices
     ]
 
     if usage_info is None:

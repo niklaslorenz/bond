@@ -101,4 +101,7 @@ class LoopBehaviour:
                     user_msg, user_name=self.user_name or "User"
                 )
             )
-            self.turn.run(conversation)
+            try:
+                self.turn.run(conversation)
+            except Exception as e:
+                print(f"{e}", file=self.user_io.text_out)
