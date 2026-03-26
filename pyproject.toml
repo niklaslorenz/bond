@@ -25,6 +25,8 @@ dependencies = [
 
 [project.scripts]
 ask = "bond.cli.ask:main"
+followup = "bond.cli.followup:main"
+chat = "bond.cli.chat:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
