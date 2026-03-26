@@ -35,6 +35,10 @@ def main():
         if last_conv_path.is_file()
         else Conversation()
     )
+    if len(conversation.history) == 0:
+        print("<New Conversation>")
+    else:
+        print(f"<Loaded {len(conversation.history)} messages>")
 
     loop = LoopBehaviour(
         environment=env,

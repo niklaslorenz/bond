@@ -13,7 +13,7 @@ from bond.tools import global_toolbox, tool
 
 
 def main():
-    user_name = "user"
+    user_name = "User"
 
     # Parse args
     parser = ArgumentParser("Ask Bond")
@@ -95,7 +95,7 @@ def main():
         toolbox,
         aoe=aoe,
         tool_environment=tool_environment,
-        model_display_name=persona_name,
+        model_display_name=persona.name,
         stream=stream,
         allow_shell_executions=allow_shell,
     )

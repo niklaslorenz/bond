@@ -4,6 +4,8 @@ from pathlib import Path
 
 from bond.behaviours.loop import LoopBehaviour
 from bond.conversation.conversation import Conversation
+from bond.conversation.types import (AssistantMessage, SystemMessage,
+                                     TextChunk, UserMessage)
 from bond.tools.tool import BidirectionalTextIO
 
 
@@ -33,9 +35,9 @@ class Repl:
         self.save_on_quit = save_on_quit
         self.user_io = user_io
 
-        self.parser = ArgumentParser()
+        self.parser = ArgumentParser(exit_on_error=False)
         _build_parser(self, self.parser)
-        self.beh.command_handler = lambda cmd: _handle_cmd(self.parser, cmd)
+        self.beh.command_handler = lambda cmd: self._handle_cmd(cmd)
 
     def run(self):
         self.beh.run(self.conversation)
@@ -82,14 +84,27 @@ class Repl:
         self.beh.running = False
 
     def export(self, _: Namespace) -> None:
+        # TODO: implement
         self.println("<Not implemented>")
 
     def len(self, _: Namespace) -> None:
         self.println(f"<{len(self.conversation.history)} messages>")
 
-    def last(self, _: Namespace) -> None:
-        # TODO: implement
-        self.println("<Not implemented>")
+    def last(self, args: Namespace) -> None:
+        n: int = args.n
+        messages = self.conversation.history[-n:]
+        for message in messages:
+            msg = message.message
+            if (
+                isinstance(msg, AssistantMessage)
+                or isinstance(msg, UserMessage)
+                or isinstance(msg, SystemMessage)
+            ) and msg.content is not None:
+                self.println(f"{message.author}:")
+                for chunk in msg.content:
+                    if isinstance(chunk, TextChunk):
+                        self.print(chunk.text)
+                self.println("\n")
 
     def crop(self, args: Namespace) -> None:
         keep = args.keep
@@ -116,6 +131,9 @@ class Repl:
     def println(self, text: str, flush: bool = False):
         print(text, file=self.user_io.text_out, flush=flush)
 
+    def print(self, text: str, flush: bool = False):
+        print(text, file=self.user_io.text_out, flush=flush, end=None)
+
     def readln(self) -> str:
         return self.user_io.text_in.readline()
 
@@ -129,6 +147,13 @@ class Repl:
         self.conversation.name = name
         path.write_text(self.conversation.model_dump_json(), encoding="utf-8")
         self._save_last_conversation()
+
+    def _handle_cmd(self, cmd: str):
+        try:
+            args = self.parser.parse_args(shlex.split(cmd))
+            args.callback(args)
+        except Exception:
+            pass
 
 
 def _build_parser(repl: Repl, parser: ArgumentParser):
@@ -172,6 +197,9 @@ def _build_parser(repl: Repl, parser: ArgumentParser):
 
     last_parser = subparsers.add_parser("last", help="Print the last n messages")
     last_parser.set_defaults(callback=repl.last)
+    last_parser.add_argument(
+        "n", nargs="?", type=int, default=1, help="Number of messages to print"
+    )
 
     crop_parser = subparsers.add_parser(
         "crop", help="Crop the conversation to the last n messages"
@@ -192,8 +220,3 @@ def _build_parser(repl: Repl, parser: ArgumentParser):
         aliases=["ask", "to", "talk-with", "talk"],
     )
     to_parser.set_defaults(callback=repl.to)
-
-
-def _handle_cmd(parser: ArgumentParser, cmd: str):
-    args = parser.parse_args(shlex.split(cmd))
-    args.callback(args)
