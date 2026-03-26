@@ -1,43 +1,104 @@
-from conversation import Conversation
-from persona_config import PersonaConfig
-from providers.mistral import MistralAPI
+import sys
+from typing import Any, Callable
 
+from bond.behaviours.single_turn import SingleTurn
+from bond.bond_environment import BondEnvironment
+from bond.conversation.conversation import Conversation, ConversationMessage
+from bond.io.agent_output_environment import AgentOutputEnvironment
+from bond.persona import Persona
+from bond.providers.provider import build_toolbox
+from bond.tools.tool import BidirectionalTextIO, ToolEnvironment
 
-def loop_system_msg(persona_msg):
-    return f"""
-    You are an agent that works in a think-eval-resonse loop.
-    You can lay out your thoughts by starting your message with "[THINK]".
-    Whenever you do so, your response will not be visible to the user.
-    Instead, you will be prompted again afterwards where you then can
-    decide to continue with thoughts by using "[THINK]" again, or create
-    a final answer that the user will see.
-    
-    This is how the user wishes you to act:
-    {persona_msg}
-    """
+CommandHandler = Callable[[str], None]
 
 
 class LoopBehaviour:
-    def __init__(self, api_key: str, persona: PersonaConfig):
-        self.memory = Conversation.create(
-            system_prompt=loop_system_msg(persona.system_prompt)
+    env: BondEnvironment
+    aoe: AgentOutputEnvironment
+    user_io: BidirectionalTextIO
+    persona_name: str
+    stream: bool
+    allow_shell_executions: bool
+    additional_chat_completion_arguments: dict[str, Any]
+    running: bool
+
+    persona: Persona
+    turn: SingleTurn
+
+    def __init__(
+        self,
+        environment: BondEnvironment,
+        aoe: AgentOutputEnvironment,
+        user_io: BidirectionalTextIO,
+        tool_environment: ToolEnvironment,
+        persona_name: str,
+        stream: bool = False,
+        allow_shell_executions: bool = False,
+        command_handler: CommandHandler | None = None,
+        user_name: str | None = None,
+        **additional_chat_completion_arguments,
+    ):
+        self.env = environment
+        self.aoe = aoe
+        self.user_io = user_io
+        self.tool_environment = tool_environment
+        self.persona_name = persona_name
+        self.stream = stream
+        self.allow_shell_executions = allow_shell_executions
+        self.command_handler = command_handler
+        self.user_name = user_name
+        self.additional_chat_completion_arguments = additional_chat_completion_arguments
+        self.running = False
+        self.set_persona(persona_name)
+
+    def set_persona(self, persona_name: str):
+        self.persona = self.env.get_persona(persona_name)
+        self._build_turn()
+
+    def _build_turn(self):
+        provider = self.env.get_provider(self.persona.provider)
+        toolbox = build_toolbox(
+            provider,
+            [
+                tool
+                for toolset in self.persona.toolbox
+                for tool in self.env.get_toolset(toolset)
+            ],
         )
-        self.api = MistralAPI(api_key)
-        self.persona = persona
+        self.turn = SingleTurn(
+            provider=provider,
+            model=self.persona.model,
+            toolbox=toolbox,
+            aoe=self.aoe,
+            tool_environment=self.tool_environment,
+            model_display_name=self.persona.name,
+            stream=self.stream,
+            allow_shell_executions=self.allow_shell_executions,
+            **self.additional_chat_completion_arguments,
+        )
+        pass
 
-    def process_turn(self, user_prompt: str) -> str:
-        """Process a turn as a loop: thoughts, tool calls, and final response."""
-        self.memory.add_user_message(user_prompt)
+    def run(self, conversation: Conversation):
+        if self.running:
+            raise RuntimeError("Already running")
+        self.running = True
+        while self.running:
+            self.user_io.text_out.write(f"[to {self.persona.name}]> ")
+            user_msg = self.user_io.text_in.readline()
+            stripped_msg = user_msg.strip()
 
-        while True:
-            response = self.api.generate_response(
-                model=self.persona.model, messages=self.memory.get_messages()
+            if len(stripped_msg) == 0:
+                continue
+            if self.command_handler is not None and stripped_msg[0] == ":":
+                try:
+                    self.command_handler(stripped_msg[1:])
+                except Exception as e:
+                    print(file=sys.stderr)
+                continue
+
+            conversation.add_message(
+                ConversationMessage.create_user_message(
+                    user_msg, user_name=self.user_name or "User"
+                )
             )
-            if response.strip().startswith("[THINK]"):
-                self.memory.add_assistant_thought(response)
-            else:
-                self.memory.add_final_response(response)
-                return response
-
-    def __call__(self, user_prompt: str) -> str:
-        return self.process_turn(user_prompt)
+            self.turn.run(conversation)
