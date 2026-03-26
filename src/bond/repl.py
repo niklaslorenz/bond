@@ -1,4 +1,7 @@
+import os
 import shlex
+import subprocess
+import sys
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
 
@@ -122,11 +125,36 @@ class Repl:
             self.println(f"  {persona}")
 
     def to(self, args: Namespace) -> None:
-        persona_name = args.name
+        persona_name: str = args.name
         if persona_name not in self.beh.env.list_personas():
-            self.println("<'{persona_name}' is not a valid persona>")
+            self.println(f"<'{persona_name}' is not a valid persona>")
             return
         self.beh.set_persona(persona_name)
+
+    def handle_shell_command(self, cmd: str) -> None:
+        args = shlex.split(cmd)
+        if len(args) == 0:
+            self.println("<No command specified>")
+            return
+        if args[0] == "cd":
+            if len(args) != 2:
+                self.println("<usage: cd PATH>")
+                return
+            try:
+                os.chdir(args[1])
+            except Exception as e:
+                self.println(f"{e}")
+            self.println(f"cwd: {os.getcwd()}")
+        else:
+            subprocess.run(
+                cmd,
+                text=True,
+                shell=True,
+                check=True,
+                stderr=sys.stderr,
+                stdout=sys.stdout,
+                stdin=sys.stdin,
+            )
 
     def println(self, text: str, flush: bool = False):
         print(text, file=self.user_io.text_out, flush=flush)
@@ -150,59 +178,88 @@ class Repl:
 
     def _handle_cmd(self, cmd: str):
         try:
-            args = self.parser.parse_args(shlex.split(cmd))
-            args.callback(args)
-        except Exception:
+            if cmd.strip().startswith(":"):
+                cmd_raw = cmd[1:]
+                self.handle_shell_command(cmd_raw)
+                return
+            else:
+                args = self.parser.parse_args(shlex.split(cmd))
+                args.callback(args)
+        except Exception as e:
+            self.println(f"{e}")
+        except SystemExit:
             pass
 
 
 def _build_parser(repl: Repl, parser: ArgumentParser):
     subparsers = parser.add_subparsers()
-    quit_parser = subparsers.add_parser("quit", help="Quit", aliases=["q"])
+    quit_parser = subparsers.add_parser(
+        "quit", help="Quit", aliases=["q"], exit_on_error=False
+    )
     quit_parser.set_defaults(callback=repl.quit)
 
-    save_parser = subparsers.add_parser("save", help="Save the conversation")
+    save_parser = subparsers.add_parser(
+        "save", help="Save the conversation", exit_on_error=False
+    )
     save_parser.set_defaults(callback=repl.save)
     save_parser.add_argument(
-        "name", nargs="?", type=str, help="The name of the conversation"
+        "name",
+        nargs="?",
+        type=str,
+        help="The name of the conversation",
     )
 
-    load_parser = subparsers.add_parser("load", help="Load the conversation")
+    load_parser = subparsers.add_parser(
+        "load", help="Load the conversation", exit_on_error=False
+    )
     load_parser.set_defaults(callback=repl.load)
     load_parser.add_argument(
         "name", nargs=1, type=str, help="Name of the conversation to load"
     )
 
-    new_parser = subparsers.add_parser("new", help="Create a new conversation")
+    new_parser = subparsers.add_parser(
+        "new", help="Create a new conversation", exit_on_error=False
+    )
     new_parser.set_defaults(callback=repl.new)
 
-    help_parser = subparsers.add_parser("help", help="Show help", aliases=["h", "?"])
+    help_parser = subparsers.add_parser(
+        "help", help="Show help", aliases=["h", "?"], exit_on_error=False
+    )
     help_parser.set_defaults(callback=repl.help)
 
-    forget_parser = subparsers.add_parser("forget", help="Quit without saving")
+    forget_parser = subparsers.add_parser(
+        "forget", help="Quit without saving", exit_on_error=False
+    )
     forget_parser.set_defaults(callback=repl.forget)
 
-    remember_parser = subparsers.add_parser("remember", help="Save and quit")
+    remember_parser = subparsers.add_parser(
+        "remember", help="Save and quit", exit_on_error=False
+    )
     remember_parser.set_defaults(callback=repl.remember)
 
     export_parser = subparsers.add_parser(
-        "export", help="Export the conversation as a markdown file"
+        "export", help="Export the conversation as a markdown file", exit_on_error=False
     )
     export_parser.set_defaults(callback=repl.export)
 
     len_parser = subparsers.add_parser(
-        "length", help="Print the length of the conversation", aliases=["len"]
+        "length",
+        help="Print the length of the conversation",
+        aliases=["len"],
+        exit_on_error=False,
     )
     len_parser.set_defaults(callback=repl.len)
 
-    last_parser = subparsers.add_parser("last", help="Print the last n messages")
+    last_parser = subparsers.add_parser(
+        "last", help="Print the last n messages", exit_on_error=False
+    )
     last_parser.set_defaults(callback=repl.last)
     last_parser.add_argument(
         "n", nargs="?", type=int, default=1, help="Number of messages to print"
     )
 
     crop_parser = subparsers.add_parser(
-        "crop", help="Crop the conversation to the last n messages"
+        "crop", help="Crop the conversation to the last n messages", exit_on_error=False
     )
     crop_parser.set_defaults(callback=repl.crop)
     crop_parser.add_argument(
@@ -210,7 +267,7 @@ def _build_parser(repl: Repl, parser: ArgumentParser):
     )
 
     who_parser = subparsers.add_parser(
-        "who", help="Print the names of available personas"
+        "who", help="Print the names of available personas", exit_on_error=False
     )
     who_parser.set_defaults(callback=repl.who)
 
@@ -218,5 +275,7 @@ def _build_parser(repl: Repl, parser: ArgumentParser):
         "talk-to",
         help="Set which persona will answer your requests",
         aliases=["ask", "to", "talk-with", "talk"],
+        exit_on_error=False,
     )
     to_parser.set_defaults(callback=repl.to)
+    to_parser.add_argument("name", type=str, help="Name of the persona")
