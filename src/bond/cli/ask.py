@@ -4,9 +4,9 @@ from pathlib import Path
 
 from bond.behaviours.single_turn import SingleTurn
 from bond.bond_environment import DynamicBondEnvironment
-from bond.config import BondConfig
+from bond.config import BondConfig, get_default_persona
 from bond.conversation.conversation import Conversation, ConversationMessage
-from bond.io.io_env import IOEnvironment
+from bond.io.agent_output_environment import AgentOutputEnvironment
 from bond.io.stream import ThoughtWrapper, WritethroughWrapper
 from bond.providers.provider import build_toolbox
 from bond.tools import global_toolbox, tool
@@ -24,14 +24,17 @@ def main():
     parser.add_argument("--input-file", "-i", type=str)
     parser.add_argument("--output-file", "-o", type=str)
     parser.add_argument("--no-stream", action="store_true")
+    parser.add_argument("--no-save", action="store_true")
 
     args = parser.parse_args()
     request: str = args.first if args.second is None else args.second
     show_thoughts: bool = args.show_thoughts
     stream: bool = not args.no_stream if not show_thoughts else False
+    no_save: bool = args.no_save
 
     # Setup environment
     env_path = Path("~/.config/bond").expanduser().absolute()
+    conv_path = Path("~/.local/share/bond").expanduser().absolute()
     config_path = env_path / "config.json"
     config = BondConfig.load_from(config_path)
     env = DynamicBondEnvironment(
@@ -52,8 +55,7 @@ def main():
             open(args.output_file, "w") if args.output_file is not None else sys.stdout
         ),
     )
-    io_environment = IOEnvironment(
-        text_in=sys.stdin,
+    aoe = AgentOutputEnvironment(
         text_out=WritethroughWrapper(sys.stdout),
         thought_out=(
             WritethroughWrapper(ThoughtWrapper(sys.stdout)) if show_thoughts else None
@@ -62,7 +64,7 @@ def main():
 
     # Get environment entities
     persona_name: str = (
-        config.ask.get_default_persona() if args.second is None else args.first
+        get_default_persona(config.ask) if args.second is None else args.first
     )
     if persona_name not in config.ask.personas:
         raise ValueError(
@@ -91,7 +93,7 @@ def main():
         provider,
         persona.model,
         toolbox,
-        io_environment=io_environment,
+        aoe=aoe,
         tool_environment=tool_environment,
         model_display_name=persona_name,
         stream=stream,
@@ -99,9 +101,10 @@ def main():
     )
     turn.run(conversation)
 
-    save_path = env_path / "last-ask.json"
-    save_path.parent.mkdir(parents=True, exist_ok=True)
-    save_path.write_text(conversation.model_dump_json(), encoding="utf-8")
+    if not no_save:
+        save_path = conv_path / "last-ask.json"
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        save_path.write_text(conversation.model_dump_json(), encoding="utf-8")
 
 
 if __name__ == "__main__":

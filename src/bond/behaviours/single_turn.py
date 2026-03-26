@@ -11,7 +11,7 @@ from bond.conversation.types import (
     ThinkChunk,
 )
 from bond.endpoints.chat_completions import CompletionChunk, CompletionResponse
-from bond.io.io_env import IOEnvironment
+from bond.io.agent_output_environment import AgentOutputEnvironment
 from bond.providers.provider import Provider
 from bond.tools.shell import allow_shell_commands
 from bond.tools.tool import Toolbox, ToolEnvironment
@@ -32,7 +32,7 @@ class _OutputHandler:
     _has_unfinished_text: bool = False
     _has_unfinished_thoughts: bool = False
 
-    def __init__(self, environment: IOEnvironment):
+    def __init__(self, environment: AgentOutputEnvironment):
         self._environment = environment
 
     def start(self):
@@ -79,7 +79,7 @@ class SingleTurn:
         provider: Provider,
         model: str,
         toolbox: Toolbox | None = None,
-        io_environment: IOEnvironment | None = None,
+        aoe: AgentOutputEnvironment | None = None,
         tool_environment: ToolEnvironment | None = None,
         model_display_name: str | None = None,
         stream: bool = False,
@@ -90,7 +90,7 @@ class SingleTurn:
         self.model = model
         self.toolbox = toolbox if toolbox is not None else Toolbox({})
         self.tool_descriptions = self.toolbox.get_tool_descriptions()
-        self.io_environment = io_environment or IOEnvironment(None, None, None)
+        self.aoe = aoe or AgentOutputEnvironment(None, None)
         self.tool_environment = tool_environment or ToolEnvironment()
         self.model_display_name = model_display_name
         self.stream = stream
@@ -103,7 +103,7 @@ class SingleTurn:
             )
 
     def run(self, conversation: Conversation) -> Conversation:
-        output_handler = _OutputHandler(self.io_environment)
+        output_handler = _OutputHandler(self.aoe)
         while True:
             output_handler.start()
             if self.stream:
