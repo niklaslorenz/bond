@@ -30,7 +30,7 @@ def main():
         tool_out=None,
         shell_in=sys.stdin,
         shell_out=sys.stdout,
-        work_dir=Path(os.getcwd()),
+        work_dir=lambda: Path(os.getcwd()),
     )
     aoe = AgentOutputEnvironment(WritethroughWrapper(sys.stdout), None)
     persona_name = get_default_persona(config.chat)

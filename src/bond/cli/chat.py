@@ -28,7 +28,7 @@ def main():
         interaction_io=user_io,
         tool_in=None,
         tool_out=None,
-        work_dir=Path(os.getcwd()),
+        work_dir=lambda: Path(os.getcwd()),
         shell_out=sys.stdout,
         shell_in=sys.stdin,
     )
