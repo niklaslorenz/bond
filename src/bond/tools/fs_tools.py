@@ -1,16 +1,21 @@
-import os
 from pathlib import Path
 
 from bond.tools import tool
 
 
-def _check_access(env: tool.ToolEnvironment, cwd: Path, path: Path):
-    if path.is_relative_to(cwd):
+def _check_access(env: tool.ToolEnvironment, path: Path):
+    work_dir = env.get_work_dir()
+    if work_dir is None:
+        return (
+            False,
+            "Permission denied, tool access to the filesystem is currently disabled.",
+        )
+    if path.is_relative_to(work_dir):
         return True, ""
     if env.is_interactive() is None:
         return (
             False,
-            f"Permission denied, this tool is not run in interactive mode. Cannot access files outside of '{cwd}'",
+            f"Permission denied, this tool is not run in interactive mode. Cannot access files outside of '{work_dir}'",
         )
     if not env.ask_confirmation(
         f"Bond wants to access the contents of {path}, which lies outside of the current working directory.\nDo you want to grant access?"
@@ -33,9 +38,12 @@ def create_file(file_path: str, content: str) -> str:
         None
     """
     env = tool.get_tool_environment()
-    current_directory = Path(os.getcwd()).absolute()
+    work_dir = env.get_work_dir()
+    if work_dir is None:
+        return "Error: Tool access to the filesystem is currently disabled."
+    current_directory = work_dir.absolute()
     path = current_directory / Path(file_path)
-    has_access, why_not = _check_access(env, current_directory, path)
+    has_access, why_not = _check_access(env, path)
     if not has_access:
         return why_not
     if path.exists():
@@ -59,9 +67,12 @@ def read_file(file_path: str, lines: int = 0) -> str:
         str: The contents of the file
     """
     env = tool.get_tool_environment()
-    current_directory = Path(os.getcwd()).absolute()
+    work_dir = env.get_work_dir()
+    if work_dir is None:
+        return "Error: Tool access to the file system is currently disabled."
+    current_directory = work_dir.absolute()
     path = current_directory / Path(file_path)
-    has_access, why_not = _check_access(env, current_directory, path)
+    has_access, why_not = _check_access(env, path)
     if not has_access:
         return why_not
     if not path.is_file():
@@ -85,9 +96,12 @@ def list_directory(dir_path: str) -> str:
         str: The contents of the directory
     """
     env = tool.get_tool_environment()
-    current_directory = Path(os.getcwd()).absolute()
+    work_dir = env.get_work_dir()
+    if work_dir is None:
+        return "Error: Tool access to the filesystem is currently disabled."
+    current_directory = work_dir.absolute()
     path = current_directory / Path(dir_path)
-    has_access, why_not = _check_access(env, current_directory, path)
+    has_access, why_not = _check_access(env, path)
     if not has_access:
         return why_not
     if not path.is_dir():

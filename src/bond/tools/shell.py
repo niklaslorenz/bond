@@ -49,16 +49,34 @@ def run_shell_commands(commands: str, explaination: str):
     prompt = (
         "\n\n\nBond wants to run the following commands:\n  "
         + "\n  ".join(commands.splitlines())
-        + "\nBond: "
+        + "\n\n\nBond: "
         + explaination
         + "\nDo you want to run these commands?"
     )
     if not env.ask_confirmation(prompt):
         return "error: the user cannot accept your requests right now."
 
-    result = subprocess.run(commands, text=True, shell=True, capture_output=True)
-    lines = result.stdout.splitlines()[-10:]
-    err_lines = result.stderr.splitlines()[-10:]
+    process = subprocess.Popen(
+        commands,
+        text=True,
+        shell=True,
+        stdin=env.shell_in,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+    if env.shell_out is not None:
+        assert process.stdout is not None
+        assert process.stderr is not None
+        for line in process.stdout:
+            print(line, file=env.shell_out)
+        for line in process.stderr:
+            print(line, file=env.shell_out)
+
+    stdout, stderr = process.communicate()
+
+    lines = stdout.splitlines()[-10:]
+    err_lines = stderr.splitlines()[-10:]
     output = ["stdout:"] + lines
     if len(err_lines) > 0:
         output.append("stderr:")

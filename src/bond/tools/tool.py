@@ -1,6 +1,7 @@
 import json
 from contextlib import contextmanager
 from dataclasses import dataclass
+from pathlib import Path
 from threading import local
 from typing import Any, Callable, Literal, TextIO
 
@@ -49,7 +50,10 @@ class BidirectionalTextIO:
 class ToolEnvironment:
     tool_out: TextIO | None = None
     tool_in: TextIO | None = None
+    shell_out: TextIO | None = None
+    shell_in: TextIO | None = None
     interaction_io: BidirectionalTextIO | None = None
+    work_dir: Path | Callable[[], Path] | None = None
 
     @contextmanager
     def activate(self):
@@ -69,7 +73,7 @@ class ToolEnvironment:
         self.interaction_io.text_out.write(prompt + "[yes|no] > ")
         try:
             while True:
-                access = self.interaction_io.text_in.readline()
+                access = self.interaction_io.text_in.readline().strip(" \n")
                 if access == "yes" or access == "y":
                     return True
                 if access == "no" or access == "n":
@@ -81,6 +85,13 @@ class ToolEnvironment:
 
     def is_interactive(self) -> bool:
         return self.interaction_io is not None
+
+    def get_work_dir(self) -> Path | None:
+        if self.work_dir is None:
+            return None
+        if isinstance(self.work_dir, Path):
+            return self.work_dir
+        return self.work_dir()
 
 
 def get_tool_environment() -> ToolEnvironment:
