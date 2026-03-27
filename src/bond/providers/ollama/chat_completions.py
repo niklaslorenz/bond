@@ -179,7 +179,6 @@ class OllamaChatCompletions:
             "tools": [tool.model_dump() for tool in tools],
             **(merged_options.parse() if merged_options is not None else {}),
         }
-        print(f"Payload: {payload}")
         payload["stream"] = False
         response = http_retry_loop(
             lambda: requests.post(
@@ -190,7 +189,6 @@ class OllamaChatCompletions:
             ),
             max_retries=max_retries,
         )
-        print(response.json())
         ollama_response = OllamaResponse.model_validate(response.json())
         return ollama_response.to_response()
 
