@@ -186,7 +186,7 @@ class Repl:
                 args = self.parser.parse_args(shlex.split(cmd))
                 args.callback(args)
         except Exception as e:
-            self.println(f"{e}")
+            self.println(f"error while executing command '{cmd}': {e}")
         except SystemExit:
             pass
 
@@ -213,9 +213,7 @@ def _build_parser(repl: Repl, parser: ArgumentParser):
         "load", help="Load the conversation", exit_on_error=False
     )
     load_parser.set_defaults(callback=repl.load)
-    load_parser.add_argument(
-        "name", nargs=1, type=str, help="Name of the conversation to load"
-    )
+    load_parser.add_argument("name", type=str, help="Name of the conversation to load")
 
     new_parser = subparsers.add_parser(
         "new", help="Create a new conversation", exit_on_error=False
