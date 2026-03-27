@@ -68,6 +68,7 @@ class LoopBehaviour:
         self.turn = SingleTurn(
             provider=provider,
             model=self.persona.model,
+            system_message=self.persona.system_prompt,
             toolbox=toolbox,
             aoe=self.aoe,
             tool_environment=self.tool_environment,

@@ -5,8 +5,9 @@ from typing import Callable, Literal, Protocol
 from pydantic import BaseModel, field_validator
 
 from bond.conversation.types import (AssistantMessage, AssistantMessageChunk,
-                                     Message, ReferenceChunk, TextChunk,
-                                     ThinkChunk, ToolCall, UsageInfo)
+                                     Message, ReferenceChunk, SystemMessage,
+                                     TextChunk, ThinkChunk, ToolCall,
+                                     UsageInfo)
 from bond.endpoints.model_options import ModelOptions
 from bond.tools.tool import Tool
 
@@ -63,6 +64,7 @@ class ChatCompletionsEndpoint[ChatCompletionArgType: ModelOptions](Protocol):
         model: str,
         messages: list[Message],
         tools: list[Tool],
+        system_message: SystemMessage | None = None,
         options: ChatCompletionArgType | None = None,
         max_retries: int = 3,
     ) -> CompletionResponse: ...
@@ -72,6 +74,7 @@ class ChatCompletionsEndpoint[ChatCompletionArgType: ModelOptions](Protocol):
         messages: list[Message],
         tools: list[Tool],
         callback: ChatCompletionStreamCallback,
+        system_message: SystemMessage | None = None,
         options: ChatCompletionArgType | None = None,
         max_retries: int = 3,
     ) -> CompletionResponse: ...

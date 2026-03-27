@@ -4,7 +4,8 @@ from returns.result import Success
 
 from bond.conversation.conversation import Conversation, ConversationMessage
 from bond.conversation.types import (AssistantMessage, AssistantMessageChunk,
-                                     FunctionCall, TextChunk, ThinkChunk)
+                                     FunctionCall, SystemMessage, TextChunk,
+                                     ThinkChunk)
 from bond.endpoints.chat_completions import CompletionChunk, CompletionResponse
 from bond.io.agent_output_environment import AgentOutputEnvironment
 from bond.providers.provider import Provider
@@ -73,6 +74,7 @@ class SingleTurn:
         self,
         provider: Provider,
         model: str,
+        system_message: str | None = None,
         toolbox: Toolbox | None = None,
         aoe: AgentOutputEnvironment | None = None,
         tool_environment: ToolEnvironment | None = None,
@@ -83,6 +85,7 @@ class SingleTurn:
     ):
         self.provider = provider
         self.model = model
+        self.system_message = system_message
         self.toolbox = toolbox if toolbox is not None else Toolbox({})
         self.tool_descriptions = self.toolbox.get_tool_descriptions()
         self.aoe = aoe or AgentOutputEnvironment(None, None)
@@ -101,21 +104,28 @@ class SingleTurn:
         output_handler = _OutputHandler(self.aoe)
         while True:
             output_handler.start()
+            system_msg = (
+                SystemMessage.create(self.system_message)
+                if self.system_message is not None
+                else None
+            )
             if self.stream:
                 response = self.provider.chat_completions().stream_chat_completion(
                     self.model,
-                    conversation.get_chat_completion_messages(),
+                    conversation.get_chat_completion_messages(True),
                     tools=self.tool_descriptions,
                     callback=lambda chunk: output_handler.handle_completion_chunk(
                         chunk
                     ),
+                    system_message=system_msg,
                     **self.additional_model_arguments,
                 )
             else:
                 response = self.provider.chat_completions().chat_completion(
                     self.model,
-                    conversation.get_chat_completion_messages(),
+                    conversation.get_chat_completion_messages(True),
                     tools=self.tool_descriptions,
+                    system_message=system_msg,
                     **self.additional_model_arguments,
                 )
                 output_handler.handle_response(response)

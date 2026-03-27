@@ -1,15 +1,13 @@
 import requests
 
-from bond.endpoints.chat_completions import (
-    ChatCompletionStreamCallback,
-    CompletionChunk,
-    CompletionResponse,
-    Message,
-    Tool,
-    build_response,
-)
+from bond.conversation.types import SystemMessage
+from bond.endpoints.chat_completions import (ChatCompletionStreamCallback,
+                                             CompletionChunk,
+                                             CompletionResponse, Message, Tool,
+                                             build_response)
 from bond.endpoints.model_options import merge_options
-from bond.providers.mistral.config import MistralChatCompletionOptions, MistralConfig
+from bond.providers.mistral.config import (MistralChatCompletionOptions,
+                                           MistralConfig)
 from bond.util import http_retry_loop, parse_sse_stream, resolve_api_key
 
 
@@ -29,6 +27,7 @@ class MistralChatCompletions:
         model: str,
         messages: list[Message],
         tools: list[Tool],
+        system_message: SystemMessage | None = None,
         options: MistralChatCompletionOptions | None = None,
         max_retries: int = 3,
     ) -> CompletionResponse:
@@ -42,9 +41,12 @@ class MistralChatCompletions:
                 options,
             ],
         )
+        all_messages = (
+            [system_message] if system_message is not None else []
+        ) + messages
         payload = {
             "model": model,
-            "messages": [msg.model_dump() for msg in messages],
+            "messages": [msg.model_dump() for msg in all_messages],
             "tools": [tool.model_dump() for tool in tools],
             **(merged_options.parse() if merged_options is not None else {}),
         }
@@ -65,6 +67,7 @@ class MistralChatCompletions:
         messages: list[Message],
         tools: list[Tool],
         callback: ChatCompletionStreamCallback,
+        system_message: SystemMessage | None = None,
         options: MistralChatCompletionOptions | None = None,
         max_retries: int = 3,
     ) -> CompletionResponse:
@@ -78,9 +81,12 @@ class MistralChatCompletions:
                 options,
             ],
         )
+        all_messages = (
+            [system_message] if system_message is not None else []
+        ) + messages
         payload = {
             "model": model,
-            "messages": [msg.model_dump() for msg in messages],
+            "messages": [msg.model_dump() for msg in all_messages],
             "tools": [tool.model_dump() for tool in tools],
             "stream": True,
             **(merged_options.model_dump() if merged_options is not None else {}),

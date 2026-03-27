@@ -83,10 +83,6 @@ def main():
 
     # Setup conversation
     conversation = Conversation()
-    if persona.system_prompt is not None:
-        conversation.add_message(
-            ConversationMessage.create_system_message(persona.system_prompt)
-        )
     conversation.add_message(
         ConversationMessage.create_user_message(request, user_name)
     )
@@ -94,9 +90,10 @@ def main():
     # Run turn
     allow_shell = "shell" in persona.toolbox
     turn = SingleTurn(
-        provider,
-        persona.model,
-        toolbox,
+        provider=provider,
+        model=persona.model,
+        system_message=persona.system_prompt,
+        toolbox=toolbox,
         aoe=aoe,
         tool_environment=tool_environment,
         model_display_name=persona.name,
