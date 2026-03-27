@@ -1,15 +1,13 @@
-from typing import Any, Literal
-from urllib.parse import urljoin
+from typing import Any
 
-import requests
-from pydantic import BaseModel
 from smolagents.tools import get_json_schema
 
 from bond.conversation.types import (Message, ReferenceChunk, TextChunk,
                                      ThinkChunk, ToolReferenceChunk)
-from bond.endpoints.model_options import ModelOptions
-from bond.tools.tool import ToolFn
-from bond.util import resolve_api_key
+from bond.providers.ollama.chat_completions import OllamaChatCompletions
+from bond.providers.ollama.config import OllamaConfig
+from bond.providers.ollama.models import OllamaModels
+from bond.tools.tool import Tool, ToolFn
 
 
 def _parse_text_like_chunks(
@@ -43,60 +41,11 @@ def _parse_message(message: Message) -> Message:
     return type(message).model_validate(message_fields)
 
 
-class OllamaAPI:
-    def __init__(
-        self,
-        base_url: str,
-        api_key: str | None = None,
-    ):
-        self.base_url = base_url
-        self.headers = {"Content-Type": "application/json"}
-        if api_key is not None:
-            self.headers["Authorization"] = f"Bearer {api_key}"
-
-    def chat_completion(
-        self,
-        model: str,
-        messages: list[Message],
-        tools: list[dict[str, Any]],
-        **additional_fields,
-    ) -> requests.Response:
-        payload = {
-            "model": model,
-            "messages": [_parse_message(msg).model_dump() for msg in messages],
-            "tools": tools,
-            **additional_fields,
-        }
-        response = requests.post(
-            urljoin(self.base_url, "v1/chat/completions"),
-            headers=self.headers,
-            json=payload,
-        )
-        return response
-
-    def retrieve_model(self, id: str) -> requests.Response:
-        response = requests.get(
-            urljoin(self.base_url, f"model/{id}"),
-            headers=self.headers,
-        )
-        return response
-
-    def list_models(self) -> requests.Response:
-        response = requests.get(urljoin(self.base_url, "models"), headers=self.headers)
-        return response
-
-    @classmethod
-    def create(cls, base_url: str, api_key: str | None = None) -> "OllamaAPI":
-        return OllamaAPI(api_key=api_key or "", base_url=base_url)
-
-
 class Ollama:
-    def __init__(self, base_url: str, api_key: str | None = None):
-        self.api = OllamaAPI.create(base_url, api_key)
-        self._models = OllamaModels(self.api)
-        self._chat_completions = OllamaChatCompletions[OllamaChatCompletionOptions](
-            self.api, arguments_type=OllamaChatCompletionOptions
-        )
+    def __init__(self, config: OllamaConfig):
+        self.config = config
+        self._models = OllamaModels(config)
+        self._chat_completions = OllamaChatCompletions(config)
 
     def models(self) -> OllamaModels:
         return self._models
@@ -104,8 +53,8 @@ class Ollama:
     def chat_completions(self) -> OllamaChatCompletions:
         return self._chat_completions
 
-    def parse_tool(self, tool: ToolFn) -> tuple[str, dict[str, Any]]:
-        raw = get_json_schema(tool)
+    def parse_tool(self, tool: ToolFn) -> tuple[str, Tool]:
+        raw: dict[str, Any] = get_json_schema(tool)
         if "return" in raw["function"]:
             raw["function"].pop("return")
-        return raw["function"]["name"], raw
+        return raw["function"]["name"], Tool.model_validate(raw)

@@ -22,6 +22,5 @@ class OllamaConfig(BaseModel):
     api_key: str | None = None
     models: list[str] | None = None
     chat_completion_options: OllamaChatCompletionOptions | None = None
-    model_specific_chat_completion_options: (
-        dict[str, OllamaChatCompletionOptions] | None
-    ) = None
+    model_specific_chat_completion_options: dict[str, OllamaChatCompletionOptions] = {}
+    max_context_length: int = 8192
