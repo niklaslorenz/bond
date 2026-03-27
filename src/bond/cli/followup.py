@@ -63,7 +63,7 @@ def main():
     repl = Repl(
         loop,
         conversation,
-        conv_path,
+        conv_path / "conversations",
         last_conv_path,
         user_io,
         config.chat.personas,
