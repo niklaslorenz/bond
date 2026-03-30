@@ -7,8 +7,8 @@ from bond.behaviours.single_turn import SingleTurn
 from bond.bond_environment import DynamicBondEnvironment
 from bond.config import BondConfig, get_default_persona
 from bond.conversation.conversation import Conversation, ConversationMessage
-from bond.io.agent_output_environment import AgentOutputEnvironment
 from bond.io.stream import ThoughtWrapper, WritethroughWrapper
+from bond.io.string_io import StringAoe
 from bond.providers.provider import build_toolbox
 from bond.tools import global_toolbox, tool
 
@@ -59,7 +59,7 @@ def main():
         shell_out=sys.stdout,
         work_dir=lambda: Path(os.getcwd()),
     )
-    aoe = AgentOutputEnvironment(
+    aoe = StringAoe(
         text_out=WritethroughWrapper(sys.stdout),
         thought_out=(
             WritethroughWrapper(ThoughtWrapper(sys.stdout)) if show_thoughts else None
@@ -90,11 +90,11 @@ def main():
     # Run turn
     allow_shell = "shell" in persona.toolbox
     turn = SingleTurn(
-        provider=provider,
+        endpoint=provider.chat_completions(),
         model=persona.model,
+        aoe=aoe,
         system_message=persona.system_prompt,
         toolbox=toolbox,
-        aoe=aoe,
         tool_environment=tool_environment,
         model_display_name=persona.name,
         stream=stream,

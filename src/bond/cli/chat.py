@@ -6,7 +6,7 @@ from bond.behaviours.loop import LoopBehaviour
 from bond.bond_environment import DynamicBondEnvironment
 from bond.config import BondConfig, get_default_persona
 from bond.conversation.conversation import Conversation
-from bond.io.agent_output_environment import AgentOutputEnvironment
+from bond.io.stdio import StdAoe
 from bond.io.stream import WritethroughWrapper
 from bond.repl import Repl
 from bond.tools import global_toolbox
@@ -32,7 +32,7 @@ def main():
         shell_out=sys.stdout,
         shell_in=sys.stdin,
     )
-    aoe = AgentOutputEnvironment(WritethroughWrapper(sys.stdout), None)
+    aoe = StdAoe()
     persona_name = get_default_persona(config.chat)
 
     last_conv_path = conv_path / "last-conv.json"

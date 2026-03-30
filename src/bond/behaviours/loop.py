@@ -4,7 +4,7 @@ from typing import Any, Callable
 from bond.behaviours.single_turn import SingleTurn
 from bond.bond_environment import BondEnvironment
 from bond.conversation.conversation import Conversation, ConversationMessage
-from bond.io.agent_output_environment import AgentOutputEnvironment
+from bond.io.io import AgentOutputEnvironment
 from bond.persona import Persona
 from bond.providers.provider import build_toolbox
 from bond.tools.tool import BidirectionalTextIO, ToolEnvironment
@@ -66,11 +66,11 @@ class LoopBehaviour:
             ],
         )
         self.turn = SingleTurn(
-            provider=provider,
+            endpoint=provider.chat_completions(),
             model=self.persona.model,
+            aoe=self.aoe,
             system_message=self.persona.system_prompt,
             toolbox=toolbox,
-            aoe=self.aoe,
             tool_environment=self.tool_environment,
             model_display_name=self.persona.name,
             stream=self.stream,
