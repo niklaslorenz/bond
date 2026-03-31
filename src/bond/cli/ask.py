@@ -6,7 +6,7 @@ from bond.behaviours.single_turn import SingleTurn
 from bond.bond_environment import DynamicBondEnvironment
 from bond.config import BondConfig, get_default_persona
 from bond.conversation.conversation import Conversation, ConversationMessage
-from bond.io.stdio import StdAoe, StdIoToolEnvironment
+from bond.io.stdenv import StdAoe, StdIoToolEnvironment
 from bond.providers.provider import build_toolbox
 from bond.tools import global_toolbox, tool
 

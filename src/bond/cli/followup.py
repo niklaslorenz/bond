@@ -6,7 +6,7 @@ from bond.bond_environment import DynamicBondEnvironment
 from bond.config import BondConfig, get_default_persona
 from bond.conversation.conversation import Conversation
 from bond.default_command_handler import DefaultCommandHandler
-from bond.io.stdio import StdAoe, StdIoToolEnvironment, StdNotifier, StdSignalReceiver
+from bond.io.stdenv import StdAoe, StdIoToolEnvironment, StdNotifier, StdSignalReceiver
 from bond.tools import global_toolbox
 
 
