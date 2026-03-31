@@ -6,9 +6,9 @@ from bond.behaviours.loop import LoopBehaviour
 from bond.bond_environment import DynamicBondEnvironment
 from bond.config import BondConfig, get_default_persona
 from bond.conversation.conversation import Conversation
+from bond.default_command_handler import DefaultCommandHandler
 from bond.io.stdio import StdAoe, StdNotifier, StdSignalReceiver
 from bond.io.stream import WritethroughWrapper
-from bond.repl import Repl
 from bond.tools import global_toolbox
 from bond.tools.tool import BidirectionalTextIO, ToolEnvironment
 
@@ -47,27 +47,27 @@ def main():
         print(f"<Loaded {len(conversation.history)} messages>")
 
     receiver = StdSignalReceiver(None)
+    cmd_handler = DefaultCommandHandler(
+        conversation_base_path=conv_path / "conversations",
+        last_conv_path=last_conv_path,
+        available_personas=config.chat.personas,
+        save_on_quit=True,
+    )
     loop = LoopBehaviour(
         conversation=conversation,
         environment=env,
         aoe=aoe,
         signal_receiver=receiver,
         notifier=StdNotifier(),
-        command_handler=None,
+        command_handler=cmd_handler,
         tool_environment=tool_environment,
         persona_name=persona_name,
         stream=True,
         allow_shell_executions=True,
         user_name=config.user_name,
     )
+    cmd_handler.link(loop)
     receiver.set_query(lambda: loop.persona_name)
-    repl = Repl(
-        beh=loop,
-        conversation_base_path=conv_path / "conversations",
-        last_conv_path=last_conv_path,
-        available_personas=config.chat.personas,
-        save_on_quit=True,
-    )
 
     loop.run()
 

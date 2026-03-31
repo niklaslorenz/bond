@@ -11,23 +11,16 @@ from bond.conversation.types import (AssistantMessage, SystemMessage,
                                      TextChunk, UserMessage)
 
 
-class Repl:
+class DefaultCommandHandler:
+    beh: LoopBehaviour
 
     def __init__(
         self,
-        beh: LoopBehaviour,
         conversation_base_path: Path,
         last_conv_path: Path,
         available_personas: list[str],
         save_on_quit: bool = False,
     ):
-        for name in available_personas:
-            if name not in beh.env.list_personas():
-                raise ValueError(
-                    f"The persona '{name}' is not available in the environment"
-                )
-
-        self.beh = beh
         self.conversation_base_path = conversation_base_path
         self.last_conv_path = last_conv_path
         self.available_personas = available_personas
@@ -35,7 +28,17 @@ class Repl:
 
         self.parser = ArgumentParser(exit_on_error=False)
         _build_parser(self, self.parser)
-        self.beh.command_handler = lambda cmd: self._handle_cmd(cmd)
+
+    def link(self, beh: LoopBehaviour):
+        self.beh = beh
+        for name in self.available_personas:
+            if name not in beh.env.list_personas():
+                raise ValueError(
+                    f"The persona '{name}' is not available in the environment"
+                )
+
+    def __call__(self, cmd: str):
+        self._handle_cmd(cmd)
 
     def quit(self, _: Namespace) -> None:
         if self.beh.conversation.name is not None:
@@ -180,7 +183,7 @@ class Repl:
             pass
 
 
-def _build_parser(repl: Repl, parser: ArgumentParser):
+def _build_parser(repl: DefaultCommandHandler, parser: ArgumentParser):
     subparsers = parser.add_subparsers()
     quit_parser = subparsers.add_parser(
         "quit", help="Quit", aliases=["q"], exit_on_error=False

@@ -101,3 +101,5 @@ class LoopBehaviour:
                     self.turn.run(self.conversation)
                 except Exception as e:
                     self.notifier(f"{e}")
+            else:
+                raise NotImplementedError()
