@@ -3,7 +3,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from threading import local
-from typing import Any, Callable, Literal, TextIO
+from typing import Any, Callable, Literal, Protocol, TextIO
 
 from pydantic import BaseModel
 from returns.result import Failure, Result, Success
@@ -46,52 +46,13 @@ class BidirectionalTextIO:
     text_out: TextIO
 
 
-@dataclass
-class ToolEnvironment:
-    tool_out: TextIO | None = None
-    tool_in: TextIO | None = None
-    shell_out: TextIO | None = None
-    shell_in: TextIO | None = None
-    interaction_io: BidirectionalTextIO | None = None
-    work_dir: Path | Callable[[], Path] | None = None
+class ToolEnvironment(Protocol):
 
-    @contextmanager
-    def activate(self):
-        global _tool_locals
-        if not hasattr(_tool_locals, "env"):
-            _tool_locals.env = None
-        old_env = _tool_locals.env
-        _tool_locals.env = self
-        try:
-            yield
-        finally:
-            _tool_locals.env = old_env
+    def ask_confirmation(self, prompt: str) -> bool: ...
 
-    def ask_confirmation(self, prompt: str) -> bool:
-        if self.interaction_io is None:
-            return False
-        self.interaction_io.text_out.write(prompt + "[yes|no] > ")
-        try:
-            while True:
-                access = self.interaction_io.text_in.readline().strip(" \n")
-                if access == "yes" or access == "y":
-                    return True
-                if access == "no" or access == "n":
-                    return False
-                self.interaction_io.text_out.write("\nInvalid input\n[yes|no] > ")
-        except Exception as e:
-            logger.error(e)
-            return False
+    def is_interactive(self) -> bool: ...
 
-    def is_interactive(self) -> bool:
-        return self.interaction_io is not None
-
-    def get_work_dir(self) -> Path | None:
-        if self.work_dir is None:
-            return None
-        if isinstance(self.work_dir, Path):
-            return self.work_dir
-        return self.work_dir()
+    def get_work_dir(self) -> Path | None: ...
 
 
 def get_tool_environment() -> ToolEnvironment:
@@ -99,6 +60,19 @@ def get_tool_environment() -> ToolEnvironment:
     if not hasattr(_tool_locals, "env") or _tool_locals.env is None:
         raise RuntimeError("No tool environment")
     return _tool_locals.env
+
+
+@contextmanager
+def activate_environment(env: ToolEnvironment):
+    global _tool_locals
+    if not hasattr(_tool_locals, "env"):
+        _tool_locals.env = None
+    old_env = _tool_locals.env
+    _tool_locals.env = env
+    try:
+        yield
+    finally:
+        _tool_locals.env = old_env
 
 
 class Toolbox:

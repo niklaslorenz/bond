@@ -1,5 +1,4 @@
 import os
-import sys
 from argparse import ArgumentParser
 from pathlib import Path
 
@@ -7,8 +6,7 @@ from bond.behaviours.single_turn import SingleTurn
 from bond.bond_environment import DynamicBondEnvironment
 from bond.config import BondConfig, get_default_persona
 from bond.conversation.conversation import Conversation, ConversationMessage
-from bond.io.stream import ThoughtWrapper, WritethroughWrapper
-from bond.io.string_io import StringAoe
+from bond.io.stdio import StdAoe, StdIoToolEnvironment
 from bond.providers.provider import build_toolbox
 from bond.tools import global_toolbox, tool
 
@@ -38,33 +36,14 @@ def main():
     conv_path = Path("~/.local/share/bond").expanduser().absolute()
     config_path = env_path / "config.json"
     config = BondConfig.load_from(config_path)
+
     env = DynamicBondEnvironment(
         env_path, global_toolbox.get_toolsets(config.ask.tools)
     )
-    tool_environment = tool.ToolEnvironment(
-        interaction_io=(
-            tool.BidirectionalTextIO(text_in=sys.stdin, text_out=sys.stdout)
-            if not args.non_interactive
-            else None
-        ),
-        tool_in=(
-            open(args.input_file, "r")
-            if args.input_file is not None
-            else sys.stdin if not sys.stdin.isatty() else None
-        ),
-        tool_out=(
-            open(args.output_file, "w") if args.output_file is not None else sys.stdout
-        ),
-        shell_in=sys.stdin,
-        shell_out=sys.stdout,
-        work_dir=lambda: Path(os.getcwd()),
+    tool_environment = StdIoToolEnvironment(
+        work_dir=lambda: Path(os.getcwd()), is_interactive=True
     )
-    aoe = StringAoe(
-        text_out=WritethroughWrapper(sys.stdout),
-        thought_out=(
-            WritethroughWrapper(ThoughtWrapper(sys.stdout)) if show_thoughts else None
-        ),
-    )
+    aoe = StdAoe()
 
     # Get environment entities
     persona_name: str = (
@@ -93,9 +72,9 @@ def main():
         endpoint=provider.chat_completions(),
         model=persona.model,
         aoe=aoe,
+        tool_environment=tool_environment,
         system_message=persona.system_prompt,
         toolbox=toolbox,
-        tool_environment=tool_environment,
         model_display_name=persona.name,
         stream=stream,
         allow_shell_executions=allow_shell,

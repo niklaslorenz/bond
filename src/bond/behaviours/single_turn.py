@@ -3,10 +3,10 @@ import logging
 from returns.result import Success
 
 from bond.conversation.conversation import Conversation, ConversationMessage
-from bond.conversation.types import (AssistantMessage, FunctionCall,
-                                     SystemMessage)
+from bond.conversation.types import AssistantMessage, FunctionCall, SystemMessage
 from bond.endpoints.chat_completions import ChatCompletionsEndpoint
 from bond.io.aoe import AgentOutputEnvironment
+from bond.tools import tool
 from bond.tools.shell import allow_shell_commands
 from bond.tools.tool import Toolbox, ToolEnvironment
 
@@ -28,9 +28,9 @@ class SingleTurn:
         endpoint: ChatCompletionsEndpoint,
         model: str,
         aoe: AgentOutputEnvironment,
+        tool_environment: ToolEnvironment,
         system_message: str | None = None,
         toolbox: Toolbox | None = None,
-        tool_environment: ToolEnvironment | None = None,
         model_display_name: str | None = None,
         stream: bool = False,
         allow_shell_executions: bool = False,
@@ -42,7 +42,7 @@ class SingleTurn:
         self.system_message = system_message
         self.toolbox = toolbox if toolbox is not None else Toolbox({})
         self.tool_descriptions = self.toolbox.get_tool_descriptions()
-        self.tool_environment = tool_environment or ToolEnvironment()
+        self.tool_environment = tool_environment
         self.model_display_name = model_display_name
         self.stream = stream
         self.allow_shell_executions = allow_shell_executions
@@ -99,7 +99,7 @@ class SingleTurn:
 
             # Handle Tool calls
             for tool_call in message.tool_calls:
-                with self.tool_environment.activate():
+                with tool.activate_environment(self.tool_environment):
                     if self.allow_shell_executions:
                         with allow_shell_commands():
                             result = _do_tool_call(self.toolbox, tool_call.function)

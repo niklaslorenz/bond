@@ -1,5 +1,4 @@
 import os
-import sys
 from pathlib import Path
 
 from bond.behaviours.loop import LoopBehaviour
@@ -7,34 +6,26 @@ from bond.bond_environment import DynamicBondEnvironment
 from bond.config import BondConfig, get_default_persona
 from bond.conversation.conversation import Conversation
 from bond.default_command_handler import DefaultCommandHandler
-from bond.io.stdio import StdAoe, StdNotifier, StdSignalReceiver
-from bond.io.stream import WritethroughWrapper
+from bond.io.stdio import StdAoe, StdIoToolEnvironment, StdNotifier, StdSignalReceiver
 from bond.tools import global_toolbox
-from bond.tools.tool import BidirectionalTextIO, ToolEnvironment
 
 
 def main():
-
-    user_io = BidirectionalTextIO(sys.stdin, WritethroughWrapper(sys.stdout))
 
     conv_path = Path("~/.local/share/bond").expanduser().absolute()
     env_path = Path("~/.config/bond/").expanduser().absolute()
     config_path = Path(env_path) / "config.json"
     config = BondConfig.load_from(config_path)
+
     env = DynamicBondEnvironment(
         env_path, global_toolbox.get_toolsets(config.chat.tools)
     )
-    tool_environment = ToolEnvironment(
-        interaction_io=user_io,
-        tool_in=None,
-        tool_out=None,
-        work_dir=lambda: Path(os.getcwd()),
-        shell_out=sys.stdout,
-        shell_in=sys.stdin,
+    tool_environment = StdIoToolEnvironment(
+        work_dir=lambda: Path(os.getcwd()), is_interactive=True
     )
     aoe = StdAoe()
-    persona_name = get_default_persona(config.chat)
 
+    persona_name = get_default_persona(config.chat)
     last_conv_path = conv_path / "last-conv.json"
     conversation = (
         Conversation.model_validate_json(last_conv_path.read_text())
