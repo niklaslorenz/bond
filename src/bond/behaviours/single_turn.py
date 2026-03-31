@@ -79,7 +79,7 @@ class SingleTurn:
                     system_message=system_msg,
                     **self.additional_model_arguments,
                 )
-                self.aoe.handle_response(response)
+                self.aoe.handle_response(response, self.model_display_name)
 
             if len(response.choices) == 0:
                 raise RuntimeError(f"Received empty response: {response}")

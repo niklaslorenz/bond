@@ -34,12 +34,13 @@ class StringAoe:
             for content_chunk in content:
                 self._handle_message_chunk(content_chunk)
 
-    def handle_response(self, response: CompletionResponse):
+    def handle_response(self, response: CompletionResponse, name: str | None):
         if len(response.choices) == 0:
             return
         message = response.choices[0].message
         if message.content is None:
             return
+        self._handle_text(f"{name}:\n")
         for chunk in message.content:
             self._handle_message_chunk(chunk)
 
