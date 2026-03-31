@@ -9,7 +9,6 @@ from bond.behaviours.loop import LoopBehaviour
 from bond.conversation.conversation import Conversation
 from bond.conversation.types import (AssistantMessage, SystemMessage,
                                      TextChunk, UserMessage)
-from bond.tools.tool import BidirectionalTextIO
 
 
 class Repl:
@@ -17,10 +16,8 @@ class Repl:
     def __init__(
         self,
         beh: LoopBehaviour,
-        conversation: Conversation,
         conversation_base_path: Path,
         last_conv_path: Path,
-        user_io: BidirectionalTextIO,
         available_personas: list[str],
         save_on_quit: bool = False,
     ):
@@ -31,29 +28,24 @@ class Repl:
                 )
 
         self.beh = beh
-        self.conversation = conversation
         self.conversation_base_path = conversation_base_path
         self.last_conv_path = last_conv_path
         self.available_personas = available_personas
         self.save_on_quit = save_on_quit
-        self.user_io = user_io
 
         self.parser = ArgumentParser(exit_on_error=False)
         _build_parser(self, self.parser)
         self.beh.command_handler = lambda cmd: self._handle_cmd(cmd)
 
-    def run(self):
-        self.beh.run(self.conversation)
-
     def quit(self, _: Namespace) -> None:
-        if self.conversation.name is not None:
-            self._save_conversation(self.conversation.name)
+        if self.beh.conversation.name is not None:
+            self._save_conversation(self.beh.conversation.name)
         if self.save_on_quit:
             self._save_last_conversation()
         self.beh.running = False
 
     def save(self, args: Namespace) -> None:
-        name: str | None = args.name or self.conversation.name
+        name: str | None = args.name or self.beh.conversation.name
         if name is None:
             self.println("<Please specify a name for the conversation>")
             return
@@ -65,24 +57,24 @@ class Repl:
         if not path.is_file():
             self.println(f"<Error: unknown conversation name: {name}>")
             return
-        self.conversation = Conversation.model_validate_json(path.read_text())
+        self.beh.conversation = Conversation.model_validate_json(path.read_text())
         self.println(
-            f"<loaded '{name}' with {len(self.conversation.history)} messages>"
+            f"<loaded '{name}' with {len(self.beh.conversation.history)} messages>"
         )
 
     def new(self, _: Namespace) -> None:
-        self.conversation = Conversation()
+        self.beh.conversation = Conversation()
         self.println("\n\n\n<New Conversation>\n")
 
     def help(self, _: Namespace) -> None:
-        self.parser.print_help(self.user_io.text_out)
+        self.println(self.parser.format_help())
 
     def forget(self, _: Namespace) -> None:
         self.beh.running = False
 
     def remember(self, _: Namespace) -> None:
-        if self.conversation.name is not None:
-            self._save_conversation(self.conversation.name)
+        if self.beh.conversation.name is not None:
+            self._save_conversation(self.beh.conversation.name)
         self._save_last_conversation()
         self.beh.running = False
 
@@ -91,11 +83,11 @@ class Repl:
         self.println("<Not implemented>")
 
     def len(self, _: Namespace) -> None:
-        self.println(f"<{len(self.conversation.history)} messages>")
+        self.println(f"<{len(self.beh.conversation.history)} messages>")
 
     def last(self, args: Namespace) -> None:
         n: int = args.n
-        messages = self.conversation.history[-n:]
+        messages = self.beh.conversation.history[-n:]
         for message in messages:
             msg = message.message
             if (
@@ -116,7 +108,7 @@ class Repl:
                 "<Please specify a positive number for how many messages to keep>"
             )
             return
-        self.conversation.history = self.conversation.history[-keep:]
+        self.beh.conversation.history = self.beh.conversation.history[-keep:]
         self.println(f"<Cropped conversation to the last {keep} messages>")
 
     def who(self, _: Namespace) -> None:
@@ -156,24 +148,21 @@ class Repl:
                 stdin=sys.stdin,
             )
 
-    def println(self, text: str, flush: bool = False):
-        print(text, file=self.user_io.text_out, flush=flush)
+    def println(self, text: str):
+        self.beh.notifier(text + "\n")
 
-    def print(self, text: str, flush: bool = False):
-        print(text, file=self.user_io.text_out, flush=flush, end=None)
-
-    def readln(self) -> str:
-        return self.user_io.text_in.readline()
+    def print(self, text: str):
+        self.beh.notifier(text)
 
     def _save_last_conversation(self):
         self.last_conv_path.write_text(
-            self.conversation.model_dump_json(), encoding="utf-8"
+            self.beh.conversation.model_dump_json(), encoding="utf-8"
         )
 
     def _save_conversation(self, name: str):
         path = self.conversation_base_path / (name + ".json")
-        self.conversation.name = name
-        path.write_text(self.conversation.model_dump_json(), encoding="utf-8")
+        self.beh.conversation.name = name
+        path.write_text(self.beh.conversation.model_dump_json(), encoding="utf-8")
         self._save_last_conversation()
 
     def _handle_cmd(self, cmd: str):

@@ -50,6 +50,7 @@ def main():
 
     receiver = StdSignalReceiver(None)
     loop = LoopBehaviour(
+        conversation=conversation,
         environment=env,
         aoe=aoe,
         signal_receiver=receiver,
@@ -64,16 +65,14 @@ def main():
     receiver.set_query(lambda: loop.persona_name)
 
     repl = Repl(
-        loop,
-        conversation,
-        conv_path / "conversations",
-        last_conv_path,
-        user_io,
-        config.chat.personas,
-        False,
+        beh=loop,
+        conversation_base_path=conv_path / "conversations",
+        last_conv_path=last_conv_path,
+        available_personas=config.chat.personas,
+        save_on_quit=False,
     )
 
-    repl.run()
+    loop.run()
 
 
 if __name__ == "__main__":

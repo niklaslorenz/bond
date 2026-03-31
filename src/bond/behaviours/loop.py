@@ -16,6 +16,7 @@ class LoopBehaviour:
 
     def __init__(
         self,
+        conversation: Conversation,
         environment: BondEnvironment,
         aoe: AgentOutputEnvironment,
         signal_receiver: Callable[[], BehaviourSignal],
@@ -28,6 +29,7 @@ class LoopBehaviour:
         user_name: str | None = None,
         **additional_chat_completion_arguments,
     ):
+        self.conversation = conversation
         self.env = environment
         self.aoe = aoe
         self.signal_receiver = signal_receiver
@@ -46,6 +48,9 @@ class LoopBehaviour:
     def set_persona(self, persona_name: str):
         self.persona = self.env.get_persona(persona_name)
         self._build_turn()
+
+    def set_conversation(self, conversation: Conversation):
+        self.conversation = conversation
 
     def _build_turn(self):
         provider = self.env.get_provider(self.persona.provider)
@@ -70,7 +75,7 @@ class LoopBehaviour:
             **self.additional_chat_completion_arguments,
         )
 
-    def run(self, conversation: Conversation):
+    def run(self):
         if self.running:
             raise RuntimeError("Already running")
         self.running = True
@@ -87,12 +92,12 @@ class LoopBehaviour:
             elif signal.type == "stop":
                 self.running = False
             elif signal.type == "prompt":
-                conversation.add_message(
+                self.conversation.add_message(
                     ConversationMessage.create_user_message(
                         signal.prompt, user_name=self.user_name or "User"
                     )
                 )
                 try:
-                    self.turn.run(conversation)
+                    self.turn.run(self.conversation)
                 except Exception as e:
                     self.notifier(f"{e}")
