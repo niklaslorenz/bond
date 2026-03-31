@@ -6,7 +6,7 @@ from bond.conversation.conversation import Conversation, ConversationMessage
 from bond.conversation.types import (AssistantMessage, FunctionCall,
                                      SystemMessage)
 from bond.endpoints.chat_completions import ChatCompletionsEndpoint
-from bond.io.io import AgentOutputEnvironment
+from bond.io.aoe import AgentOutputEnvironment
 from bond.tools.shell import allow_shell_commands
 from bond.tools.tool import Toolbox, ToolEnvironment
 

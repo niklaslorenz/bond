@@ -6,7 +6,7 @@ from bond.behaviours.loop import LoopBehaviour
 from bond.bond_environment import DynamicBondEnvironment
 from bond.config import BondConfig, get_default_persona
 from bond.conversation.conversation import Conversation
-from bond.io.stdio import StdAoe
+from bond.io.stdio import StdAoe, StdNotifier, StdSignalReceiver
 from bond.io.stream import WritethroughWrapper
 from bond.repl import Repl
 from bond.tools import global_toolbox
@@ -48,17 +48,20 @@ def main():
     else:
         print(f"<Loaded {len(conversation.history)} messages>")
 
+    receiver = StdSignalReceiver(None)
     loop = LoopBehaviour(
         environment=env,
         aoe=aoe,
-        user_io=user_io,
+        signal_receiver=receiver,
+        notifier=StdNotifier(),
+        command_handler=None,
         tool_environment=tool_environment,
         persona_name=persona_name,
         stream=True,
         allow_shell_executions=True,
-        command_handler=None,
         user_name=config.user_name,
     )
+    receiver.set_query(lambda: loop.persona_name)
 
     repl = Repl(
         loop,
