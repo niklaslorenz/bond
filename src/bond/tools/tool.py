@@ -8,6 +8,8 @@ from typing import Any, Callable, Literal, Protocol, TextIO
 from pydantic import BaseModel
 from returns.result import Failure, Result, Success
 
+from bond.conversation.types import ToolCall
+
 from . import logger
 
 ToolFn = Callable[..., str | list[str] | dict[str, Any] | list[dict[str, Any]]]
@@ -47,12 +49,21 @@ class BidirectionalTextIO:
 
 
 class ToolEnvironment(Protocol):
-
     def ask_confirmation(self, prompt: str) -> bool: ...
 
     def is_interactive(self) -> bool: ...
 
     def get_work_dir(self) -> Path | None: ...
+
+    def handle_result(self, tool_call: ToolCall, result: str): ...
+
+    def supports_stdout(self) -> bool: ...
+
+    def handle_stdout(self, data: str, flush: bool = False): ...
+
+    def log_out(self) -> TextIO | None: ...
+
+    def log_err(self) -> TextIO | None: ...
 
 
 def get_tool_environment() -> ToolEnvironment:

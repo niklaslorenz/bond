@@ -105,7 +105,7 @@ class SingleTurn:
                             result = _do_tool_call(self.toolbox, tool_call.function)
                     else:
                         result = _do_tool_call(self.toolbox, tool_call.function)
-                    self.aoe.handle_tool_result(tool_call, result)
+                    self.tool_environment.handle_result(tool_call, result)
                     conversation.add_message(
                         ConversationMessage.create_tool_response_message(
                             result, tool_call

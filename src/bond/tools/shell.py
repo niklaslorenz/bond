@@ -60,18 +60,22 @@ def run_shell_commands(commands: str, explaination: str):
         commands,
         text=True,
         shell=True,
-        stdin=env.shell_in,
+        stdin=None,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
 
-    if env.shell_out is not None:
-        assert process.stdout is not None
-        assert process.stderr is not None
+    assert process.stdout is not None
+    assert process.stderr is not None
+
+    log_out = env.log_out()
+    if log_out is not None:
         for line in process.stdout:
-            print(line, file=env.shell_out)
+            print(line, file=log_out)
+    log_err = env.log_err()
+    if log_err is not None:
         for line in process.stderr:
-            print(line, file=env.shell_out)
+            print(line, file=log_err)
 
     stdout, stderr = process.communicate()
 

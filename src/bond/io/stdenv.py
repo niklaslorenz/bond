@@ -1,12 +1,13 @@
 import sys
 from pathlib import Path
-from typing import Callable
+from typing import Callable, TextIO
 
 from bond.behaviours.behaviour_signal import (
     BehaviourSignal,
     CommandSignal,
     PromptSignal,
 )
+from bond.conversation.types import ToolCall
 from bond.io.stream import WritethroughWrapper
 from bond.io.string_io import StringAoe
 
@@ -42,13 +43,18 @@ class StdNotifier:
 
 class StdIoToolEnvironment:
     def __init__(
-        self, work_dir: Path | Callable[[], Path] | None, is_interactive: bool
+        self,
+        work_dir: Path | Callable[[], Path] | None,
+        is_interactive: bool,
+        show_tool_output: bool,
+        show_tool_logs: bool,
     ):
         self.work_dir = work_dir
         self._is_interactive = is_interactive
-        pass
+        self.show_tool_output = show_tool_output
+        self.show_logs = show_tool_logs
 
-    def is_interactive(self):
+    def is_interactive(self) -> bool:
         return self._is_interactive
 
     def ask_confirmation(self, prompt: str) -> bool:
@@ -73,3 +79,25 @@ class StdIoToolEnvironment:
         if isinstance(self.work_dir, Path):
             return self.work_dir
         return self.work_dir()
+
+    def handle_result(self, tool_call: ToolCall, result: str):
+        if self.show_tool_output:
+            print(f"[{tool_call.function.name}]: {result}")
+
+    def supports_stdout(self) -> bool:
+        return True
+
+    def handle_stdout(self, data: str, flush: bool = False):
+        print(data, flush=flush)
+
+    def log_out(self) -> TextIO | None:
+        if self.show_logs:
+            return sys.stdout
+        else:
+            return None
+
+    def log_err(self) -> TextIO | None:
+        if self.show_logs:
+            return sys.stderr
+        else:
+            return None

@@ -12,7 +12,8 @@ def write_to_output(text: str) -> str:
         An error or success message
     """
     env = tool.get_tool_environment()
-    if env.tool_out is None:
+    if env.supports_stdout():
+        env.handle_stdout(text, True)
+        return "success: data written to output"
+    else:
         return "error: no output stream"
-    env.tool_out.write(text)
-    return "success: data written to output"

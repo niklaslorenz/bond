@@ -1,7 +1,11 @@
 from typing import TextIO
 
-from bond.conversation.types import (AssistantMessageChunk, TextChunk,
-                                     ThinkChunk, ToolCall, UsageInfo)
+from bond.conversation.types import (
+    AssistantMessageChunk,
+    TextChunk,
+    ThinkChunk,
+    UsageInfo,
+)
 from bond.endpoints.chat_completions import CompletionChunk, CompletionResponse
 
 
@@ -43,13 +47,6 @@ class StringAoe:
         self._handle_text(f"{name}:\n")
         for chunk in message.content:
             self._handle_message_chunk(chunk)
-
-    def handle_tool_result(
-        self,
-        tool_call: ToolCall,
-        tool_output: str,
-    ):
-        pass
 
     def _handle_text(self, text: str):
         if self.text_out is not None:

@@ -21,7 +21,10 @@ def main():
         env_path, global_toolbox.get_toolsets(config.chat.tools)
     )
     tool_environment = StdIoToolEnvironment(
-        work_dir=lambda: Path(os.getcwd()), is_interactive=True
+        work_dir=lambda: Path(os.getcwd()),
+        is_interactive=True,
+        show_tool_output=False,
+        show_tool_logs=True,
     )
     aoe = StdAoe()
 

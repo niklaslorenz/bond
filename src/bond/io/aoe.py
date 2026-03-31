@@ -1,6 +1,6 @@
 from typing import Protocol
 
-from bond.conversation.types import ToolCall, UsageInfo
+from bond.conversation.types import UsageInfo
 from bond.endpoints.chat_completions import CompletionChunk, CompletionResponse
 
 
@@ -10,4 +10,3 @@ class AgentOutputEnvironment(Protocol):
     def handle_response_chunk(self, chunk: CompletionChunk): ...
 
     def handle_response(self, response: CompletionResponse, name: str | None): ...
-    def handle_tool_result(self, tool_call: ToolCall, tool_output: str): ...
