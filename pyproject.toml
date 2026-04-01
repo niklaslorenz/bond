@@ -17,6 +17,7 @@ dependencies = [
     "returns==0.26.0",
     "smolagents[toolbox]==1.24.0",
     "urllib3==2.6.3",
+    "textual",
 ]
 
 [project.urls]
@@ -27,6 +28,7 @@ dependencies = [
 ask = "bond.cli.ask:main"
 followup = "bond.cli.followup:main"
 chat = "bond.cli.chat:main"
+
 
 [tool.setuptools.packages.find]
 where = ["src"]

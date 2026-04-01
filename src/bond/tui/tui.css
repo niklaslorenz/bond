@@ -1,0 +1,72 @@
+
+StatusBar {
+    height: 1;
+    background: $background;
+    color: $text;
+    padding: 0 1;
+    content-align: center middle;
+    dock: top;
+}
+
+InputBar {
+    dock: bottom;
+    width: 100%;
+    height: auto;
+    min-height: 3;
+    border: none;
+    background: transparent;
+    align-horizontal: center;
+    margin-bottom: 1;
+    padding-left: 2;
+    padding-right: 2;
+}
+
+InputBar > #message-input {
+    background: $background;
+    color: $text;
+    border: solid $border;
+    padding: 0 1;
+    height: auto;
+    min-height: 1;
+}
+
+ChatMessage {
+    color: $text;
+    height: auto;
+}
+
+ChatMessage.user {
+    border: vkey $primary;
+}
+
+ChatMessage.assistant {
+    border: vkey $accent;
+}
+
+ChatMessage.tool {
+    border: vkey green;
+}
+
+ChatMessage.system {
+    border: vkey magenta;
+}
+
+ChatMessage > ToolCallBlock {
+    color: grey;
+    height: auto;
+}
+
+ChatMessage > ToolResultBlock {
+    color: grey;
+    height: auto;
+}
+
+ChatMessage > ThinkBlock {
+    color: grey;
+    height: auto;
+}
+
+ChatMessage > TextBlock {
+    color: white;
+    height: auto;
+}
