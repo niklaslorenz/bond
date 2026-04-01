@@ -178,7 +178,7 @@ class DefaultCommandHandler:
                 args = self.parser.parse_args(shlex.split(cmd))
                 args.callback(args)
         except Exception as e:
-            self.println(f"error while executing command '{cmd}': {e}")
+            self.println(f"error while executing command '{cmd}' ({type(e)}): {e}")
         except SystemExit:
             pass
 
