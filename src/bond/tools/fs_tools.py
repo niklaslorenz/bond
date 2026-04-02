@@ -106,6 +106,6 @@ def list_directory(dir_path: str) -> str:
         return why_not
     if not path.is_dir():
         return "error: not a directory"
-    children = current_directory.iterdir()
+    children = path.iterdir()
     results = [f"{child}: {'dir' if child.is_dir() else 'file'}" for child in children]
     return f"Contents of {path}:\n" + "\n".join(results)
