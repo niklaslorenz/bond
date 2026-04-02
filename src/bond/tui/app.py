@@ -55,6 +55,7 @@ class BondTui(App):
         self.input_bar.focus()
         for message in self.messages:
             self.chat_log.add_message(message)
+        self.chat_log.scroll_end(animate=False)
 
     def add_message(self, message: ChatMessage):
         self.messages.append(message)
@@ -80,6 +81,8 @@ class BondTui(App):
                 self._handle_message_content(
                     message.message.content, message.message.role, message.author
                 )
+        if self.chat_log.is_mounted:
+            self.chat_log.scroll_end(animate=False)
 
     def quit(self):
         self.event_queue.put(StopEvent())
@@ -96,14 +99,13 @@ class BondTui(App):
 
         if text.startswith(":"):
             cmd = text[1:]
-            self.add_message(ChatMessage.create_command_msg(cmd))
             self.signal_queue.put(CommandSignal(command=cmd))
         else:
             self.add_message(ChatMessage.create_user_msg("User", text))
             self._allow_user_input = False
             self.status_bar.status = "Waiting"
             self.signal_queue.put(PromptSignal(prompt=text))
-        self.chat_log.chat_scroll()
+        self.chat_log.scroll_end()
 
     async def _listen_to_events(self):
         try:
@@ -134,6 +136,7 @@ class BondTui(App):
                 self._handle_message_content(
                     event.chunk.choices[0].delta.content, "assistant", None
                 )
+            self.chat_log.scroll_end()
         elif event.type == "completion_response":
             if event.response.choices[0].message.content is not None:
                 self._handle_message_content(

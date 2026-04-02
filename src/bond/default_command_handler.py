@@ -127,6 +127,11 @@ class DefaultCommandHandler:
             return
         self.beh.set_persona(persona_name)
 
+    def delete(self, args: Namespace) -> None:
+        n: int = args.n
+        self.beh.conversation.history = self.beh.conversation.history[:-n]
+        self.println(f"<Removed {n} messages>")
+
     def handle_shell_command(self, cmd: str) -> None:
         args = shlex.split(cmd)
         if len(args) == 0:
@@ -253,9 +258,7 @@ def _build_parser(repl: DefaultCommandHandler, parser: ArgumentParser):
         "crop", help="Crop the conversation to the last n messages", exit_on_error=False
     )
     crop_parser.set_defaults(callback=repl.crop)
-    crop_parser.add_argument(
-        "keep", nargs=1, type=int, help="How many messages to keep"
-    )
+    crop_parser.add_argument("keep", type=int, help="How many messages to keep")
 
     who_parser = subparsers.add_parser(
         "who", help="Print the names of available personas", exit_on_error=False
@@ -270,3 +273,14 @@ def _build_parser(repl: DefaultCommandHandler, parser: ArgumentParser):
     )
     to_parser.set_defaults(callback=repl.to)
     to_parser.add_argument("name", type=str, help="Name of the persona")
+
+    del_parser = subparsers.add_parser(
+        "delete",
+        help="Delete the last n messages",
+        aliases=["del"],
+        exit_on_error=False,
+    )
+    del_parser.set_defaults(callback=repl.delete)
+    del_parser.add_argument(
+        "n", nargs="?", type=int, default=1, help="Number of messages to delete"
+    )

@@ -176,11 +176,6 @@ class ChatLog(ScrollableContainer):
     def add_message(self, message: ChatMessage):
         self.mount(message)
 
-    def chat_scroll(self):
-        last_child = self.children[-1]
-        scroll_y = last_child.virtual_region.bottom - self.region.height
-        self.scroll_to(y=scroll_y, animate=True)
-
 
 class MultiLineInput(TextArea):
     def on_key(self, event: Key) -> None:

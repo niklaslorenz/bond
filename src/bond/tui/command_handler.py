@@ -78,3 +78,9 @@ class TuiCommandHandler(DefaultCommandHandler):
                 provider_name=self.beh.persona.provider,
             )
         )
+
+    def delete(self, args: Namespace):
+        super().delete(args)
+        self.event_queue.put(
+            SyncLogEvent(conversation=self.beh.conversation, message_count=None)
+        )
