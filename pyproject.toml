@@ -28,6 +28,7 @@ dependencies = [
 ask = "bond.cli.ask:main"
 followup = "bond.cli.followup:main"
 chat = "bond.cli.chat:main"
+talk = "bond.tui.main:main"
 
 
 [tool.setuptools.packages.find]
