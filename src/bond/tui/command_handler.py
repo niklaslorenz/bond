@@ -37,7 +37,6 @@ class TuiCommandHandler(DefaultCommandHandler):
 
     def load(self, args: Namespace):
         self.event_queue.put(BlockEvent())
-        self.event_queue.put(ClearLogEvent())
         super().load(args)
         self.event_queue.put(
             SyncLogEvent(conversation=self.beh.conversation, message_count=None)

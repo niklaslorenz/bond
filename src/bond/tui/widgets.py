@@ -45,14 +45,14 @@ class FoldableBlock(Static):
     def __init__(self, title: str, content: str, **kwargs):
         super().__init__(**kwargs)
         self.title = title
-        self.content_str = content
+        self.text = content
 
     def on_click(self) -> None:
         self.expanded = not self.expanded
         self.refresh(layout=True)
 
     def append(self, delta: str):
-        self.content_str += delta
+        self.text += delta
         if self.expanded:
             self.refresh(layout=True)
 
@@ -64,7 +64,7 @@ class FoldableBlock(Static):
 
         if self.expanded:
             text.append("\n")
-            text.append(self.content_str)
+            text.append(self.text)
 
         return text
 
@@ -112,7 +112,6 @@ class ChatMessage(Vertical):
 
     def __init__(self, author: str, role: str, **kwargs):
         super().__init__(**kwargs)
-
         self.author = author
         self.role = role
         self.elements: list[Static] = []
@@ -162,6 +161,11 @@ class ChatMessage(Vertical):
 
     def append_tool_result(self, text: str, name: str | None = None):
         self.add_tool_result_block(text, name)
+
+    def on_mount(self):
+        for element in self.elements:
+            if not element.is_mounted:
+                self.mount(element)
 
 
 class ChatLog(ScrollableContainer):

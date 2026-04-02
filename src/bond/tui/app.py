@@ -67,6 +67,8 @@ class BondTui(App):
             self._current_open_message = None
 
     def clear_log(self):
+        self._last_assistant_message = None
+        self._current_open_message = None
         if self.chat_log.is_mounted:
             self.chat_log.remove_children()
         self.messages.clear()
@@ -188,16 +190,17 @@ class BondTui(App):
                 " ".join([c.text for c in content if isinstance(c, TextChunk)]),
                 name=author,
             )
-            return
-        if role == "assistant":
+        elif role == "assistant":
             msg = self._ensure_open_message(author, overwrite=False)
+            self._handle_message_chunks(msg, content)
         elif role == "system":
             msg = ChatMessage(author or "System", role)
+            self._handle_message_chunks(msg, content)
             self.add_message(msg)
         elif role == "user":
             msg = ChatMessage(author or "User", role)
+            self._handle_message_chunks(msg, content)
             self.add_message(msg)
-        self._handle_message_chunks(msg, content)
 
     def _handle_message_chunks(
         self,
