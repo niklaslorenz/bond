@@ -1,16 +1,19 @@
 import asyncio
 from pathlib import Path
 from queue import Queue
+from typing import Literal
 
 from textual.app import App, ComposeResult
 from textual.worker import Worker
 
 from bond.behaviours.behaviour_signal import (BehaviourSignal, CommandSignal,
-                                              PromptSignal, StopSignal)
+                                              PromptSignal)
 from bond.behaviours.loop import LoopBehaviour
-from bond.conversation.types import (AssistantMessageChunk, TextChunk,
-                                     ThinkChunk)
+from bond.conversation.conversation import Conversation
+from bond.conversation.types import (AssistantMessageChunk, SystemMessageChunk,
+                                     TextChunk, ThinkChunk)
 from bond.io.queue_env import BehaviourEvent, StopEvent
+from bond.persona import Persona
 from bond.tui.widgets import (ChatLog, ChatMessage, InputBar, MultiLineInput,
                               StatusBar)
 
@@ -21,6 +24,7 @@ class BondTui(App):
         self,
         signal_queue: Queue[BehaviourSignal],
         event_queue: Queue[BehaviourEvent],
+        starting_persona: Persona,
     ):
         super().__init__()
         self.signal_queue = signal_queue
@@ -29,26 +33,51 @@ class BondTui(App):
         self.messages: list[ChatMessage] = []
         self._current_open_message: ChatMessage | None = None
         self._last_assistant_message: ChatMessage | None = None
+        self._allow_user_input = True
+
+        self.status_bar = StatusBar(id="status-bar")
+        self.status_bar.status = "Idle"
+        self.status_bar.persona = starting_persona.name
+        self.status_bar.provider = starting_persona.provider
+        self.status_bar.context_length = 0
+        self.chat_log = ChatLog()
+        self.input_bar = InputBar(id="input-layer")
 
     CSS_PATH = str(Path(__file__).with_name("tui.css"))
 
     def compose(self) -> ComposeResult:
-        self.chat_log = ChatLog()
         yield self.chat_log
-
-        self.status_bar = StatusBar(id="status-bar")
         yield self.status_bar
-
-        self.input_bar = InputBar(id="input-layer")
         yield self.input_bar
 
     def on_mount(self):
         self.running_workers.append(self.run_worker(self._listen_to_events))
         self.input_bar.focus()
+        for message in self.messages:
+            self.chat_log.add_message(message)
 
     def add_message(self, message: ChatMessage):
         self.messages.append(message)
-        self.chat_log.add_message(message)
+        if self.chat_log.is_mounted:
+            self.chat_log.add_message(message)
+        if message.role == "assistant":
+            self._last_assistant_message = message
+        else:
+            self._last_assistant_message = None
+            self._current_open_message = None
+
+    def clear_log(self):
+        if self.chat_log.is_mounted:
+            self.chat_log.remove_children()
+        self.messages.clear()
+
+    def synchronize(self, conversation: Conversation, length: int | None = None):
+        self.clear_log()
+        for message in conversation.history[-length if length is not None else 0 :]:
+            if message.message.content is not None:
+                self._handle_message_content(
+                    message.message.content, message.message.role, message.author
+                )
 
     def quit(self):
         self.event_queue.put(StopEvent())
@@ -57,12 +86,11 @@ class BondTui(App):
         self.beh = beh
 
     async def on_multi_line_input_submitted(self, event: MultiLineInput.Submitted):
-        text = event.value.strip()
-
-        if text == ":quit" or text == ":q":
-            self.signal_queue.put(StopSignal())
-            self.quit()
+        if not self._allow_user_input:
             return
+
+        text = event.value.strip()
+        event.clear_field()
 
         if text.startswith(":"):
             cmd = text[1:]
@@ -70,7 +98,10 @@ class BondTui(App):
             self.signal_queue.put(CommandSignal(command=cmd))
         else:
             self.add_message(ChatMessage.create_user_msg("User", text))
+            self._allow_user_input = False
+            self.status_bar.status = "Waiting"
             self.signal_queue.put(PromptSignal(prompt=text))
+        self.chat_log.chat_scroll()
 
     async def _listen_to_events(self):
         try:
@@ -90,16 +121,21 @@ class BondTui(App):
             self.notify(event.message)
         elif event.type == "stream_start":
             self._ensure_open_message(event.agent_name, overwrite=False)
+            self.status_bar.status = "Responding"
         elif event.type == "stream_end":
             self._last_assistant_message = self._current_open_message
             self._current_open_message = None
+            self._allow_user_input = True
+            self.status_bar.status = "Idle"
         elif event.type == "stream_chunk":
             if event.chunk.choices[0].delta.content is not None:
-                self._handle_message_content(event.chunk.choices[0].delta.content, None)
+                self._handle_message_content(
+                    event.chunk.choices[0].delta.content, "assistant", None
+                )
         elif event.type == "completion_response":
             if event.response.choices[0].message.content is not None:
                 self._handle_message_content(
-                    event.response.choices[0].message.content, None
+                    event.response.choices[0].message.content, "assistant", None
                 )
         elif event.type == "confirmation_request":
             # TODO: implement
@@ -115,6 +151,17 @@ class BondTui(App):
                     f"Could not assign tool return to a caller message",
                     severity="error",
                 )
+        elif event.type == "update_persona":
+            self.status_bar.persona = event.persona_name
+            self.status_bar.provider = event.provider_name
+        elif event.type == "clear_log":
+            self.clear_log()
+        elif event.type == "sync_log":
+            self.synchronize(event.conversation, event.message_count)
+        elif event.type == "block":
+            self._allow_user_input = False
+        elif event.type == "release":
+            self._allow_user_input = True
         else:
             self.notify(f"Invalid event type: {event.type}", severity="error")
 
@@ -130,9 +177,33 @@ class BondTui(App):
         return self._current_open_message
 
     def _handle_message_content(
-        self, content: list[AssistantMessageChunk], fallback_author: str | None
+        self,
+        content: list[AssistantMessageChunk] | list[SystemMessageChunk],
+        role: Literal["user", "tool", "assistant", "system"],
+        author: str | None,
     ):
-        msg = self._ensure_open_message(fallback_author, overwrite=False)
+        if role == "tool":
+            msg = self._ensure_open_message(author, overwrite=False)
+            msg.append_tool_result(
+                " ".join([c.text for c in content if isinstance(c, TextChunk)]),
+                name=author,
+            )
+            return
+        if role == "assistant":
+            msg = self._ensure_open_message(author, overwrite=False)
+        elif role == "system":
+            msg = ChatMessage(author or "System", role)
+            self.add_message(msg)
+        elif role == "user":
+            msg = ChatMessage(author or "User", role)
+            self.add_message(msg)
+        self._handle_message_chunks(msg, content)
+
+    def _handle_message_chunks(
+        self,
+        msg: ChatMessage,
+        content: list[AssistantMessageChunk] | list[SystemMessageChunk],
+    ):
         for content_chunk in content:
             if isinstance(content_chunk, TextChunk):
                 msg.append_text(content_chunk.text)

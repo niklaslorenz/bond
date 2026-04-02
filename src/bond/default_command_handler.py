@@ -44,6 +44,7 @@ class DefaultCommandHandler:
         if self.beh.conversation.name is not None:
             self._save_conversation(self.beh.conversation.name)
         if self.save_on_quit:
+            print("Save last conversation")
             self._save_last_conversation()
         self.beh.running = False
 

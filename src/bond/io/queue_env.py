@@ -3,9 +3,10 @@ from pathlib import Path
 from queue import Queue
 from typing import Annotated, Callable, Literal, TextIO, Union
 
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, TypeAdapter
+from pydantic import BaseModel, Field, PrivateAttr, TypeAdapter
 
 from bond.behaviours.behaviour_signal import BehaviourSignal
+from bond.conversation.conversation import Conversation
 from bond.conversation.types import ToolCall, UsageInfo
 from bond.endpoints.chat_completions import CompletionChunk, CompletionResponse
 
@@ -54,6 +55,30 @@ class ToolCallResultEvent(BaseModel):
     tool_return: str
 
 
+class UpdatePersonaEvent(BaseModel):
+    type: Literal["update_persona"] = "update_persona"
+    persona_name: str
+    provider_name: str
+
+
+class BlockEvent(BaseModel):
+    type: Literal["block"] = "block"
+
+
+class ReleaseEvent(BaseModel):
+    type: Literal["release"] = "release"
+
+
+class ClearLogEvent(BaseModel):
+    type: Literal["clear_log"] = "clear_log"
+
+
+class SyncLogEvent(BaseModel):
+    type: Literal["sync_log"] = "sync_log"
+    conversation: Conversation
+    message_count: int | None
+
+
 BehaviourEvent = Annotated[
     Union[
         StreamStartEvent,
@@ -64,6 +89,11 @@ BehaviourEvent = Annotated[
         StopEvent,
         ConfirmationRequestEvent,
         ToolCallResultEvent,
+        UpdatePersonaEvent,
+        BlockEvent,
+        ClearLogEvent,
+        SyncLogEvent,
+        ReleaseEvent,
     ],
     Field(discriminator="type"),
 ]

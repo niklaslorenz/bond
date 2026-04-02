@@ -6,7 +6,8 @@ from bond.bond_environment import DynamicBondEnvironment
 from bond.config import BondConfig, get_default_persona
 from bond.conversation.conversation import Conversation
 from bond.default_command_handler import DefaultCommandHandler
-from bond.io.stdenv import StdAoe, StdIoToolEnvironment, StdNotifier, StdSignalReceiver
+from bond.io.stdenv import (StdAoe, StdIoToolEnvironment, StdNotifier,
+                            StdSignalReceiver)
 from bond.tools import global_toolbox
 
 
@@ -62,7 +63,7 @@ def main():
         user_name=config.user_name,
     )
     cmd_handler.link(loop)
-    receiver.set_query(lambda: loop.persona_name)
+    receiver.set_query(lambda: loop.persona.name)
 
     loop.run()
 

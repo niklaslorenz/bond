@@ -9,15 +9,15 @@ _THINK_COLOR = "grey"
 
 
 class StatusBar(Static):
-    model = reactive("<unknown>")
+    persona = reactive("<unknown>")
     provider = reactive("<unknown>")
     status = reactive("Idle")
     context_length = reactive(0)
 
     def render(self) -> Text:
         return Text.assemble(
-            ("Model: ", "bold"),
-            f"{self.model}  ",
+            ("Persona: ", "bold"),
+            f"{self.persona}  ",
             ("Provider: ", "bold"),
             f"{self.provider}  ",
             ("Status: ", "bold"),
@@ -164,36 +164,6 @@ class ChatMessage(Vertical):
         self.add_tool_result_block(text, name)
 
 
-class ChatMessage2(Static):
-    think_str = reactive("")
-    content_str = reactive("")
-
-    def __init__(self, author: str, content: str, think: str, role: str, **kwargs):
-        super().__init__(**kwargs)
-        self.author = author
-        self.content_str = content
-        self.think_str = think
-        self.role = role
-        self.add_class(self.role)
-
-    def append_content(self, content_delta: str | None, think_delta: str | None):
-        if content_delta is not None:
-            self.content_str = self.content_str + content_delta
-        if think_delta is not None:
-            self.think_str = self.think_str + think_delta
-        self.update(self.render())
-
-    def render(self) -> Text:
-        border_color = self.styles.border_left[1].hex
-
-        text = Text()
-        text.append(f"{self.author}:\n", style=f"bold {border_color}")
-        if self.think_str != "":
-            text.append(self.think_str + "\n\n", style=_THINK_COLOR)
-        text.append(self.content_str)
-        return text
-
-
 class ChatLog(ScrollableContainer):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -201,6 +171,11 @@ class ChatLog(ScrollableContainer):
 
     def add_message(self, message: ChatMessage):
         self.mount(message)
+
+    def chat_scroll(self):
+        last_child = self.children[-1]
+        scroll_y = last_child.virtual_region.bottom - self.region.height
+        self.scroll_to(y=scroll_y, animate=True)
 
 
 class MultiLineInput(TextArea):
@@ -210,16 +185,19 @@ class MultiLineInput(TextArea):
             self.move_cursor_relative(rows=1)
         elif event.key == "enter":
             self.on_submit()
-            self.clear()
             event.prevent_default()
 
     def on_submit(self):
-        self.post_message(self.Submitted(self.text))
+        self.post_message(self.Submitted(self, self.text))
         pass
 
     class Submitted(Message):
         """Event emitted when Enter is pressed without Ctrl."""
 
-        def __init__(self, value: str) -> None:
+        def __init__(self, input_field: "MultiLineInput", value: str) -> None:
+            self.input_field = input_field
             self.value = value
             super().__init__()
+
+        def clear_field(self):
+            self.input_field.clear()

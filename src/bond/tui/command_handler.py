@@ -1,51 +1,81 @@
-from argparse import ArgumentParser, Namespace
+from argparse import Namespace
+from pathlib import Path
+from queue import Queue
 
 from bond.behaviours.loop import LoopBehaviour
-from bond.tui.app import BondTui
+from bond.default_command_handler import DefaultCommandHandler
+from bond.io.queue_env import (BehaviourEvent, BlockEvent, ClearLogEvent,
+                               NotifyEvent, ReleaseEvent, StopEvent,
+                               SyncLogEvent, UpdatePersonaEvent)
 
 
-class TuiCommandHandler:
-    app: BondTui
+class TuiCommandHandler(DefaultCommandHandler):
+    event_queue: Queue[BehaviourEvent]
     beh: LoopBehaviour
 
-    def __init__(self):
-        pass
+    def __init__(
+        self,
+        conversation_base_path: Path,
+        last_conv_path: Path,
+        available_personas: list[str],
+        save_on_quit: bool = False,
+    ):
+        super().__init__(
+            conversation_base_path,
+            last_conv_path,
+            available_personas,
+            save_on_quit,
+        )
 
-    def link(self, app: BondTui, beh: LoopBehaviour):
-        self.app = app
+    def link(self, event_queue: Queue[BehaviourEvent], beh: LoopBehaviour):
+        self.event_queue = event_queue
         self.beh = beh
 
-    def __call__(self, cmd: str):
-        self.parser = ArgumentParser(exit_on_error=False)
-        self._build_parser(self.parser)
+    def quit(self, args: Namespace):
+        super().quit(args)
+        self.event_queue.put(StopEvent())
+
+    def load(self, args: Namespace):
+        self.event_queue.put(BlockEvent())
+        self.event_queue.put(ClearLogEvent())
+        super().load(args)
+        self.event_queue.put(
+            SyncLogEvent(conversation=self.beh.conversation, message_count=None)
+        )
+        self.event_queue.put(ReleaseEvent())
+
+    def save(self, args: Namespace):
+        super().save(args)
+        if args.name is not None:
+            self.event_queue.put(NotifyEvent(message=f"Saved as '{args.name}'"))
         pass
 
-    def quit(self, _: Namespace):
-        self.app.quit()
+    def new(self, args: Namespace):
+        super().new(args)
+        self.event_queue.put(ClearLogEvent())
 
-    def load(self):
-        pass
+    def forget(self, args: Namespace):
+        super().forget(args)
+        self.event_queue.put(StopEvent())
 
-    def save(self, name: str | None):
-        pass
-
-    def new(self):
-        pass
-
-    def forget(self):
-        pass
-
-    def remember(self):
-        pass
+    def remember(self, args: Namespace):
+        super().remember(args)
+        self.event_queue.put(StopEvent())
 
     def export(self):
-        pass
+        self.event_queue.put(NotifyEvent(message="Not implemented"))
 
-    def crop(self):
-        pass
+    def crop(self, args: Namespace):
+        super().crop(args)
+        self.event_queue.put(
+            SyncLogEvent(conversation=self.beh.conversation, message_count=None)
+        )
 
-    def to(self):
-        pass
-
-    def _build_parser(self, parser: ArgumentParser):
-        subparsers = parser.add_subparsers()
+    def to(self, args: Namespace):
+        super().to(args)
+        self.event_queue.put(
+            UpdatePersonaEvent(
+                persona_name=self.beh.persona.name,
+                provider_name=self.beh.persona.provider,
+            )
+        )

@@ -35,7 +35,6 @@ class LoopBehaviour:
         self.signal_receiver = signal_receiver
         self.notifier = notifier
         self.tool_environment = tool_environment
-        self.persona_name = persona_name
         self.stream = stream
         self.allow_shell_executions = allow_shell_executions
         self.command_handler = command_handler
