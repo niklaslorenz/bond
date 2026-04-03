@@ -164,6 +164,7 @@ class DefaultCommandHandler:
         self.beh.notifier(text)
 
     def _save_last_conversation(self):
+        self.last_conv_path.parent.mkdir(parents=True, exist_ok=True)
         self.last_conv_path.write_text(
             self.beh.conversation.model_dump_json(), encoding="utf-8"
         )
@@ -171,6 +172,7 @@ class DefaultCommandHandler:
     def _save_conversation(self, name: str):
         path = self.conversation_base_path / (name + ".json")
         self.beh.conversation.name = name
+        path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(self.beh.conversation.model_dump_json(), encoding="utf-8")
         self._save_last_conversation()
 
