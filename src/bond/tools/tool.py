@@ -24,7 +24,7 @@ class FunctionParameter(BaseModel):
 class FunctionParameters(BaseModel):
     type: Literal["object"]
     properties: dict[str, FunctionParameter]
-    required: list[str] | None = None
+    required: list[str] = []
 
 
 class Function(BaseModel):
