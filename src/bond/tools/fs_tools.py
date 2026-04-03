@@ -113,10 +113,11 @@ def get_cwd() -> str:
 def apply_patch(patch: str) -> str:
     """
     Apply Aider-style SEARCH/REPLACE patches.
-    The user has to manually accept your changes.
+    The user has to manually accept the changes unless specific conditions are met.
     Patch blocks must begin with a filename line.
     All file paths have to be located inside the current working directory.
     Relative paths will be interpreted as relative to the cwd.
+    Keep the search blocks unique, but skip long prefixes that should remain unchanged.
 
     Example block:
 
@@ -128,7 +129,7 @@ def apply_patch(patch: str) -> str:
         >>>>>>> REPLACE
 
     You can chain as many blocks in one request as you want.
-    Prefer fewer larger requests with multiple blocks over many requests
+    Prefer fewer requests with multiple blocks over many requests
     with only one or two blocks.
 
     Args:
@@ -153,7 +154,10 @@ def apply_patch(patch: str) -> str:
     if work_dir is None:
         return "error: file modification is not available at the moment"
 
-    if not env.ask_confirmation(
+    git_dir = work_dir / ".git"
+    skip_confirmation = git_dir.exists() and git_dir.is_dir()
+
+    if not skip_confirmation and not env.ask_confirmation(
         f"Bond wants to apply the following changes:\n\n{patch}\nMake changes?"
     ):
         return "Patching cancelled by user."
@@ -174,6 +178,12 @@ def apply_patch(patch: str) -> str:
         path = work_dir / file
         if not path.exists():
             results.append(f"Block {idx}: failed, file does not exist.")
+            continue
+
+        if _path_is_in_git(path):
+            results.append(
+                f"Block {idx}: failed, file is inside .git folder (permission denied)"
+            )
             continue
 
         text = path.read_text()
@@ -245,7 +255,7 @@ def _check_access(env: tool.ToolEnvironment, path: Path):
         )
     if path.is_relative_to(work_dir):
         return True, ""
-    if env.is_interactive() is None:
+    if not env.is_interactive():
         return (
             False,
             f"Permission denied, this tool is not run in interactive mode. Cannot access files outside of '{work_dir}'",
@@ -255,3 +265,10 @@ def _check_access(env: tool.ToolEnvironment, path: Path):
     ):
         return False, "Permission denied, the user has declined your request."
     return True, ""
+
+
+def _path_is_in_git(path: Path) -> bool:
+    for x in path.parts:
+        if x == ".git":
+            return True
+    return False
