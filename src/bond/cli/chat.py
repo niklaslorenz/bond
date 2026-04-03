@@ -29,7 +29,7 @@ def main():
     )
     aoe = StdAoe()
 
-    persona_name = get_default_persona(config.chat)
+    persona_id = get_default_persona(config.chat)
     last_conv_path = conv_path / "last-conv.json"
     conversation = (
         Conversation.model_validate_json(last_conv_path.read_text())
@@ -56,10 +56,11 @@ def main():
         notifier=StdNotifier(),
         command_handler=cmd_handler,
         tool_environment=tool_environment,
-        persona_name=persona_name,
+        persona_id=persona_id,
         stream=True,
         allow_shell_executions=True,
         user_name=config.user_name,
+        allowed_personas=config.chat.personas,
     )
     cmd_handler.link(loop)
     receiver.set_query(lambda: loop.persona.name)

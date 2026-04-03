@@ -67,7 +67,7 @@ class DefaultCommandHandler:
         )
 
     def new(self, _: Namespace) -> None:
-        self.beh.conversation = Conversation()
+        self.beh.conversation = Conversation(current_persona=self.beh.persona_id)
         self.println("\n\n\n<New Conversation>\n")
 
     def help(self, _: Namespace) -> None:
@@ -125,7 +125,7 @@ class DefaultCommandHandler:
         if persona_name not in self.beh.env.list_personas():
             self.println(f"<'{persona_name}' is not a valid persona>")
             return
-        self.beh.set_persona(persona_name)
+        self.beh.set_persona(persona_name, True)
 
     def delete(self, args: Namespace) -> None:
         n: int = args.n
@@ -164,16 +164,12 @@ class DefaultCommandHandler:
         self.beh.notifier(text)
 
     def _save_last_conversation(self):
-        self.last_conv_path.parent.mkdir(parents=True, exist_ok=True)
-        self.last_conv_path.write_text(
-            self.beh.conversation.model_dump_json(), encoding="utf-8"
-        )
+        self.beh.conversation.save_to_file(self.last_conv_path)
 
     def _save_conversation(self, name: str):
         path = self.conversation_base_path / (name + ".json")
         self.beh.conversation.name = name
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(self.beh.conversation.model_dump_json(), encoding="utf-8")
+        self.beh.conversation.save_to_file(path)
         self._save_last_conversation()
 
     def _handle_cmd(self, cmd: str):

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from pydantic import BaseModel
 
 from bond.conversation.types import (Message, SystemMessage, TextChunk,
@@ -45,6 +47,7 @@ class ConversationMessage(BaseModel):
 class Conversation(BaseModel):
     history: list[ConversationMessage] = []
     name: str | None = None
+    current_persona: str | None = None
 
     def add_message(self, message: ConversationMessage):
         self.history.append(message)
@@ -57,3 +60,12 @@ class Conversation(BaseModel):
             for m in self.history
             if m.message.role != "system" or not skip_system_messages
         ]
+
+    def save_to_file(self, path: Path, create_dir: bool = False):
+        if not path.parent.exists() and create_dir:
+            path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(self.model_dump_json(), encoding="utf-8")
+
+    @classmethod
+    def load_from_file(cls, path: Path):
+        return cls.model_validate_json(path.read_text())

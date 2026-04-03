@@ -49,14 +49,14 @@ def main():
     aoe = StdAoe()
 
     # Get environment entities
-    persona_name: str = (
+    persona_id: str = (
         get_default_persona(config.ask) if args.second is None else args.first
     )
-    if persona_name not in config.ask.personas:
+    if persona_id not in config.ask.personas:
         raise ValueError(
-            f"not a valid persona: {persona_name}. Available personas: {'\n'.join(config.ask.personas)}"
+            f"not a valid persona: {persona_id}. Available personas: {'\n'.join(config.ask.personas)}"
         )
-    persona = env.get_persona(persona_name)
+    persona = env.get_persona(persona_id)
     provider = env.get_provider(persona.provider)
     toolbox: tool.Toolbox = build_toolbox(
         provider,

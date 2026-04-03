@@ -12,7 +12,9 @@ from bond.tools.tool import ToolEnvironment
 
 class LoopBehaviour:
     persona: Persona
+    persona_id: str
     turn: SingleTurn
+    running: bool
 
     def __init__(
         self,
@@ -23,10 +25,11 @@ class LoopBehaviour:
         notifier: Callable[[str], None],
         command_handler: Callable[[str], None] | None,
         tool_environment: ToolEnvironment,
-        persona_name: str,
+        persona_id: str,
         stream: bool = False,
         allow_shell_executions: bool = False,
         user_name: str | None = None,
+        allowed_personas: list[str] | None = None,
         **additional_chat_completion_arguments,
     ):
         self.conversation = conversation
@@ -34,22 +37,38 @@ class LoopBehaviour:
         self.aoe = aoe
         self.signal_receiver = signal_receiver
         self.notifier = notifier
+        self.command_handler = command_handler
         self.tool_environment = tool_environment
+        self.persona_id = persona_id
         self.stream = stream
         self.allow_shell_executions = allow_shell_executions
-        self.command_handler = command_handler
         self.user_name = user_name
+        self.allowed_personas = allowed_personas
         self.additional_chat_completion_arguments = additional_chat_completion_arguments
 
         self.running = False
-        self.set_persona(persona_name)
+        self.set_persona(persona_id, False)
+        self.set_conversation(conversation)
 
-    def set_persona(self, persona_name: str):
-        self.persona = self.env.get_persona(persona_name)
+    def set_persona(self, persona_id: str, update_conversation: bool):
+        self.persona = self.env.get_persona(persona_id)
+        self.persona_id = persona_id
+        if update_conversation:
+            self.conversation.current_persona = persona_id
         self._build_turn()
 
     def set_conversation(self, conversation: Conversation):
         self.conversation = conversation
+        if self.conversation.current_persona is not None:
+            if (
+                self.allowed_personas is None
+                or conversation.current_persona in self.allowed_personas
+            ):
+                self.set_persona(self.conversation.current_persona, False)
+            else:
+                self.notifier(
+                    f"The persona {self.conversation.current_persona} of this conversation is not available in chats."
+                )
 
     def _build_turn(self):
         provider = self.env.get_provider(self.persona.provider)
@@ -91,6 +110,7 @@ class LoopBehaviour:
             elif signal.type == "stop":
                 self.running = False
             elif signal.type == "prompt":
+                self.conversation.current_persona = self.persona_id
                 self.conversation.add_message(
                     ConversationMessage.create_user_message(
                         signal.prompt, user_name=self.user_name or "User"
