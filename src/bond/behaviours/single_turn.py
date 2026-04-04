@@ -15,11 +15,11 @@ logger = logging.getLogger(__name__)
 
 def _do_tool_call(toolbox: Toolbox, function_call: FunctionCall) -> str:
     result = toolbox.call_tool(function_call.name, function_call.arguments)
-    logger.info(f"Tool call returned object of type {type(result)}:\n{result}")
+    logger.info(f"Tool call returned object of type {type(result)}\n{result}")
     if isinstance(result, Success):
         return result.unwrap()
     else:
-        return f"An error occured before the tool execution: {result.failure()}"
+        return f"Error during tool execution: {result.failure()}"
 
 
 class SingleTurn:

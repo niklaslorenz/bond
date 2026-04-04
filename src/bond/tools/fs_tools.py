@@ -15,6 +15,7 @@ def create_file(file_path: str, content: str) -> str:
     Create a new file at the specified path with the given content.
     You are only expected to access files inside the current working directory.
     When creating files outside of the current working directory, the user has to manually grant access.
+    Directories that do not exist yet will be created automatically.
 
     Args:
         file_path (str): The path where the new file should be created.
@@ -34,8 +35,13 @@ def create_file(file_path: str, content: str) -> str:
         return why_not
     if path.exists():
         return "error: file already exists"
-    path.write_text(content)
-    return f"Created file at {path}"
+    try:
+        if not path.parent.exists():
+            path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)
+        return f"Created file at {path}"
+    except Exception as e:
+        return f"Error creating file: {str(e)}"
 
 
 def read_file(file_path: str, lines: int = 0) -> str:
