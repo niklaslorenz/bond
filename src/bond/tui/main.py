@@ -53,7 +53,7 @@ def main():
         notifier=QueueNotifier(event_queue),
         command_handler=cmd_handler,
         tool_environment=tool_env,
-        persona_name=get_default_persona(config.chat),
+        persona_id=get_default_persona(config.chat),
         stream=True,
         allow_shell_executions=False,
         user_name=config.user_name,
