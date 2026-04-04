@@ -49,6 +49,12 @@ class TuiCommandHandler(DefaultCommandHandler):
             self.event_queue.put(NotifyEvent(message=f"Saved as '{args.name}'"))
         pass
 
+    def clear_tool_calls(self, args: Namespace):
+        super().clear_tool_calls(args)
+        self.event_queue.put(
+            SyncLogEvent(conversation=self.beh.conversation, message_count=None)
+        )
+
     def new(self, args: Namespace):
         super().new(args)
         self.event_queue.put(ClearLogEvent())

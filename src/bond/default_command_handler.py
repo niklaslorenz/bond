@@ -47,6 +47,26 @@ class DefaultCommandHandler:
             self._save_last_conversation()
         self.beh.running = False
 
+    def clear_tool_calls(self, args: Namespace) -> None:
+        for msg in self.beh.conversation.history:
+            if (
+                isinstance(msg.message, AssistantMessage)
+                and msg.message.tool_calls != None
+            ):
+                msg.message.tool_calls = None
+        self.beh.conversation.history = [
+            msg
+            for msg in self.beh.conversation.history
+            if not isinstance(msg.message, AssistantMessage)
+            or msg.message.content != None
+        ]
+        if args.full:
+            self.beh.conversation.history = [
+                msg
+                for msg in self.beh.conversation.history
+                if msg.message.role != "tool"
+            ]
+
     def save(self, args: Namespace) -> None:
         name: str | None = args.name or self.beh.conversation.name
         if name is None:
@@ -202,6 +222,16 @@ def _build_parser(repl: DefaultCommandHandler, parser: ArgumentParser):
         nargs="?",
         type=str,
         help="The name of the conversation",
+    )
+
+    clear_tool_calls_parser = subparsers.add_parser(
+        "clear-tools",
+        help="Clears tool calls from the conversation",
+        exit_on_error=False,
+    )
+    clear_tool_calls_parser.set_defaults(callback=repl.clear_tool_calls)
+    clear_tool_calls_parser.add_argument(
+        "--full", "-f", action="store_true", help="Clear tool call messages too"
     )
 
     load_parser = subparsers.add_parser(
