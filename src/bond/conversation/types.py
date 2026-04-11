@@ -108,3 +108,19 @@ class UsageInfo(BaseModel):
     prompt_audio_seconds: int | None = None
     prompt_tokens: int
     total_tokens: int
+
+
+def parse_chunks_content(chunks: list) -> tuple[str | None, str | None]:
+    text = []
+    think = []
+    for chunk in chunks:
+        if isinstance(chunk, TextChunk):
+            text.append(chunk.text)
+        elif isinstance(chunk, ThinkChunk):
+            for think_chunk in chunk.thinking:
+                if isinstance(think_chunk, TextChunk):
+                    think.append(think_chunk.text)
+    return (
+        "".join(text) if len(text) > 0 else None,
+        "".join(think) if len(think) > 0 else None,
+    )

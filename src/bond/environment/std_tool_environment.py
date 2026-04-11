@@ -2,46 +2,10 @@ import sys
 from pathlib import Path
 from typing import Callable, TextIO
 
-from bond.behaviours.behaviour_signal import (
-    BehaviourSignal,
-    CommandSignal,
-    PromptSignal,
-)
-from bond.conversation.types import ToolCall
-from bond.io.stream import WritethroughWrapper
-from bond.io.string_io import StringAoe
-
 from . import logger
 
 
-class StdAoe(StringAoe):
-    def __init__(self):
-        super().__init__(WritethroughWrapper(sys.stdout), None)
-
-
-class StdSignalReceiver:
-    def __init__(self, persona_query: Callable[[], str] | None):
-        self._get_persona = persona_query
-
-    def set_query(self, persona_query: Callable[[], str] | None):
-        self._get_persona = persona_query
-
-    def __call__(self) -> BehaviourSignal:
-        raw = input(
-            f"[to {self._get_persona() if self._get_persona is not None else 'Assistant'}]> "
-        )
-        stripped = raw.strip()
-        if stripped.startswith(":"):
-            return CommandSignal(command=stripped[1:])
-        return PromptSignal(prompt=raw)
-
-
-class StdNotifier:
-    def __call__(self, message: str):
-        print(message)
-
-
-class StdIoToolEnvironment:
+class StdToolEnvironment:
     def __init__(
         self,
         work_dir: Path | Callable[[], Path] | None,
@@ -80,15 +44,11 @@ class StdIoToolEnvironment:
             return self.work_dir
         return self.work_dir()
 
-    def handle_result(self, tool_call: ToolCall, result: str):
-        if self.show_tool_output:
-            print(f"[{tool_call.function.name}]: {result}")
-
     def supports_stdout(self) -> bool:
         return True
 
-    def handle_stdout(self, data: str, flush: bool = False):
-        print(data, flush=flush)
+    def stdout(self) -> TextIO | None:
+        return sys.stdout
 
     def log_out(self) -> TextIO | None:
         if self.show_logs:

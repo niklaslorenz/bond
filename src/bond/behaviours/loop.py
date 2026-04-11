@@ -1,10 +1,16 @@
 from typing import Callable
 
-from bond.behaviours.behaviour_signal import BehaviourSignal
+from bond.behaviours.behaviour_event import (BehaviourEventHandler,
+                                             ChangePersonaEvent, ErrorEvent,
+                                             NotifyEvent,
+                                             RestoreConversationEvent,
+                                             StopEvent)
+from bond.behaviours.behaviour_signal import (BehaviourSignalReceiver,
+                                              CommandSignal, PromptSignal,
+                                              StopSignal)
 from bond.behaviours.single_turn import SingleTurn
 from bond.bond_environment import BondEnvironment
 from bond.conversation.conversation import Conversation, ConversationMessage
-from bond.io.aoe import AgentOutputEnvironment
 from bond.persona import Persona
 from bond.providers.provider import build_toolbox
 from bond.tools.tool import ToolEnvironment
@@ -20,9 +26,8 @@ class LoopBehaviour:
         self,
         conversation: Conversation,
         environment: BondEnvironment,
-        aoe: AgentOutputEnvironment,
-        signal_receiver: Callable[[], BehaviourSignal],
-        notifier: Callable[[str], None],
+        event_handler: BehaviourEventHandler,
+        signal_receiver: BehaviourSignalReceiver,
         command_handler: Callable[[str], None] | None,
         tool_environment: ToolEnvironment,
         persona_id: str,
@@ -34,9 +39,8 @@ class LoopBehaviour:
     ):
         self.conversation = conversation
         self.env = environment
-        self.aoe = aoe
+        self.event_handler = event_handler
         self.signal_receiver = signal_receiver
-        self.notifier = notifier
         self.command_handler = command_handler
         self.tool_environment = tool_environment
         self.persona_id = persona_id
@@ -56,6 +60,7 @@ class LoopBehaviour:
         if update_conversation:
             self.conversation.current_persona = persona_id
         self._build_turn()
+        self.event_handler(ChangePersonaEvent(name=self.persona.name))
 
     def set_conversation(self, conversation: Conversation):
         self.conversation = conversation
@@ -66,9 +71,12 @@ class LoopBehaviour:
             ):
                 self.set_persona(self.conversation.current_persona, False)
             else:
-                self.notifier(
-                    f"The persona {self.conversation.current_persona} of this conversation is not available in chats."
+                self.event_handler(
+                    NotifyEvent(
+                        message=f"The persona {self.conversation.current_persona} of this conversation is not available in chats."
+                    )
                 )
+        self.event_handler(RestoreConversationEvent(conversation=conversation))
 
     def _build_turn(self):
         provider = self.env.get_provider(self.persona.provider)
@@ -83,10 +91,11 @@ class LoopBehaviour:
         self.turn = SingleTurn(
             endpoint=provider.chat_completions(),
             model=self.persona.model,
-            aoe=self.aoe,
+            event_handler=self.event_handler,
+            signal_receiver=self.signal_receiver,
+            tool_environment=self.tool_environment,
             system_message=self.persona.system_prompt,
             toolbox=toolbox,
-            tool_environment=self.tool_environment,
             model_display_name=self.persona.name,
             stream=self.stream,
             allow_shell_executions=self.allow_shell_executions,
@@ -98,18 +107,22 @@ class LoopBehaviour:
             raise RuntimeError("Already running")
         self.running = True
         while self.running:
-            signal = self.signal_receiver()
-            if signal.type == "command":
+            signal = self.signal_receiver.get()
+            if isinstance(signal, CommandSignal):
                 if self.command_handler is not None:
                     try:
                         self.command_handler(signal.command)
                     except Exception as e:
-                        self.notifier(f"{e}")
+                        self.event_handler(
+                            NotifyEvent(
+                                message=f"Error in event handler: {type(e)}, {e}"
+                            )
+                        )
                 else:
-                    self.notifier("No command handler")
-            elif signal.type == "stop":
+                    self.event_handler(NotifyEvent(message="Error: No command handler"))
+            elif isinstance(signal, StopSignal):
                 self.running = False
-            elif signal.type == "prompt":
+            elif isinstance(signal, PromptSignal):
                 self.conversation.current_persona = self.persona_id
                 self.conversation.add_message(
                     ConversationMessage.create_user_message(
@@ -119,6 +132,14 @@ class LoopBehaviour:
                 try:
                     self.turn.run(self.conversation)
                 except Exception as e:
-                    self.notifier(f"{e}")
+                    self.event_handler(ErrorEvent(error=e, critical=False))
             else:
-                raise NotImplementedError()
+                self.event_handler(
+                    ErrorEvent(
+                        error=ValueError(
+                            f"Invalid behaviour signal type: {type(signal)}"
+                        ),
+                        critical=False,
+                    )
+                )
+        self.event_handler(StopEvent())

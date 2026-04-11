@@ -33,3 +33,6 @@ talk = "bond.tui.main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pyright]
+typeCheckingMode = "basic"

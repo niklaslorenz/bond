@@ -1,18 +1,19 @@
 import os
 import threading
+from multiprocessing import Queue
 from pathlib import Path
-from queue import Queue
 
+from bond.behaviours.behaviour_event import BehaviourEvent
 from bond.behaviours.behaviour_signal import BehaviourSignal
 from bond.behaviours.loop import LoopBehaviour
 from bond.bond_environment import DynamicBondEnvironment
 from bond.config import BondConfig, get_default_persona
 from bond.conversation.conversation import Conversation
-from bond.io.queue_env import (BehaviourEvent, QueueAoe, QueueNotifier,
-                               QueueSignalReceiver, QueueToolEnvironment)
+from bond.environment.event_tool_environment import EventToolEnvironment
 from bond.tools import global_toolbox
 from bond.tui.app import BondTui
 from bond.tui.command_handler import TuiCommandHandler
+from bond.tui.state.state_machine import TuiStateMachine
 
 
 def main():
@@ -61,8 +62,10 @@ def main():
     cmd_handler.link(event_queue, loop)
 
     thread = threading.Thread(target=loop.run, daemon=True)
-    app = BondTui(signal_queue, event_queue, loop.persona)
+    state_machine = TuiStateMachine(signal_queue, event_queue, loop.persona.name)
+    app = BondTui(loop.persona, state_machine)
     app.synchronize(conversation)
+
     thread.start()
     app.run()
 

@@ -1,12 +1,10 @@
 from argparse import Namespace
+from multiprocessing import Queue
 from pathlib import Path
-from queue import Queue
 
+from bond.behaviours.behaviour_event import BehaviourEvent, StopEvent
 from bond.behaviours.loop import LoopBehaviour
-from bond.default_command_handler import DefaultCommandHandler
-from bond.io.queue_env import (BehaviourEvent, BlockEvent, ClearLogEvent,
-                               NotifyEvent, ReleaseEvent, StopEvent,
-                               SyncLogEvent, UpdatePersonaEvent)
+from bond.std_command_handlerort DefaultCommandHandler
 
 
 class TuiCommandHandler(DefaultCommandHandler):

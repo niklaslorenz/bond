@@ -1,3 +1,4 @@
+from rich.markdown import Markdown
 from rich.text import Text
 from textual.containers import Container, ScrollableContainer, Vertical
 from textual.events import Key
@@ -13,6 +14,19 @@ class StatusBar(Static):
     provider = reactive("<unknown>")
     status = reactive("Idle")
     context_length = reactive(0)
+
+    def __init__(
+        self,
+        persona: str = "<unknown>",
+        provider: str = "<unknown>",
+        status: str = "<unknown>",
+        context_length: int = 0,
+    ):
+        super().__init__(id="status-bar")
+        self.persona = persona
+        self.provider = provider
+        self.status = status
+        self.context_length = context_length
 
     def render(self) -> Text:
         return Text.assemble(
@@ -79,10 +93,8 @@ class TextBlock(Static):
         self.text += delta
         self.refresh(layout=True)
 
-    def render(self) -> Text:
-        t = Text()
-        t.append(self.text)
-        return t
+    def render(self) -> Markdown:
+        return Markdown(self.text)
 
 
 class ThinkBlock(FoldableBlock):
@@ -158,9 +170,6 @@ class ChatMessage(Vertical):
             self.add_think_block(text)
         else:
             self.elements[-1].append(text)
-
-    def append_tool_result(self, text: str, name: str | None = None):
-        self.add_tool_result_block(text, name)
 
     def on_mount(self):
         for element in self.elements:

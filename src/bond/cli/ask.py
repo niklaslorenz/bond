@@ -6,7 +6,9 @@ from bond.behaviours.single_turn import SingleTurn
 from bond.bond_environment import DynamicBondEnvironment
 from bond.config import BondConfig, get_default_persona
 from bond.conversation.conversation import Conversation, ConversationMessage
-from bond.io.stdenv import StdAoe, StdIoToolEnvironment
+from bond.environment.std_event_handler import StdEventHandler
+from bond.environment.std_signal_receiver import StdSignalReceiver
+from bond.environment.std_tool_environment import StdToolEnvironment
 from bond.providers.provider import build_toolbox
 from bond.tools import global_toolbox, tool
 
@@ -19,6 +21,7 @@ def main():
     parser.add_argument("first", type=str)
     parser.add_argument("second", type=str, nargs="?")
     parser.add_argument("--show-thoughts", action="store_true")
+    parser.add_argument("--show-tool-output", action="store_true")
     parser.add_argument("--non-interactive", action="store_true")
     parser.add_argument("--input-file", "-i", type=str)
     parser.add_argument("--output-file", "-o", type=str)
@@ -28,6 +31,7 @@ def main():
     args = parser.parse_args()
     request: str = args.first if args.second is None else args.second
     show_thoughts: bool = args.show_thoughts
+    show_tool_output: bool = args.show_tool_output
     stream: bool = not args.no_stream if not show_thoughts else False
     no_save: bool = args.no_save
 
@@ -40,15 +44,6 @@ def main():
     env = DynamicBondEnvironment(
         env_path, global_toolbox.get_toolsets(config.ask.tools)
     )
-    tool_environment = StdIoToolEnvironment(
-        work_dir=lambda: Path(os.getcwd()),
-        is_interactive=True,
-        show_tool_output=False,
-        show_tool_logs=True,
-    )
-    aoe = StdAoe()
-
-    # Get environment entities
     persona_id: str = (
         get_default_persona(config.ask) if args.second is None else args.first
     )
@@ -69,12 +64,22 @@ def main():
         ConversationMessage.create_user_message(request, user_name)
     )
 
-    # Run turn
+    tool_environment = StdToolEnvironment(
+        work_dir=lambda: Path(os.getcwd()),
+        is_interactive=True,
+        show_tool_output=False,
+        show_tool_logs=True,
+    )
+    signal_receiver = StdSignalReceiver()
+    event_handler = StdEventHandler(signal_receiver, show_thoughts, show_tool_output)
+
+    # Setup turn
     allow_shell = "shell" in persona.toolbox
     turn = SingleTurn(
         endpoint=provider.chat_completions(),
         model=persona.model,
-        aoe=aoe,
+        event_handler=event_handler,
+        signal_receiver=signal_receiver,
         tool_environment=tool_environment,
         system_message=persona.system_prompt,
         toolbox=toolbox,
@@ -82,6 +87,10 @@ def main():
         stream=stream,
         allow_shell_executions=allow_shell,
     )
+    signal_receiver.link(lambda: persona.name)
+
+    # Run turn
+
     turn.run(conversation)
 
     if not no_save:

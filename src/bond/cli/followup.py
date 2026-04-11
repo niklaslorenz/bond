@@ -5,13 +5,16 @@ from bond.behaviours.loop import LoopBehaviour
 from bond.bond_environment import DynamicBondEnvironment
 from bond.config import BondConfig, get_default_persona
 from bond.conversation.conversation import Conversation
-from bond.default_command_handler import DefaultCommandHandler
-from bond.io.stdenv import (StdAoe, StdIoToolEnvironment, StdNotifier,
-                            StdSignalReceiver)
+from bond.environment.std_command_handler import StdCommandHandler
+from bond.environment.std_event_handler import StdEventHandler
+from bond.environment.std_signal_receiver import StdSignalReceiver
+from bond.environment.std_tool_environment import StdToolEnvironment
 from bond.tools import global_toolbox
 
 
 def main():
+    show_thoughts = False
+    show_tool_output = False
 
     conv_path = Path("~/.local/share/bond").expanduser().absolute()
     env_path = Path("~/.config/bond/").expanduser().absolute()
@@ -21,13 +24,12 @@ def main():
     env = DynamicBondEnvironment(
         env_path, global_toolbox.get_toolsets(config.chat.tools)
     )
-    tool_environment = StdIoToolEnvironment(
+    tool_environment = StdToolEnvironment(
         work_dir=lambda: Path(os.getcwd()),
         is_interactive=True,
         show_tool_output=False,
         show_tool_logs=True,
     )
-    aoe = StdAoe()
 
     persona_id = get_default_persona(config.chat)
     last_ask_path = conv_path / "last-ask.json"
@@ -42,19 +44,21 @@ def main():
     else:
         print(f"<Loaded {len(conversation.history)} messages>")
 
-    receiver = StdSignalReceiver(None)
-    cmd_handler = DefaultCommandHandler(
+    receiver = StdSignalReceiver()
+    event_handler = StdEventHandler(receiver, show_thoughts, show_tool_output)
+    cmd_handler = StdCommandHandler(
+        event_handler=event_handler,
         conversation_base_path=conv_path / "conversations",
         last_conv_path=last_conv_path,
         available_personas=config.chat.personas,
         save_on_quit=False,
+        show_thoughts=show_thoughts,
     )
     loop = LoopBehaviour(
         conversation=conversation,
         environment=env,
-        aoe=aoe,
+        event_handler=event_handler,
         signal_receiver=receiver,
-        notifier=StdNotifier(),
         command_handler=cmd_handler,
         tool_environment=tool_environment,
         persona_id=persona_id,
@@ -64,7 +68,7 @@ def main():
         allowed_personas=config.chat.personas,
     )
     cmd_handler.link(loop)
-    receiver.set_query(lambda: loop.persona.name)
+    receiver.link(lambda: loop.persona.name)
 
     loop.run()
 
