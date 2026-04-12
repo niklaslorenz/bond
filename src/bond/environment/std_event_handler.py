@@ -85,6 +85,18 @@ class StdEventHandler:
                 event.result().set_result(False)
                 return
 
+    def handle_cancel_request_confirmation_event(
+        self, _: CancelRequestConfirmationEvent
+    ):
+        self(
+            ErrorEvent(
+                error=RuntimeError(
+                    f"StdEventHandler cannot cancel confirmation requests"
+                ),
+                critical=False,
+            )
+        )
+
     def handle_call_tool_event(self, event: CallToolEvent):
         print(f"[Calling {event.call.function.name}]")
 

@@ -11,11 +11,23 @@ from textual.notifications import SeverityLevel
 from textual.worker import Worker
 
 from bond.behaviours import behaviour_event
-from bond.behaviours.behaviour_event import BehaviourEvent
-from bond.behaviours.behaviour_signal import (BehaviourSignal, CommandSignal,
-                                              PromptSignal, StopSignal)
-from bond.tui.state.tui_event import (RequestConfirmEvent, StopEvent, TuiEvent,
-                                      UserInputEvent)
+from bond.behaviours.behaviour_event import (
+    BehaviourEvent,
+    CancelRequestConfirmationEvent,
+)
+from bond.behaviours.behaviour_signal import (
+    BehaviourSignal,
+    CommandSignal,
+    PromptSignal,
+    StopSignal,
+)
+from bond.conversation.types import parse_chunks_content
+from bond.tui.state.tui_event import (
+    RequestConfirmEvent,
+    StopEvent,
+    TuiEvent,
+    UserInputEvent,
+)
 from bond.tui.widgets import ChatMessage, ToolResultBlock
 
 if TYPE_CHECKING:
@@ -60,7 +72,7 @@ class TuiState:
         else:
             self.machine.change_state(TuiStopState(self.machine))
 
-    def handle_request_confirm_event(self, event: RequestConfirmEvent):
+    def handle_request_confirm_event(self, _: RequestConfirmEvent):
         self.machine.notify(
             f"Unexpected request confirmation event in state {type(self)}",
             severity="warning",
@@ -77,9 +89,9 @@ class TuiState:
                 StopEvent(immediately=True), millis=3000
             )
 
-    def handle_stop_behaviour_event(self, event: behaviour_event.StopEvent):
+    def handle_stop_behaviour_event(self, _: behaviour_event.StopEvent):
         self.machine.notify(f"Behaviour loop exited unexpectedly", severity="error")
-        _ = self.machine.schedule_tui_event(StopEvent(immediately=True), millis=3000)
+        _2 = self.machine.schedule_tui_event(StopEvent(immediately=True), millis=3000)
 
     def handle_notify_behaviour_event(self, event: behaviour_event.NotifyEvent):
         self.machine.notify(event.message)
@@ -94,9 +106,7 @@ class TuiState:
         msg = self.machine.app.add_assistant_message(event.author, None, None, True)
         self.machine.change_state(TuiReceivingState(self.machine, msg))
 
-    def handle_response_end_behaviour_event(
-        self, event: behaviour_event.ResponseEndEvent
-    ):
+    def handle_response_end_behaviour_event(self, _: behaviour_event.ResponseEndEvent):
         self.machine.notify(
             f"Unexpected response end behaviour event in state {type(self)}",
             severity="warning",
@@ -104,7 +114,7 @@ class TuiState:
         self.machine.change_state(TuiWaitingState(self.machine))
 
     def handle_waiting_for_input_behaviour_event(
-        self, event: behaviour_event.WaitingForInputEvent
+        self, _: behaviour_event.WaitingForInputEvent
     ):
         self.machine.notify(
             f"Unexpected waiting for input behaviour event in state {type(self)}",
@@ -129,8 +139,16 @@ class TuiState:
     ):
         self.machine.change_state(
             TuiWaitForConfirmationResponseState(
-                self.machine, self, event.request, event.result
+                self.machine, self, event.request, event.result()
             )
+        )
+
+    def handle_cancel_request_confirmation_behaviour_event(
+        self, _: behaviour_event.CancelRequestConfirmationEvent
+    ):
+        self.machine.notify(
+            f"Unexpected cancel request confirmation behaviour event in state {type(self)}",
+            severity="warning",
         )
 
     def handle_call_tool_behaviour_event(self, event: behaviour_event.CallToolEvent):
@@ -162,7 +180,7 @@ class TuiState:
         )
         self.machine.app.set_persona(event.name)
 
-    def handle_clear_chat_behaviour_event(self, event: behaviour_event.ClearChatEvent):
+    def handle_clear_chat_behaviour_event(self, _: behaviour_event.ClearChatEvent):
         self.machine.notify(
             f"Unexpected clear chat behaviour event in state {type(self)}",
             severity="warning",
@@ -181,8 +199,10 @@ class TuiState:
 
 @dataclass
 class TuiStartState(TuiState):
+    persona_name: str
+
     def on_exit(self, destination: TuiState):
-        self.machine.app.set_persona(self.machine.persona_name)
+        self.machine.app.set_persona(self.persona_name)
 
 
 @dataclass
@@ -227,7 +247,12 @@ class TuiReceivingState(TuiState):
     def handle_append_message_chunk_behaviour_event(
         self, event: behaviour_event.AppendMessageChunkEvent
     ):
-        text, think = event.chunk.extract_content()
+        if (
+            len(event.chunk.choices) == 0
+            or event.chunk.choices[0].delta.content is None
+        ):
+            return
+        text, think = parse_chunks_content(event.chunk.choices[0].delta.content)
         if think is not None:
             self.msg.append_thinking(think)
         if text is not None:
@@ -322,26 +347,38 @@ class TuiWaitForConfirmationResponseState(TuiState):
         self.result.set_result(event.accepted)
         self.machine.change_state(self.previous_state)
 
+    def handle_cancel_request_confirmation_behaviour_event(
+        self, event: CancelRequestConfirmationEvent
+    ):
+        self.machine.change_state(self.previous_state)
+
+
+class TuiPreStartState(TuiState):
+    def handle_behaviour_event(self, event: BehaviourEvent):
+        pass
+
+    def handle_tui_event(self, event: TuiEvent):
+        pass
+
 
 class TuiStateMachine:
     tui_state: TuiState
-    app: BondTui
-    persona_name: str
-    behaviour_event_queue: Queue[BehaviourEvent]
+    app: "BondTui"
+    behaviour_event_queue: Queue
     _worker: Worker | None
 
     def __init__(
         self,
-        signal_queue: Queue[BehaviourSignal],
-        behaviour_event_queue: Queue[BehaviourEvent],
-        persona_name: str,
+        signal_queue: Queue,
+        behaviour_event_queue: Queue,
     ):
+        self.tui_state = TuiPreStartState(self)
         self.signal_queue = signal_queue
         self.behaviour_event_queue = behaviour_event_queue
-        self.persona_name = persona_name
+        self._worker = None
 
-        self.state = TuiStartState(self)
-        self.change_state(TuiIdleState(self))
+    def link(self, app: "BondTui"):
+        self.app = app
 
     async def schedule_tui_event(self, event: TuiEvent, millis: int):
         await sleep(1000 * millis)
@@ -367,10 +404,11 @@ class TuiStateMachine:
     ):
         self.app.notify(message, title=title, severity=severity)
 
-    def run(self, app: BondTui):
-        self.app = app
+    def run(self, starting_persona: str):
         if self._worker is not None:
             raise RuntimeError("worker is already defined")
+        self.tui_state = TuiStartState(self, persona_name=starting_persona)
+        self.change_state(TuiIdleState(self))
         _worker = self.app.run_worker(self._listen_to_events)
 
     async def _listen_to_events(self):
@@ -385,6 +423,7 @@ class TuiStateMachine:
         if self._worker is not None:
             self._worker.cancel()
         self.app.exit()
+        self.change_state(TuiPreStartState(self))
 
     def handle_invalid_tui_event(self, event: TuiEvent):
         self.notify(f"Invalid TUI Event: {event.type}", severity="error")

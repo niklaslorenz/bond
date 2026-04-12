@@ -76,6 +76,10 @@ class RequestConfirmationEvent(BehaviourEvent):
         return self._result
 
 
+class CancelRequestConfirmationEvent(BehaviourEvent):
+    type: Literal["cancel_request_confirmation"] = "cancel_request_confirmation"
+
+
 class CallToolEvent(BehaviourEvent):
     type: Literal["call_tool"] = "call_tool"
     call: ToolCall

@@ -3,14 +3,23 @@ from pathlib import Path
 from textual.app import App, ComposeResult
 
 from bond.conversation.conversation import Conversation
-from bond.conversation.types import (AssistantMessageChunk, SystemMessageChunk,
-                                     TextChunk, ThinkChunk)
+from bond.conversation.types import (
+    AssistantMessageChunk,
+    SystemMessageChunk,
+    TextChunk,
+    ThinkChunk,
+)
 from bond.persona import Persona
 from bond.tui.state.state_machine import TuiStateMachine, TuiStatus
-from bond.tui.state.tui_event import (RequestConfirmEvent, StopEvent,
-                                      UserInputEvent)
-from bond.tui.widgets import (ChatLog, ChatMessage, InputBar, MultiLineInput,
-                              StatusBar, ToolResultBlock)
+from bond.tui.state.tui_event import RequestConfirmEvent, StopEvent, UserInputEvent
+from bond.tui.widgets import (
+    ChatLog,
+    ChatMessage,
+    InputBar,
+    MultiLineInput,
+    StatusBar,
+    ToolResultBlock,
+)
 
 
 class BondTui(App):
@@ -22,8 +31,9 @@ class BondTui(App):
     ):
         super().__init__()
         self.state_machine = state_machine
-        self.messages: list[ChatMessage] = []
+        self.state_machine.link(self)
 
+        self.messages: list[ChatMessage] = []
         self.status_bar = StatusBar(
             status="Idle",
             persona=starting_persona.name,
@@ -41,7 +51,6 @@ class BondTui(App):
         yield self.input_bar
 
     def on_mount(self):
-        self.state_machine.run(self)
         self.input_bar.focus()
         for message in self.messages:
             self.chat_log.add_message(message)
@@ -97,7 +106,7 @@ class BondTui(App):
     def add_tool_call(self, function_name: str, merge: bool) -> ToolResultBlock:
         msg = self._get_current_assistant_message() if merge else None
         if msg is None:
-            msg = ChatMessage(author=self.state_machine.persona_name, role="assistant")
+            msg = ChatMessage(author=self.status_bar.persona, role="assistant")
         block = msg.add_tool_result_block("", function_name)
         return block
 

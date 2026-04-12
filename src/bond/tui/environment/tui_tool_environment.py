@@ -1,17 +1,17 @@
-from concurrent.futures import CancelledError, Future
+from concurrent.futures import Future
 from multiprocessing import Queue
 from pathlib import Path
 from typing import Callable, TextIO
 
-from bond.behaviours.behaviour_event import (BehaviourEvent,
-                                             RequestConfirmationEvent,
-                                             ToolReturnEvent)
-from bond.conversation.types import ToolCall
+from bond.behaviours.behaviour_event import (
+    CancelRequestConfirmationEvent,
+    RequestConfirmationEvent,
+)
 
 _CONFIRMATION_TIMEOUT = 30
 
 
-class EventToolEnvironment:
+class TuiToolEnvironment:
     """
     A tool environment that makes use of the event queue.
     Does not support operations for data streaming by tools.
@@ -20,7 +20,7 @@ class EventToolEnvironment:
     def __init__(
         self,
         work_dir: Path | Callable[[], Path] | None,
-        event_queue: Queue[BehaviourEvent],
+        event_queue: Queue,
     ):
         self._work_dir = work_dir
         self._event_queue = event_queue
@@ -31,7 +31,8 @@ class EventToolEnvironment:
         self._event_queue.put(request)
         try:
             return future.result(timeout=_CONFIRMATION_TIMEOUT)
-        except CancelledError | TimeoutError:
+        except TimeoutError:
+            self._event_queue.put(CancelRequestConfirmationEvent())
             return False
 
     def is_interactive(self) -> bool:

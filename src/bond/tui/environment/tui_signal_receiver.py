@@ -4,8 +4,8 @@ from queue import Empty
 from bond.behaviours.behaviour_signal import BehaviourSignal
 
 
-class EventSignalReceiver:
-    def __init__(self, queue: Queue[BehaviourSignal]):
+class TuiSignalReceiver:
+    def __init__(self, queue: Queue):
         self._queue = queue
         self._head = None
 
