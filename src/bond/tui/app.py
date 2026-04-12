@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from textual.app import App, ComposeResult
+from textual.notifications import SeverityLevel
 
 from bond.conversation.conversation import Conversation
 from bond.conversation.types import (
@@ -10,8 +11,8 @@ from bond.conversation.types import (
     ThinkChunk,
 )
 from bond.persona import Persona
-from bond.tui.state.state_machine import TuiStateMachine, TuiStatus
-from bond.tui.state.tui_event import RequestConfirmEvent, StopEvent, UserInputEvent
+from bond.tui.event import RequestConfirmEvent, StopEvent, UserInputEvent
+from bond.tui.types import ITuiStateMachine, TuiStatus
 from bond.tui.widgets import (
     ChatLog,
     ChatMessage,
@@ -27,7 +28,7 @@ class BondTui(App):
     def __init__(
         self,
         starting_persona: Persona,
-        state_machine: TuiStateMachine,
+        state_machine: ITuiStateMachine,
     ):
         super().__init__()
         self.state_machine = state_machine
@@ -44,6 +45,14 @@ class BondTui(App):
         self.input_bar = InputBar(id="input-layer")
 
     CSS_PATH = str(Path(__file__).with_name("tui.css"))
+
+    def notify(
+        self, message: str, *, title: str = "", severity: SeverityLevel = "information"
+    ):
+        super().notify(message, title=title, severity=severity)
+
+    def exit(self):
+        super().exit()
 
     def compose(self) -> ComposeResult:
         yield self.chat_log

@@ -9,10 +9,10 @@ from bond.config import BondConfig, get_default_persona
 from bond.conversation.conversation import Conversation
 from bond.tools import global_toolbox
 from bond.tui.app import BondTui
+from bond.tui.default_state_machine import DefaultTuiStateMachine
 from bond.tui.environment.tui_command_handler import TuiCommandHandler
 from bond.tui.environment.tui_signal_receiver import TuiSignalReceiver
 from bond.tui.environment.tui_tool_environment import TuiToolEnvironment
-from bond.tui.state.state_machine import TuiStateMachine
 
 
 def main():
@@ -41,7 +41,7 @@ def main():
     persona_id = get_default_persona(config.chat)
     persona = env.get_persona(persona_id)
 
-    state_machine = TuiStateMachine(
+    state_machine = DefaultTuiStateMachine(
         signal_queue=signal_queue,
         behaviour_event_queue=event_queue,
     )
