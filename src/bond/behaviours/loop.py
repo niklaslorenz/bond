@@ -1,7 +1,8 @@
 from typing import Callable
 
 from bond.behaviours.behaviour_event import (BehaviourEventHandler,
-                                             ChangePersonaEvent, ErrorEvent,
+                                             ChangePersonaEvent,
+                                             CommandResponseEvent, ErrorEvent,
                                              NotifyEvent,
                                              RestoreConversationEvent,
                                              StopEvent)
@@ -112,6 +113,7 @@ class LoopBehaviour:
                 if self.command_handler is not None:
                     try:
                         self.command_handler(signal.command)
+                        self.event_handler(CommandResponseEvent())
                     except Exception as e:
                         self.event_handler(
                             NotifyEvent(

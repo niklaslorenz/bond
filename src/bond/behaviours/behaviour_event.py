@@ -80,6 +80,10 @@ class CancelRequestConfirmationEvent(BehaviourEvent):
     type: Literal["cancel_request_confirmation"] = "cancel_request_confirmation"
 
 
+class CommandResponseEvent(BehaviourEvent):
+    type: Literal["command_response"] = "command_response"
+
+
 class CallToolEvent(BehaviourEvent):
     type: Literal["call_tool"] = "call_tool"
     call: ToolCall
