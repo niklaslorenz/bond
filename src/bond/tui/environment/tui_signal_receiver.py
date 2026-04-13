@@ -1,12 +1,12 @@
-from multiprocessing import Queue
+from multiprocessing.queues import Queue
 from queue import Empty
 
 from bond.behaviours.behaviour_signal import BehaviourSignal
 
 
 class TuiSignalReceiver:
-    def __init__(self, queue: Queue):
-        self._queue = queue
+    def __init__(self, queue: Queue[BehaviourSignal]):
+        self._queue: Queue[BehaviourSignal] = queue
         self._head = None
 
     def peek(self) -> BehaviourSignal | None:

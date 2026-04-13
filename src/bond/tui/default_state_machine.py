@@ -1,48 +1,44 @@
 import asyncio
 from asyncio import Task, sleep
-from multiprocessing import Queue
+from multiprocessing.queues import Queue
 
 from textual.notifications import SeverityLevel
 
 from bond.behaviours.behaviour_event import BehaviourEvent
 from bond.behaviours.behaviour_signal import BehaviourSignal
 from bond.tui import ITuiState
-from bond.tui.states import TuiIdleState, TuiStartState
+from bond.tui.states.tui_pre_start_state import TuiPreStartState
 from bond.tui.types import ITuiApp, ITuiEvent
+
+from . import logger
 
 
 class DefaultTuiStateMachine:
     tui_state: ITuiState
-    app: ITuiApp
-    persona_name: str
-    behaviour_event_queue: Queue
     _worker: Task | None = None
 
     def __init__(
         self,
         app: ITuiApp,
-        signal_queue: Queue,
-        behaviour_event_queue: Queue,
-        persona_name: str,
+        signal_queue: Queue[BehaviourSignal],
+        event_queue: Queue[BehaviourEvent | ITuiEvent],
     ):
+        self.app = app
         self.signal_queue = signal_queue
-        self.behaviour_event_queue = behaviour_event_queue
-        self.persona_name = persona_name
+        self.event_queue = event_queue
 
-        self.state = TuiStartState(self, persona_name)
-        self.change_state(TuiIdleState(self))
+        self.tui_state = TuiPreStartState(self)
 
-    async def schedule_tui_event(self, event: ITuiEvent, *, millis: int):
-        await sleep(1000 * millis)
-        self.handle_tui_event(event)
+    def schedule_event(self, event: ITuiEvent | BehaviourEvent, *, millis: int):
+        asyncio.create_task(self._wait_and_handle(event, millis))
 
-    def handle_tui_event(self, event: ITuiEvent):
-        self.tui_state.handle_tui_event(event)
-
-    def handle_behaviour_event(self, event: BehaviourEvent):
-        self.tui_state.handle_behaviour_event(event)
+    def handle_event(self, event: ITuiEvent | BehaviourEvent):
+        self.event_queue.put(event)
 
     def change_state(self, destination: ITuiState):
+        logger.debug(
+            f"Changed state from {type(self.tui_state)} to {type(destination)}"
+        )
         self.tui_state.on_exit(destination)
         old = self.tui_state
         self.tui_state = destination
@@ -61,14 +57,6 @@ class DefaultTuiStateMachine:
             raise RuntimeError("worker is already defined")
         self._worker = asyncio.create_task(self._listen_to_events())
 
-    async def _listen_to_events(self):
-        try:
-            while True:
-                event = await asyncio.to_thread(self.behaviour_event_queue.get)
-                self.handle_behaviour_event(event)
-        except asyncio.CancelledError:
-            return
-
     def stop(self):
         if self._worker is not None:
             self._worker.cancel()
@@ -77,8 +65,20 @@ class DefaultTuiStateMachine:
     def get_app(self) -> ITuiApp:
         return self.app
 
-    def handle_invalid_tui_event(self, event: ITuiEvent):
-        self.notify(f"Invalid TUI Event: {event.get_type()}", severity="error")
+    def get_state(self) -> ITuiState:
+        return self.tui_state
 
-    def handle_invalid_behaviour_event(self, event: BehaviourEvent):
-        self.notify(f"Invalid Behaviour Event: {event.type}", severity="error")
+    async def _wait_and_handle(self, event: ITuiEvent | BehaviourEvent, millis: int):
+        await sleep(millis / 1000)
+        self.handle_event(event)
+
+    async def _listen_to_events(self):
+        try:
+            while True:
+                event = await asyncio.to_thread(self.event_queue.get)
+                if isinstance(event, BehaviourEvent):
+                    self.tui_state.handle_behaviour_event(event)
+                else:
+                    self.tui_state.handle_tui_event(event)
+        except asyncio.CancelledError:
+            return

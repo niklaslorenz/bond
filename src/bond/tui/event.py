@@ -31,3 +31,7 @@ class RequestConfirmEvent(TuiEvent):
 class StopEvent(TuiEvent):
     type: Literal["stop"] = "stop"
     immediately: bool
+
+
+class StartEvent(TuiEvent):
+    type: Literal["start"] = "start"

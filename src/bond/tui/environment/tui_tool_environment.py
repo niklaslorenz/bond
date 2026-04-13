@@ -1,12 +1,12 @@
 from concurrent.futures import Future
-from multiprocessing import Queue
+from multiprocessing.queues import Queue
 from pathlib import Path
 from typing import Callable, TextIO
 
-from bond.behaviours.behaviour_event import (
-    CancelRequestConfirmationEvent,
-    RequestConfirmationEvent,
-)
+from bond.behaviours.behaviour_event import (BehaviourEvent,
+                                             CancelRequestConfirmationEvent,
+                                             RequestConfirmationEvent)
+from bond.tui.types import ITuiEvent
 
 _CONFIRMATION_TIMEOUT = 30
 
@@ -20,7 +20,7 @@ class TuiToolEnvironment:
     def __init__(
         self,
         work_dir: Path | Callable[[], Path] | None,
-        event_queue: Queue,
+        event_queue: Queue[BehaviourEvent | ITuiEvent],
     ):
         self._work_dir = work_dir
         self._event_queue = event_queue
