@@ -113,6 +113,9 @@ class StdEventHandler:
     def handle_restore_conversation_event(self, _: RestoreConversationEvent):
         print("\n\n\n")
 
+    def handle_command_response_event(self, _: CommandResponseEvent):
+        pass
+
     def handle_invalid_event(self, event: BehaviourEvent):
         print(f"Invalid behaviour event: {event.type}", file=sys.stderr)
 
