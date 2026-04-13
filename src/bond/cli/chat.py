@@ -48,6 +48,7 @@ def main():
     event_handler = StdEventHandler(receiver, show_thoughts, show_tool_output)
     cmd_handler = StdCommandHandler(
         event_handler=event_handler,
+        signal_handler=receiver,
         conversation_base_path=conv_path / "conversations",
         last_conv_path=last_conv_path,
         available_personas=config.chat.personas,
