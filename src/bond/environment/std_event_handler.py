@@ -25,7 +25,7 @@ class StdEventHandler:
         )
 
     def handle_stop_event(self, _: StopEvent):
-        self._receiver.stop()
+        pass
 
     def handle_notify_event(self, event: NotifyEvent):
         self.notify(event.message)

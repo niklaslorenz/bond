@@ -4,15 +4,14 @@ import subprocess
 from argparse import ArgumentParser, Namespace, _SubParsersAction
 from pathlib import Path
 
-from bond.behaviours.behaviour_event import (
-    BehaviourEventHandler,
-    NotifyEvent,
-    RestoreConversationEvent,
-    StopEvent,
-)
+from bond.behaviours.behaviour_event import (NotifyEvent,
+                                             RestoreConversationEvent)
+from bond.behaviours.behaviour_signal import StopSignal
 from bond.behaviours.loop import LoopBehaviour
+from bond.behaviours.types import IBehaviourEventHandler
 from bond.conversation.conversation import Conversation
 from bond.conversation.types import AssistantMessage
+from bond.environment.types import IBehaviourSignalHandler
 
 
 class BaseCommandHandler:
@@ -20,13 +19,15 @@ class BaseCommandHandler:
 
     def __init__(
         self,
-        event_handler: BehaviourEventHandler,
+        event_handler: IBehaviourEventHandler,
+        signal_handler: IBehaviourSignalHandler,
         conversation_base_path: Path,
         last_conv_path: Path,
         available_personas: list[str],
         save_on_quit: bool = False,
     ):
         self.event_handler = event_handler
+        self.signal_handler = signal_handler
         self.conversation_base_path = conversation_base_path
         self.last_conv_path = last_conv_path
         self.available_personas = available_personas
@@ -54,7 +55,7 @@ class BaseCommandHandler:
             self.save_conversation(self.beh.conversation.name)
         if self.save_on_quit:
             self.save_last_conversation()
-        self.event_handler(StopEvent())
+        self.signal_handler.queue_signal(StopSignal())
 
     def save(self, args: Namespace) -> None:
         name: str | None = args.name or self.beh.conversation.name
@@ -101,13 +102,13 @@ class BaseCommandHandler:
         self.beh.set_conversation(Conversation(current_persona=self.beh.persona_id))
 
     def forget(self, _: Namespace) -> None:
-        self.event_handler(StopEvent())
+        self.signal_handler.queue_signal(StopSignal())
 
     def remember(self, _: Namespace) -> None:
         if self.beh.conversation.name is not None:
             self.save_conversation(self.beh.conversation.name)
         self.save_last_conversation()
-        self.event_handler(StopEvent())
+        self.signal_handler.queue_signal(StopSignal())
 
     def crop(self, args: Namespace) -> None:
         keep = args.keep

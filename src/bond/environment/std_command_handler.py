@@ -2,22 +2,20 @@ import sys
 from argparse import Namespace, _SubParsersAction
 from pathlib import Path
 
-from bond.behaviours.behaviour_event import BehaviourEventHandler
-from bond.conversation.types import (
-    AssistantMessage,
-    SystemMessage,
-    TextChunk,
-    UserMessage,
-    parse_chunks_content,
-)
+from bond.behaviours.types import IBehaviourEventHandler
+from bond.conversation.types import (AssistantMessage, SystemMessage,
+                                     TextChunk, UserMessage,
+                                     parse_chunks_content)
 from bond.environment.base_command_handler import BaseCommandHandler
+from bond.environment.types import IBehaviourSignalHandler
 
 
 class StdCommandHandler(BaseCommandHandler):
 
     def __init__(
         self,
-        event_handler: BehaviourEventHandler,
+        event_handler: IBehaviourEventHandler,
+        signal_handler: IBehaviourSignalHandler,
         conversation_base_path: Path,
         last_conv_path: Path,
         available_personas: list[str],
@@ -26,6 +24,7 @@ class StdCommandHandler(BaseCommandHandler):
     ):
         super().__init__(
             event_handler,
+            signal_handler,
             conversation_base_path=conversation_base_path,
             last_conv_path=last_conv_path,
             available_personas=available_personas,

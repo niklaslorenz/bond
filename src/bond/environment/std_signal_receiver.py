@@ -1,12 +1,7 @@
 from typing import Callable
 
-from bond.behaviours.behaviour_signal import (
-    BehaviourSignal,
-    CommandSignal,
-    InterruptSignal,
-    PromptSignal,
-    StopSignal,
-)
+from bond.behaviours.behaviour_signal import (BehaviourSignal, CommandSignal,
+                                              PromptSignal)
 
 
 class StdSignalReceiver:
@@ -27,11 +22,8 @@ class StdSignalReceiver:
         else:
             return PromptSignal(prompt=inp)
 
-    def stop(self):
-        self._queued.append(StopSignal())
-
-    def interrupt(self):
-        self._queued.append(InterruptSignal())
-
     def link(self, persona_query: Callable[[], str]):
         self.persona_query = persona_query
+
+    def queue_signal(self, signal: BehaviourSignal):
+        self._queued.append(signal)
