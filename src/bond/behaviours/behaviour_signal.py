@@ -1,10 +1,6 @@
-from typing import Literal, Protocol
+from typing import Literal
 
-from pydantic import BaseModel
-
-
-class BehaviourSignal(BaseModel):
-    pass
+from bond.behaviours.types import BehaviourSignal
 
 
 class StopSignal(BehaviourSignal):
@@ -33,8 +29,3 @@ class InterruptSignal(BehaviourSignal):
     """
 
     type: Literal["interrupt"] = "interrupt"
-
-
-class BehaviourSignalReceiver(Protocol):
-    def get(self) -> BehaviourSignal: ...
-    def peek(self) -> BehaviourSignal | None: ...

@@ -3,13 +3,13 @@ import logging
 from returns.result import Success
 
 from bond.behaviours.behaviour_event import (AppendMessageChunkEvent,
-                                             BehaviourEventHandler,
                                              CallToolEvent, FullResponseEvent,
                                              ResponseEndEvent,
                                              ResponseStartEvent,
                                              ToolReturnEvent)
-from bond.behaviours.behaviour_signal import (BehaviourSignalReceiver,
-                                              InterruptSignal)
+from bond.behaviours.behaviour_signal import InterruptSignal
+from bond.behaviours.types import (IBehaviourEventHandler,
+                                   IBehaviourSignalReceiver)
 from bond.conversation.conversation import Conversation, ConversationMessage
 from bond.conversation.types import (AssistantMessage, FunctionCall,
                                      SystemMessage)
@@ -35,8 +35,8 @@ class SingleTurn:
         self,
         endpoint: ChatCompletionsEndpoint,
         model: str,
-        event_handler: BehaviourEventHandler,
-        signal_receiver: BehaviourSignalReceiver,
+        event_handler: IBehaviourEventHandler,
+        signal_receiver: IBehaviourSignalReceiver,
         tool_environment: ToolEnvironment,
         system_message: str | None = None,
         toolbox: Toolbox | None = None,

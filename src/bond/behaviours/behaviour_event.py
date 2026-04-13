@@ -1,17 +1,14 @@
 """Behaviour Events are sent from the loop behaviour to the event queue."""
 
 from concurrent.futures import Future
-from typing import Literal, Protocol
+from typing import Literal
 
-from pydantic import BaseModel, PrivateAttr
+from pydantic import PrivateAttr
 
+from bond.behaviours.types import BehaviourEvent
 from bond.conversation.conversation import Conversation
 from bond.conversation.types import ToolCall, UsageInfo
 from bond.endpoints.chat_completions import CompletionChunk, CompletionResponse
-
-
-class BehaviourEvent(BaseModel):
-    type: str
 
 
 class ErrorEvent(BehaviourEvent):
@@ -106,7 +103,3 @@ class ClearChatEvent(BehaviourEvent):
 class RestoreConversationEvent(BehaviourEvent):
     type: Literal["restore_conversation"] = "restore_conversation"
     conversation: Conversation
-
-
-class BehaviourEventHandler(Protocol):
-    def __call__(self, event: BehaviourEvent) -> None: ...

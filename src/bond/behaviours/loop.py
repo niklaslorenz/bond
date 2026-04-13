@@ -1,20 +1,22 @@
 from typing import Callable
 
-from bond.behaviours.behaviour_event import (BehaviourEventHandler,
-                                             ChangePersonaEvent,
+from bond.behaviours.behaviour_event import (ChangePersonaEvent,
                                              CommandResponseEvent, ErrorEvent,
                                              NotifyEvent,
                                              RestoreConversationEvent,
                                              StopEvent)
-from bond.behaviours.behaviour_signal import (BehaviourSignalReceiver,
-                                              CommandSignal, PromptSignal,
+from bond.behaviours.behaviour_signal import (CommandSignal, PromptSignal,
                                               StopSignal)
 from bond.behaviours.single_turn import SingleTurn
+from bond.behaviours.types import (IBehaviourEventHandler,
+                                   IBehaviourSignalReceiver)
 from bond.bond_environment import BondEnvironment
 from bond.conversation.conversation import Conversation, ConversationMessage
 from bond.persona import Persona
 from bond.providers.provider import build_toolbox
 from bond.tools.tool import ToolEnvironment
+
+from . import logger
 
 
 class LoopBehaviour:
@@ -27,8 +29,8 @@ class LoopBehaviour:
         self,
         conversation: Conversation,
         environment: BondEnvironment,
-        event_handler: BehaviourEventHandler,
-        signal_receiver: BehaviourSignalReceiver,
+        event_handler: IBehaviourEventHandler,
+        signal_receiver: IBehaviourSignalReceiver,
         command_handler: Callable[[str], None] | None,
         tool_environment: ToolEnvironment,
         persona_id: str,
@@ -104,6 +106,7 @@ class LoopBehaviour:
         )
 
     def run(self):
+        logger.info("Starting Loop Behaviour")
         if self.running:
             raise RuntimeError("Already running")
         self.running = True
@@ -145,3 +148,4 @@ class LoopBehaviour:
                     )
                 )
         self.event_handler(StopEvent())
+        logger.info("Stopping Loop Behaviour")
