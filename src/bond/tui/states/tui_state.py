@@ -40,7 +40,7 @@ class TuiState:
 
     # Tui Events
 
-    def handle_user_input_event(self, event: tui_event.UserInputEvent):
+    def handle_user_input_event(self, _: tui_event.UserInputEvent):
         pass
 
     def handle_start_event(self, _: tui_event.StartEvent):

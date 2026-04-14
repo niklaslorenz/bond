@@ -1,12 +1,10 @@
 from concurrent.futures import Future
-from multiprocessing.queues import Queue
 from pathlib import Path
 from typing import Callable, TextIO
 
-from bond.behaviours.behaviour_event import (BehaviourEvent,
-                                             CancelRequestConfirmationEvent,
+from bond.behaviours.behaviour_event import (CancelRequestConfirmationEvent,
                                              RequestConfirmationEvent)
-from bond.tui.types import ITuiEvent
+from bond.behaviours.types import IBehaviourEventHandler
 
 _CONFIRMATION_TIMEOUT = 30
 
@@ -20,19 +18,19 @@ class TuiToolEnvironment:
     def __init__(
         self,
         work_dir: Path | Callable[[], Path] | None,
-        event_queue: Queue[BehaviourEvent | ITuiEvent],
+        event_handler: IBehaviourEventHandler,
     ):
         self._work_dir = work_dir
-        self._event_queue = event_queue
+        self._event_handler = event_handler
 
     def ask_confirmation(self, prompt: str) -> bool:
         future: Future[bool] = Future()
         request = RequestConfirmationEvent(request=prompt, result=future)
-        self._event_queue.put(request)
+        self._event_handler(request)
         try:
             return future.result(timeout=_CONFIRMATION_TIMEOUT)
         except TimeoutError:
-            self._event_queue.put(CancelRequestConfirmationEvent())
+            self._event_handler(CancelRequestConfirmationEvent())
             return False
 
     def is_interactive(self) -> bool:

@@ -4,41 +4,28 @@ from textual.app import App, ComposeResult
 from textual.notifications import SeverityLevel
 
 from bond.conversation.conversation import Conversation
-from bond.conversation.types import (
-    AssistantMessageChunk,
-    SystemMessageChunk,
-    TextChunk,
-    ThinkChunk,
-)
-from bond.persona import Persona
+from bond.conversation.types import (AssistantMessageChunk, SystemMessageChunk,
+                                     TextChunk, ThinkChunk)
 from bond.tui.event import RequestConfirmEvent, StopEvent, UserInputEvent
 from bond.tui.types import ITuiStateMachine, TuiStatus
-from bond.tui.widgets import (
-    ChatLog,
-    ChatMessage,
-    InputBar,
-    MultiLineInput,
-    StatusBar,
-    ToolResultBlock,
-)
+from bond.tui.widgets import (ChatLog, ChatMessage, InputBar, MultiLineInput,
+                              StatusBar, ToolResultBlock)
+
+from . import logger
 
 
 class BondTui(App):
+    state_machine: ITuiStateMachine
 
-    def __init__(
-        self,
-        starting_persona: Persona,
-        state_machine: ITuiStateMachine,
-    ):
+    def __init__(self, state_machine: ITuiStateMachine):
         super().__init__()
         self.state_machine = state_machine
-        self.state_machine.link(self)
 
         self.messages: list[ChatMessage] = []
         self.status_bar = StatusBar(
-            status="Idle",
-            persona=starting_persona.name,
-            provider=starting_persona.provider,
+            status="<unknown>",
+            persona="<unknown>",
+            provider="<unknown>",
             context_length=0,
         )
         self.chat_log = ChatLog()
@@ -49,10 +36,22 @@ class BondTui(App):
     def notify(
         self, message: str, *, title: str = "", severity: SeverityLevel = "information"
     ):
+        if severity == "error":
+            log = logger.error
+        elif severity == "warning":
+            log = logger.warning
+        else:
+            log = logger.info
+        log(f"Notification: {message}")
         super().notify(message, title=title, severity=severity)
 
-    def exit(self):
-        super().exit()
+    def exit_tui(self):
+        logger.info("Stopping Bond TUI")
+        self.exit()
+
+    async def start_tui(self):
+        logger.info("Starting Bond TUI")
+        await super().run_async()
 
     def compose(self) -> ComposeResult:
         yield self.chat_log
@@ -73,10 +72,7 @@ class BondTui(App):
         else:
             user_event = UserInputEvent(input_type="prompt", message=event.value)
 
-        self.state_machine.handle_tui_event(user_event)
-        if not user_event.cancelled:
-            event.clear_field()
-            self.chat_log.scroll_end()
+        self.state_machine.handle_event(user_event)
 
     def clear_input(self):
         self.input_bar.input_field.clear()
@@ -116,21 +112,23 @@ class BondTui(App):
         msg = self._get_current_assistant_message() if merge else None
         if msg is None:
             msg = ChatMessage(author=self.status_bar.persona, role="assistant")
+            self.add_message(msg)
         block = msg.add_tool_result_block("", function_name)
         return block
 
     def set_status(self, status: TuiStatus):
         self.status_bar.status = status
 
-    def set_persona(self, persona_name: str):
+    def set_persona(self, persona_name: str, provider: str):
         self.status_bar.persona = persona_name
+        self.status_bar.provider = provider
 
     def stop(self):
-        self.state_machine.handle_tui_event(StopEvent(immediately=False))
+        self.state_machine.handle_event(StopEvent(immediately=False))
 
     def open_confirmation_prompt(self, request: str):
         self.notify("Confirmation requests are not implemented yet.")
-        self.state_machine.handle_tui_event(RequestConfirmEvent(accepted=False))
+        self.state_machine.handle_event(RequestConfirmEvent(accepted=False))
         # TODO: implement
         pass
 
@@ -138,6 +136,10 @@ class BondTui(App):
         if self.chat_log.is_mounted:
             self.chat_log.remove_children()
         self.messages.clear()
+
+    def scroll_to_end(self):
+        if self.chat_log.is_mounted:
+            self.chat_log.scroll_end()
 
     def synchronize(self, conversation: Conversation, length: int | None = None):
 
@@ -147,9 +149,8 @@ class BondTui(App):
                 continue
             if message.message.role == "tool":
                 text, _ = self._handle_message_chunks(message.message.content)
-                self.add_assistant_message(
-                    message.author or "Assistant", text=text, thinking=None, merge=True
-                )
+                block = self.add_tool_call(message.message.name or "Tool", merge=True)
+                block.append(text or "")
             elif message.message.role == "assistant":
                 text, thinking = self._handle_message_chunks(message.message.content)
                 self.add_assistant_message(

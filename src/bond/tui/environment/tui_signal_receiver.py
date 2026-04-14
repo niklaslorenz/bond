@@ -1,5 +1,4 @@
-from multiprocessing.queues import Queue
-from queue import Empty
+from queue import Empty, Queue
 
 from bond.behaviours.behaviour_signal import BehaviourSignal
 
@@ -24,3 +23,6 @@ class TuiSignalReceiver:
             self._head = None
             return val
         return self._queue.get()
+
+    def queue_signal(self, signal: BehaviourSignal):
+        self._queue.put(signal)
