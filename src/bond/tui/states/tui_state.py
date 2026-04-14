@@ -14,7 +14,7 @@ class TuiState:
         handler = getattr(
             self,
             f"handle_{event.get_type()}_event",
-            self.machine.handle_invalid_tui_event,
+            self.handle_invalid_tui_event,
         )
         handler(event)
 
@@ -22,7 +22,7 @@ class TuiState:
         handler = getattr(
             self,
             f"handle_{event.type}_behaviour_event",
-            self.machine.handle_invalid_behaviour_event,
+            self.handle_invalid_behaviour_event,
         )
         handler(event)
 
@@ -32,17 +32,28 @@ class TuiState:
     def on_exit(self, destination: ITuiState):
         pass
 
+    def handle_invalid_tui_event(self, event: ITuiEvent):
+        self.machine.notify(f"Invalid TUI Event: {event.get_type()}", severity="error")
+
+    def handle_invalid_behaviour_event(self, event: behaviour_event.BehaviourEvent):
+        self.machine.notify(f"Invalid Behaviour Event: {event.type}", severity="error")
+
     # Tui Events
 
     def handle_user_input_event(self, event: tui_event.UserInputEvent):
-        event.set_cancelled()
+        pass
+
+    def handle_start_event(self, _: tui_event.StartEvent):
+        self.machine.notify(
+            f"Unexpected start event in state {type(self)}", severity="warning"
+        )
 
     def handle_stop_event(self, event: tui_event.StopEvent):
         if not event.immediately:
             from . import TuiWaitForStopState
 
-            self.machine.change_state(TuiWaitForStopState(self.machine))
             self.machine.send_signal(StopSignal())
+            self.machine.change_state(TuiWaitForStopState(self.machine))
         else:
             from . import TuiStopState
 
@@ -61,15 +72,13 @@ class TuiState:
             f"Error in behaviour loop ({type(event)}): {event}", severity="error"
         )
         if event.critical:
-            _ = self.machine.schedule_tui_event(
+            _ = self.machine.schedule_event(
                 tui_event.StopEvent(immediately=True), millis=3000
             )
 
     def handle_stop_behaviour_event(self, _: behaviour_event.StopEvent):
         self.machine.notify(f"Behaviour loop exited unexpectedly", severity="error")
-        _2 = self.machine.schedule_tui_event(
-            tui_event.StopEvent(immediately=True), millis=3000
-        )
+        self.machine.schedule_event(tui_event.StopEvent(immediately=True), millis=3000)
 
     def handle_notify_behaviour_event(self, event: behaviour_event.NotifyEvent):
         self.machine.notify(event.message)
@@ -170,7 +179,7 @@ class TuiState:
             f"Unexpected change persona behaviour event in state {type(self)}",
             severity="warning",
         )
-        self.machine.get_app().set_persona(event.name)
+        self.machine.get_app().set_persona(event.name, event.provider)
 
     def handle_clear_chat_behaviour_event(self, _: behaviour_event.ClearChatEvent):
         self.machine.notify(
@@ -187,3 +196,11 @@ class TuiState:
             severity="warning",
         )
         self.machine.get_app().synchronize(event.conversation)
+
+    def handle_command_response_behaviour_event(
+        self, _: behaviour_event.CommandResponseEvent
+    ):
+        self.machine.notify(
+            f"Unexpected restore conversation behaviour event in state {type(self)}",
+            severity="warning",
+        )

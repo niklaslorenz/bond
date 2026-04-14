@@ -1,18 +1,14 @@
-from dataclasses import dataclass
+import logging
 
 from bond.behaviours import behaviour_event
-from bond.tui.states.tui_state import TuiState
-from bond.tui.types import ITuiState
+from bond.tui.states.tui_state import TuiState, tui_event
+
+logger = logging.getLogger(__name__)
 
 
-@dataclass
-class TuiWaitForCommandResponseState(TuiState):
-    def on_enter(self, source: ITuiState):
-        self.machine.get_app().set_status("Waiting")
+class TuiPreStartState(TuiState):
 
-    def handle_command_response_behaviour_event(
-        self, _: behaviour_event.CommandResponseEvent
-    ):
+    def handle_start_event(self, _: tui_event.StartEvent):
         from . import TuiIdleState
 
         self.machine.change_state(TuiIdleState(self.machine))
@@ -26,3 +22,10 @@ class TuiWaitForCommandResponseState(TuiState):
         self, event: behaviour_event.RestoreConversationEvent
     ):
         self.machine.get_app().synchronize(event.conversation)
+
+    def handle_waiting_for_input_behaviour_event(
+        self, _: behaviour_event.WaitingForInputEvent
+    ):
+        from . import TuiIdleState
+
+        self.machine.change_state(TuiIdleState(self.machine))

@@ -13,6 +13,7 @@ class TuiWaitForConfirmationResponseState(TuiState):
     result: Future[bool]
 
     def on_enter(self, source: ITuiState):
+        self.machine.get_app().set_status("Waiting")
         self.machine.get_app().open_confirmation_prompt(self.request)
 
     def handle_request_confirm_event(self, event: RequestConfirmEvent):

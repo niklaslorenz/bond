@@ -36,7 +36,7 @@ class TuiWaitingState(TuiState):
     def handle_change_persona_behaviour_event(
         self, event: behaviour_event.ChangePersonaEvent
     ):
-        self.machine.get_app().set_persona(event.name)
+        self.machine.get_app().set_persona(event.name, event.provider)
 
     def handle_clear_chat_behaviour_event(self, event: behaviour_event.ClearChatEvent):
         self.machine.get_app().clear_chat()

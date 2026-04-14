@@ -5,16 +5,9 @@ from pydantic import BaseModel
 
 class TuiEvent(BaseModel):
     type: str
-    cancelled: bool = False
 
     def get_type(self) -> str:
         return self.type
-
-    def is_cancelled(self) -> bool:
-        return self.cancelled
-
-    def set_cancelled(self, cancelled: bool = True):
-        self.cancelled = cancelled
 
 
 class UserInputEvent(TuiEvent):

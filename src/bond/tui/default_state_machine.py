@@ -1,11 +1,10 @@
 import asyncio
 from asyncio import Task, sleep
-from multiprocessing.queues import Queue
+from queue import Empty, Queue
 
 from textual.notifications import SeverityLevel
 
-from bond.behaviours.behaviour_event import BehaviourEvent
-from bond.behaviours.behaviour_signal import BehaviourSignal
+from bond.behaviours.types import BehaviourEvent, BehaviourSignal
 from bond.tui import ITuiState
 from bond.tui.states.tui_pre_start_state import TuiPreStartState
 from bond.tui.types import ITuiApp, ITuiEvent
@@ -19,11 +18,9 @@ class DefaultTuiStateMachine:
 
     def __init__(
         self,
-        app: ITuiApp,
         signal_queue: Queue[BehaviourSignal],
         event_queue: Queue[BehaviourEvent | ITuiEvent],
     ):
-        self.app = app
         self.signal_queue = signal_queue
         self.event_queue = event_queue
 
@@ -36,9 +33,7 @@ class DefaultTuiStateMachine:
         self.event_queue.put(event)
 
     def change_state(self, destination: ITuiState):
-        logger.debug(
-            f"Changed state from {type(self.tui_state)} to {type(destination)}"
-        )
+        logger.debug(f"State Change: {type(self.tui_state)} -> {type(destination)}")
         self.tui_state.on_exit(destination)
         old = self.tui_state
         self.tui_state = destination
@@ -52,7 +47,8 @@ class DefaultTuiStateMachine:
     ):
         self.app.notify(message, title=title, severity=severity)
 
-    def run(self):
+    def run(self, app: ITuiApp):
+        self.app = app
         if self._worker is not None:
             raise RuntimeError("worker is already defined")
         self._worker = asyncio.create_task(self._listen_to_events())
@@ -60,7 +56,7 @@ class DefaultTuiStateMachine:
     def stop(self):
         if self._worker is not None:
             self._worker.cancel()
-        self.app.exit()
+        self.app.exit_tui()
 
     def get_app(self) -> ITuiApp:
         return self.app
@@ -75,7 +71,12 @@ class DefaultTuiStateMachine:
     async def _listen_to_events(self):
         try:
             while True:
-                event = await asyncio.to_thread(self.event_queue.get)
+                try:
+                    event = self.event_queue.get_nowait()
+                except Empty:
+                    await asyncio.sleep(0.05)
+                    continue
+                logger.debug(f"Processing event: {type(event)}")
                 if isinstance(event, BehaviourEvent):
                     self.tui_state.handle_behaviour_event(event)
                 else:
