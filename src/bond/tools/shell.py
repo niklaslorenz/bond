@@ -47,14 +47,14 @@ def run_shell_commands(commands: str, explaination: str):
     if not env.is_interactive():
         return "error: the tool is not running in interactive mode, so the user cannot grant you access to the shell tool right now."
     prompt = (
-        "\n\n\nBond wants to run the following commands:\n  "
+        "Bond wants to run the following commands:\n  "
         + "\n  ".join(commands.splitlines())
         + "\n\n\nBond: "
         + explaination
         + "\nDo you want to run these commands?"
     )
     if not env.ask_confirmation(prompt):
-        return "error: the user cannot accept your requests right now."
+        return "error: the user denied your request."
 
     process = subprocess.Popen(
         commands,
