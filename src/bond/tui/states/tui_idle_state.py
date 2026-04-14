@@ -34,3 +34,8 @@ class TuiIdleState(TuiState):
 
     def handle_stop_behaviour_event(self, _: behaviour_event.StopEvent):
         self.machine.change_state(TuiStopState(self.machine))
+
+    def handle_waiting_for_input_behaviour_event(
+        self, _: behaviour_event.WaitingForInputEvent
+    ):
+        pass
