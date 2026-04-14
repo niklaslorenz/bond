@@ -4,7 +4,7 @@ from bond.behaviours.behaviour_event import (ChangePersonaEvent,
                                              CommandResponseEvent, ErrorEvent,
                                              NotifyEvent,
                                              RestoreConversationEvent,
-                                             StopEvent)
+                                             StopEvent, WaitingForInputEvent)
 from bond.behaviours.behaviour_signal import (CommandSignal, PromptSignal,
                                               StopSignal)
 from bond.behaviours.single_turn import SingleTurn
@@ -63,7 +63,9 @@ class LoopBehaviour:
         if update_conversation:
             self.conversation.current_persona = persona_id
         self._build_turn()
-        self.event_handler(ChangePersonaEvent(name=self.persona.name))
+        self.event_handler(
+            ChangePersonaEvent(name=self.persona.name, provider=self.persona.provider)
+        )
 
     def set_conversation(self, conversation: Conversation):
         self.conversation = conversation
@@ -111,6 +113,7 @@ class LoopBehaviour:
             raise RuntimeError("Already running")
         self.running = True
         while self.running:
+            self.event_handler(WaitingForInputEvent())
             signal = self.signal_receiver.get()
             if isinstance(signal, CommandSignal):
                 if self.command_handler is not None:

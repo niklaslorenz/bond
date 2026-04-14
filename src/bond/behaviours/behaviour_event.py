@@ -94,6 +94,7 @@ class ToolReturnEvent(BehaviourEvent):
 class ChangePersonaEvent(BehaviourEvent):
     type: Literal["change_persona"] = "change_persona"
     name: str
+    provider: str
 
 
 class ClearChatEvent(BehaviourEvent):
