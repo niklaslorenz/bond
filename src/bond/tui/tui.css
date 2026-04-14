@@ -76,16 +76,22 @@ ChatMessage > TextBlock {
 }
 
 OverlayContainer {
-    background: rgba(0,0,0,0.5);
+    position: absolute;
+    margin-top: 0;
+    margin-left: 0;
+    margin-right: 0;
+    margin-bottom: 0;
+    background: transparent;
     align: center middle;
     layer: overlay;
-    height: 100%;
-    width: 100%;
+    dock: none;
 }
 
 ConfirmationPopup {
-    height: 75%;
-    width: 50%;
+    height: auto;
+    width: auto;
+    max-height: 75%;
+    max-width: 75%;
     border: solid $primary;
     background: $surface;
 }
