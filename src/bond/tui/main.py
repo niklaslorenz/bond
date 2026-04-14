@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import threading
+from argparse import ArgumentParser
 from pathlib import Path
 from queue import Queue
 
@@ -22,8 +23,10 @@ logger = logging.getLogger("bond")
 
 
 def setup_logger():
+    debug_dir = Path("~/.local/share/bond/logs/").expanduser().absolute()
+    debug_dir.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
-        filename="app.log",
+        filename=(debug_dir / "app.log").as_posix(),
         level=logging.INFO,
         format="%(asctime)s - %(levelname)s - %(message)s",
     )
@@ -93,7 +96,11 @@ async def run():
 
 
 def main():
-    setup_logger()
+    parser = ArgumentParser()
+    parser.add_argument("--debug", action="store_true")
+    args = parser.parse_args()
+    if args.debug:
+        setup_logger()
     asyncio.run(run())
 
 
