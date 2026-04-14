@@ -204,3 +204,11 @@ class TuiState:
             f"Unexpected restore conversation behaviour event in state {type(self)}",
             severity="warning",
         )
+
+    def handle_cancel_request_confirmation_event(
+        self, _: behaviour_event.CancelRequestConfirmationEvent
+    ):
+        self.machine.notify(
+            f"Unexpected cancel request confirmation event in state {type(self)}",
+            severity="warning",
+        )

@@ -8,7 +8,8 @@ from bond.conversation.types import (AssistantMessageChunk, SystemMessageChunk,
                                      TextChunk, ThinkChunk)
 from bond.tui.event import RequestConfirmEvent, StopEvent, UserInputEvent
 from bond.tui.types import ITuiStateMachine, TuiStatus
-from bond.tui.widgets import (ChatLog, ChatMessage, InputBar, MultiLineInput,
+from bond.tui.widgets import (ChatLog, ChatMessage, ConfirmationPopup,
+                              InputBar, MultiLineInput, OverlayContainer,
                               StatusBar, ToolResultBlock)
 
 from . import logger
@@ -16,10 +17,12 @@ from . import logger
 
 class BondTui(App):
     state_machine: ITuiStateMachine
+    popup: OverlayContainer | None
 
     def __init__(self, state_machine: ITuiStateMachine):
         super().__init__()
         self.state_machine = state_machine
+        self.popup = None
 
         self.messages: list[ChatMessage] = []
         self.status_bar = StatusBar(
@@ -127,10 +130,22 @@ class BondTui(App):
         self.state_machine.handle_event(StopEvent(immediately=False))
 
     def open_confirmation_prompt(self, request: str):
-        self.notify("Confirmation requests are not implemented yet.")
-        self.state_machine.handle_event(RequestConfirmEvent(accepted=False))
-        # TODO: implement
-        pass
+        popup = ConfirmationPopup(
+            request,
+            on_accept=lambda: self.state_machine.handle_event(
+                RequestConfirmEvent(accepted=True)
+            ),
+            on_deny=lambda: self.state_machine.handle_event(
+                RequestConfirmEvent(accepted=False)
+            ),
+        )
+        overlay = OverlayContainer(popup)
+        self.popup = overlay
+        self.call_later(self.mount, overlay)
+
+    def cancel_confirmation_request(self):
+        if self.popup is not None and self.popup.is_mounted:
+            self.popup.remove()
 
     def clear_chat(self):
         if self.chat_log.is_mounted:

@@ -1,10 +1,13 @@
+from typing import Callable, Protocol
+
 from rich.markdown import Markdown
 from rich.text import Text
-from textual.containers import Container, ScrollableContainer, Vertical
+from textual.containers import (Container, Horizontal, ScrollableContainer,
+                                Vertical)
 from textual.events import Key
 from textual.message import Message
 from textual.reactive import reactive
-from textual.widgets import Static, TextArea
+from textual.widgets import Button, Static, TextArea
 
 _THINK_COLOR = "grey"
 
@@ -209,3 +212,81 @@ class MultiLineInput(TextArea):
 
         def clear_field(self):
             self.input_field.clear()
+
+
+class IPopup(Protocol):
+    def set_overlay(self, overlay: "OverlayContainer"): ...
+
+
+class ConfirmationPopup(Vertical):
+
+    overlay: "OverlayContainer | None" = None
+
+    def __init__(
+        self,
+        request: str,
+        on_accept: Callable[[], None] | None = None,
+        on_deny: Callable[[], None] | None = None,
+        close_on_confirm: bool = True,
+    ):
+        super().__init__()
+        self.on_accept = on_accept
+        self.on_deny = on_deny
+        self.accept_button = Button(
+            "Accept", variant="success", id="confirmation-request-accept-button"
+        )
+        self.deny_button = Button(
+            "Deny", variant="error", id="confirmation-request-deny-button"
+        )
+        self.close_on_confirm = close_on_confirm
+
+        self.request_field = Static(request)
+
+    def set_overlay(self, overlay: "OverlayContainer"):
+        self.overlay = overlay
+
+    def on_button_pressed(self, event: Button.Pressed):
+        if event.button.id == "confirmation-request-accept-button":
+            self.post_message(ConfirmationPopup.Accepted(self))
+            if self.on_accept:
+                self.on_accept()
+            if self.close_on_confirm and self.overlay is not None:
+                self.overlay.remove()
+
+        if event.button.id == "confirmation-request-deny-button":
+            self.post_message(ConfirmationPopup.Denied(self))
+            if self.on_deny:
+                self.on_deny()
+            if self.close_on_confirm and self.overlay is not None:
+                self.overlay.remove()
+
+    def compose(self):
+        with ScrollableContainer():
+            yield self.request_field
+        with Horizontal(classes="button-bar"):
+            yield self.deny_button
+            yield self.accept_button
+
+    class Accepted(Message):
+        def __init__(self, popup: "ConfirmationPopup"):
+            super().__init__()
+            self.popup = popup
+
+    class Denied(Message):
+        def __init__(self, popup: "ConfirmationPopup"):
+            super().__init__()
+            self.popup = popup
+
+
+class OverlayContainer(Container):
+
+    def __init__(
+        self,
+        popup: IPopup,
+    ):
+        super().__init__()
+        self.popup = popup
+        popup.set_overlay(self)
+
+    def compose(self):
+        yield self.popup

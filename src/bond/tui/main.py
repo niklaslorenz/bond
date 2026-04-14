@@ -82,7 +82,7 @@ async def run():
         tool_environment=tool_env,
         persona_id=get_default_persona(config.chat),
         stream=True,
-        allow_shell_executions=False,
+        allow_shell_executions=True,
         user_name=config.user_name,
         allowed_personas=config.chat.personas,
     )

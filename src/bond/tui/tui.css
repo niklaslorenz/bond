@@ -1,7 +1,7 @@
 
 StatusBar {
     height: 1;
-    background: $background;
+    background: $surface;
     color: $text;
     padding: 0 1;
     content-align: center middle;
@@ -28,6 +28,10 @@ InputBar > #message-input {
     padding: 0 1;
     height: auto;
     min-height: 1;
+}
+
+ChatLog {
+    background: $background;
 }
 
 ChatMessage {
@@ -69,4 +73,25 @@ ChatMessage > ThinkBlock {
 ChatMessage > TextBlock {
     color: white;
     height: auto;
+}
+
+OverlayContainer {
+    background: rgba(0,0,0,0.5);
+    align: center middle;
+    layer: overlay;
+    height: 100%;
+    width: 100%;
+}
+
+ConfirmationPopup {
+    height: 75%;
+    width: 50%;
+    border: solid $primary;
+    background: $surface;
+}
+
+ConfirmationPopup > .button-bar {
+    height: auto;
+    align: center middle;
+    dock: bottom;
 }
