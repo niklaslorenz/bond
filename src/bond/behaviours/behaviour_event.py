@@ -61,9 +61,6 @@ class AppendMessageChunkEvent(BehaviourEvent):
 
 
 class RequestConfirmationEvent(BehaviourEvent):
-    def __init__(self, *, request: str, result: Future[bool]):
-        self.request = request
-        self._result = result
 
     type: Literal["request_confirmation"] = "request_confirmation"
     request: str
@@ -71,6 +68,9 @@ class RequestConfirmationEvent(BehaviourEvent):
 
     def result(self):
         return self._result
+
+    def set_result(self, result: Future[bool]):
+        self._result = result
 
 
 class CancelRequestConfirmationEvent(BehaviourEvent):

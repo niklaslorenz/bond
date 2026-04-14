@@ -25,7 +25,8 @@ class TuiToolEnvironment:
 
     def ask_confirmation(self, prompt: str) -> bool:
         future: Future[bool] = Future()
-        request = RequestConfirmationEvent(request=prompt, result=future)
+        request = RequestConfirmationEvent(request=prompt)
+        request.set_result(future)
         self._event_handler(request)
         try:
             return future.result(timeout=_CONFIRMATION_TIMEOUT)
