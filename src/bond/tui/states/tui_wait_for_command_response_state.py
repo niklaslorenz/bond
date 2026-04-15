@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from bond.behaviours import behaviour_event
 from bond.tui.states.tui_state import TuiState
 from bond.tui.types import ITuiState
+from bond.behaviours.behaviour_event import ShowConversationSelectorEvent
 
 
 @dataclass
@@ -26,3 +27,12 @@ class TuiWaitForCommandResponseState(TuiState):
         self, event: behaviour_event.RestoreConversationEvent
     ):
         self.machine.get_app().synchronize(event.conversation)
+
+    def handle_show_conversation_selector_behaviour_event(
+        self, event: ShowConversationSelectorEvent
+    ):
+        from . import TuiConversationSelectorState
+
+        self.machine.change_state(
+            TuiConversationSelectorState(self.machine, event.conversations)
+        )

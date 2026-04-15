@@ -33,20 +33,21 @@ class TuiState:
         pass
 
     def handle_invalid_tui_event(self, event: ITuiEvent):
-        self.machine.notify(f"Invalid TUI Event: {event.get_type()}", severity="error")
+        self.machine.notify(
+            f"Invalid TUI Event: {event.get_type()} in state {type(self)}",
+            severity="error",
+        )
 
     def handle_invalid_behaviour_event(self, event: behaviour_event.BehaviourEvent):
-        self.machine.notify(f"Invalid Behaviour Event: {event.type}", severity="error")
+        self.machine.notify(
+            f"Invalid Behaviour Event: {event.type} in state {type(self)}",
+            severity="error",
+        )
 
     # Tui Events
 
     def handle_user_input_event(self, _: tui_event.UserInputEvent):
         pass
-
-    def handle_start_event(self, _: tui_event.StartEvent):
-        self.machine.notify(
-            f"Unexpected start event in state {type(self)}", severity="warning"
-        )
 
     def handle_stop_event(self, event: tui_event.StopEvent):
         if not event.immediately:
@@ -58,12 +59,6 @@ class TuiState:
             from . import TuiStopState
 
             self.machine.change_state(TuiStopState(self.machine))
-
-    def handle_request_confirm_event(self, _: tui_event.RequestConfirmEvent):
-        self.machine.notify(
-            f"Unexpected request confirmation event in state {type(self)}",
-            severity="warning",
-        )
 
     # Behaviour Events
 
@@ -192,18 +187,11 @@ class TuiState:
         )
         self.machine.get_app().synchronize(event.conversation)
 
-    def handle_command_response_behaviour_event(
-        self, _: behaviour_event.CommandResponseEvent
+    def handle_show_conversation_selector_behaviour_event(
+        self, event: behaviour_event.ShowConversationSelectorEvent
     ):
-        self.machine.notify(
-            f"Unexpected restore conversation behaviour event in state {type(self)}",
-            severity="warning",
-        )
+        from . import TuiConversationSelectorState
 
-    def handle_cancel_request_confirmation_event(
-        self, _: behaviour_event.CancelRequestConfirmationEvent
-    ):
-        self.machine.notify(
-            f"Unexpected cancel request confirmation event in state {type(self)}",
-            severity="warning",
+        self.machine.change_state(
+            TuiConversationSelectorState(self.machine, event.conversations)
         )

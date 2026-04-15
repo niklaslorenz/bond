@@ -11,5 +11,6 @@ from .tui_wait_for_confirmation_response_state import \
 from .tui_wait_for_stop_state import TuiWaitForStopState
 from .tui_wait_for_tool_result_state import TuiWaitForToolResultState
 from .tui_waiting_state import TuiWaitingState
+from .tui_select_conversation_state import TuiConversationSelectorState
 
 logger = logging.getLogger(__name__)

@@ -1,7 +1,8 @@
 from concurrent.futures import Future
 from dataclasses import dataclass
 
-from bond.behaviours.behaviour_event import CancelRequestConfirmationEvent
+from bond.behaviours.behaviour_event import (CancelRequestConfirmationEvent,
+                                             ShowConversationSelectorEvent)
 from bond.tui.event import RequestConfirmEvent
 from bond.tui.states.tui_state import TuiState
 from bond.tui.types import ITuiState
@@ -25,5 +26,10 @@ class TuiWaitForConfirmationResponseState(TuiState):
         self, _: CancelRequestConfirmationEvent
     ):
         self.machine.notify("Cancelling confirmation request")
-        self.machine.get_app().cancel_confirmation_request()
+        self.machine.get_app().close_popup()
         self.machine.change_state(self.previous_state)
+
+    def handle_show_conversation_selector_behaviour_event(
+        self, event: ShowConversationSelectorEvent
+    ):
+        self.handle_invalid_behaviour_event(event)
