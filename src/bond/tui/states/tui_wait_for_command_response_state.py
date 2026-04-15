@@ -1,9 +1,9 @@
 from dataclasses import dataclass
 
 from bond.behaviours import behaviour_event
+from bond.behaviours.behaviour_event import ShowConversationSelectorEvent
 from bond.tui.states.tui_state import TuiState
 from bond.tui.types import ITuiState
-from bond.behaviours.behaviour_event import ShowConversationSelectorEvent
 
 
 @dataclass

@@ -34,13 +34,13 @@ class TuiState:
 
     def handle_invalid_tui_event(self, event: ITuiEvent):
         self.machine.notify(
-            f"Invalid TUI Event: {event.get_type()} in state {type(self)}",
+            f"Invalid TUI Event: {event.get_type()} in state {type(self).__name__}",
             severity="error",
         )
 
     def handle_invalid_behaviour_event(self, event: behaviour_event.BehaviourEvent):
         self.machine.notify(
-            f"Invalid Behaviour Event: {event.type} in state {type(self)}",
+            f"Invalid Behaviour Event: {event.type} in state {type(self).__name__}",
             severity="error",
         )
 

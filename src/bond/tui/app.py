@@ -4,15 +4,30 @@ from textual.app import App, ComposeResult
 from textual.notifications import SeverityLevel
 
 from bond.conversation.conversation import Conversation
-from bond.conversation.types import (AssistantMessageChunk, SystemMessageChunk,
-                                     TextChunk, ThinkChunk)
-from bond.tui.event import (ConversationSelectionEvent, RequestConfirmEvent,
-                            StopEvent, UserInputEvent)
+from bond.conversation.types import (
+    AssistantMessageChunk,
+    SystemMessageChunk,
+    TextChunk,
+    ThinkChunk,
+)
+from bond.tui.event import (
+    ConversationSelectedEvent,
+    RequestConfirmEvent,
+    StopEvent,
+    UserInputEvent,
+)
 from bond.tui.types import ITuiStateMachine, TuiStatus
-from bond.tui.widgets import (ChatLog, ChatMessage, ConfirmationPopup,
-                              ConversationSelectorPopup, InputBar,
-                              MultiLineInput, OverlayContainer, StatusBar,
-                              ToolResultBlock)
+from bond.tui.widgets import (
+    ChatLog,
+    ChatMessage,
+    ConfirmationPopup,
+    ConversationSelectorPopup,
+    InputBar,
+    MultiLineInput,
+    OverlayContainer,
+    StatusBar,
+    ToolResultBlock,
+)
 
 from . import logger
 
@@ -163,10 +178,10 @@ class BondTui(App):
         popup = ConversationSelectorPopup(
             conversations,
             on_select=lambda name: self.state_machine.handle_event(
-                ConversationSelectionEvent(name=name)
+                ConversationSelectedEvent(name=name)
             ),
             on_cancel=lambda: self.state_machine.handle_event(
-                ConversationSelectionEvent(name=None)
+                ConversationSelectedEvent(name=None)
             ),
         )
         overlay = OverlayContainer(popup)
@@ -175,7 +190,7 @@ class BondTui(App):
 
     def close_popup(self):
         if self.popup is not None and self.popup.is_mounted:
-            self.popup.remove()
+            self.call_later(self.popup.remove)
         self.popup = None
 
     def clear_chat(self):

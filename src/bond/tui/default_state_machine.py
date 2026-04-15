@@ -33,13 +33,16 @@ class DefaultTuiStateMachine:
         self.event_queue.put(event)
 
     def change_state(self, destination: ITuiState):
-        logger.debug(f"State Change: {type(self.tui_state)} -> {type(destination)}")
+        logger.debug(
+            f"State Change: {type(self.tui_state).__name__} -> {type(destination).__name__}"
+        )
         self.tui_state.on_exit(destination)
         old = self.tui_state
         self.tui_state = destination
         destination.on_enter(old)
 
     def send_signal(self, signal: BehaviourSignal):
+        logger.debug(f"Sending Signal: {type(signal).__name__}")
         self.signal_queue.put(signal)
 
     def notify(
@@ -76,7 +79,7 @@ class DefaultTuiStateMachine:
                 except Empty:
                     await asyncio.sleep(0.05)
                     continue
-                logger.debug(f"Processing event: {type(event)}")
+                logger.debug(f"Processing event: {type(event).__name__}")
                 if isinstance(event, BehaviourEvent):
                     self.tui_state.handle_behaviour_event(event)
                 else:

@@ -21,7 +21,7 @@ class RequestConfirmEvent(TuiEvent):
     accepted: bool
 
 
-class ConversationSelectionEvent(TuiEvent):
+class ConversationSelectedEvent(TuiEvent):
     type: Literal["conversation_selected"] = "conversation_selected"
     name: str | None
 
