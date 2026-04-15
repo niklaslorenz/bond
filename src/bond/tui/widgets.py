@@ -307,10 +307,13 @@ class ConversationSelectorPopup(Vertical):
             id="conversation-selector-search",
         )
 
-        self._option_map: dict[str, str] = {}
+        self._id_to_index: dict[str, int] = {}
         self._search_value: str = ""
         self._debounce_timer: Timer | None = None
         self._last_refresh = 0.0
+        self._visible_buttons: list[Button] = []
+        self._visible_conversations: list[str] = []
+        self._selected_index: int = -1
         self._next_option_id = 0
 
     def set_overlay(self, overlay: "OverlayContainer"):
@@ -326,12 +329,9 @@ class ConversationSelectorPopup(Vertical):
 
         if event.button.id is None:
             return
-        name = self._option_map.get(event.button.id)
-        if name:
-            if self.on_select:
-                self.on_select(name)
-            if self.overlay is not None:
-                self.overlay.remove()
+        idx = self._id_to_index.get(event.button.id)
+        if idx is not None:
+            self.select_current(idx)
 
     def compose(self):
         yield Static("Load Conversation", classes="conversation-selector-title")
@@ -349,18 +349,35 @@ class ConversationSelectorPopup(Vertical):
             return
         self._schedule_refresh(event.value)
 
+    def on_key(self, event: Key):
+        if not self.search_field.has_focus:
+            return
+        key = event.key
+        if key in ("up", "ctrl+k"):
+            event.stop()
+            self.move_selection(-1)
+        elif key in ("down", "ctrl+j"):
+            event.stop()
+            self.move_selection(1)
+        elif key == "enter":
+            event.stop()
+            self.select_current()
+
     def refresh_conversation_list(self):
         if self.list_container is None:
             return
         self.list_container.remove_children()
-        self._option_map.clear()
+        self._visible_buttons.clear()
+        self._id_to_index.clear()
         filtered = self._filter_conversations()
+        self._visible_conversations = filtered
+        self._adjust_selection_after_refresh(len(filtered))
         if not filtered:
             self.list_container.mount(
                 Static("No saved conversations yet.", classes="empty-state")
             )
             return
-        for name in filtered:
+        for index, name in enumerate(filtered):
             btn_id = f"conversation-selector-option-{self._next_option_id}"
             self._next_option_id += 1
             button = Button(
@@ -369,8 +386,10 @@ class ConversationSelectorPopup(Vertical):
                 variant="primary",
                 classes="conversation-selector-option",
             )
-            self._option_map[btn_id] = name
             self.list_container.mount(button)
+            self._visible_buttons.append(button)
+            self._id_to_index[btn_id] = index
+        self._apply_selection()
 
     def _filter_conversations(self) -> list[str]:
         query = self._search_value.strip().lower()
@@ -409,6 +428,50 @@ class ConversationSelectorPopup(Vertical):
         self._last_refresh = now
         if self.is_mounted:
             self.refresh_conversation_list()
+
+    def _adjust_selection_after_refresh(self, length: int):
+        if length == 0:
+            self._selected_index = -1
+            return
+        if self._selected_index < 0:
+            self._selected_index = 0
+            return
+        if self._selected_index >= length:
+            self._selected_index = length - 1
+
+    def move_selection(self, delta: int):
+        if not self._visible_conversations:
+            return
+        if self._selected_index < 0:
+            self._selected_index = 0
+        self._selected_index = max(
+            0,
+            min(len(self._visible_conversations) - 1, self._selected_index + delta),
+        )
+        self._apply_selection()
+
+    def select_current(self, index: int | None = None):
+        if not self._visible_conversations:
+            return
+        if index is None:
+            target = self._selected_index if self._selected_index >= 0 else 0
+        else:
+            target = index
+        if target < 0 or target >= len(self._visible_conversations):
+            return
+        self._selected_index = target
+        self._apply_selection()
+        if self.on_select:
+            self.on_select(self._visible_conversations[target])
+        if self.overlay is not None:
+            self.overlay.remove()
+
+    def _apply_selection(self):
+        for idx, button in enumerate(self._visible_buttons):
+            selected = idx == self._selected_index
+            button.set_class(selected, "selected")
+            if selected and hasattr(button, "scroll_visible"):
+                button.scroll_visible(animate=False)
 
 
 class OverlayContainer(Container):
