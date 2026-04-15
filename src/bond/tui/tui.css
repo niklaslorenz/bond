@@ -132,6 +132,7 @@ Button.conversation-selector-option {
     text-align: left;
 }
 
+Button.conversation-selector-option:hover,
 Button.conversation-selector-option:focus {
     background: $surface
 }

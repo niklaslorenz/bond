@@ -1,13 +1,15 @@
+import time
+from difflib import SequenceMatcher
 from typing import Callable, Protocol
 
 from rich.markdown import Markdown
 from rich.text import Text
-from textual.containers import (Container, Horizontal, ScrollableContainer,
-                                Vertical)
+from textual.containers import Container, Horizontal, ScrollableContainer, Vertical
 from textual.events import Key
 from textual.message import Message
 from textual.reactive import reactive
-from textual.widgets import Button, Static, TextArea
+from textual.timer import Timer
+from textual.widgets import Button, Input, Static, TextArea
 
 _THINK_COLOR = "grey"
 
@@ -297,7 +299,19 @@ class ConversationSelectorPopup(Vertical):
             variant="error",
             id="conversation-selector-cancel-button",
         )
+        self.list_container: ScrollableContainer = ScrollableContainer(
+            classes="conversation-selector-list"
+        )
+        self.search_field = Input(
+            placeholder="Search conversations",
+            id="conversation-selector-search",
+        )
+
         self._option_map: dict[str, str] = {}
+        self._search_value: str = ""
+        self._debounce_timer: Timer | None = None
+        self._last_refresh = 0.0
+        self._next_option_id = 0
 
     def set_overlay(self, overlay: "OverlayContainer"):
         self.overlay = overlay
@@ -321,21 +335,80 @@ class ConversationSelectorPopup(Vertical):
 
     def compose(self):
         yield Static("Load Conversation", classes="conversation-selector-title")
-        with ScrollableContainer(classes="conversation-selector-list"):
-            if len(self.conversations) == 0:
-                yield Static("No saved conversations yet.", classes="empty-state")
-            for index, name in enumerate(self.conversations):
-                btn_id = f"conversation-selector-option-{index}"
-                button = Button(
-                    name,
-                    id=btn_id,
-                    variant="primary",
-                    classes="conversation-selector-option",
-                )
-                self._option_map[btn_id] = name
-                yield button
+        yield self.search_field
+        yield self.list_container
         with Horizontal(classes="button-bar"):
             yield self.cancel_button
+
+    def on_mount(self):
+        self.refresh_conversation_list()
+        self.search_field.focus()
+
+    def on_input_changed(self, event: Input.Changed):
+        if event.input.id != "conversation-selector-search":
+            return
+        self._schedule_refresh(event.value)
+
+    def refresh_conversation_list(self):
+        if self.list_container is None:
+            return
+        self.list_container.remove_children()
+        self._option_map.clear()
+        filtered = self._filter_conversations()
+        if not filtered:
+            self.list_container.mount(
+                Static("No saved conversations yet.", classes="empty-state")
+            )
+            return
+        for name in filtered:
+            btn_id = f"conversation-selector-option-{self._next_option_id}"
+            self._next_option_id += 1
+            button = Button(
+                name,
+                id=btn_id,
+                variant="primary",
+                classes="conversation-selector-option",
+            )
+            self._option_map[btn_id] = name
+            self.list_container.mount(button)
+
+    def _filter_conversations(self) -> list[str]:
+        query = self._search_value.strip().lower()
+        if not query:
+            return list(self.conversations)
+        matches: list[tuple[float, int, str]] = []
+        for index, name in enumerate(self.conversations):
+            lower = name.lower()
+            substring = query in lower
+            ratio = SequenceMatcher(None, query, lower).ratio()
+            if substring or ratio >= 0.35:
+                score = ratio + (0.15 if substring else 0)
+                matches.append((score, index, name))
+        matches.sort(key=lambda item: (-item[0], item[1]))
+        return [name for _, _, name in matches]
+
+    def _schedule_refresh(self, value: str):
+        self._search_value = value
+        now = time.monotonic()
+        elapsed = now - self._last_refresh
+        if elapsed >= 0.2 and self._debounce_timer is None:
+            self._run_refresh(now)
+            return
+
+        if self._debounce_timer is not None:
+            self._debounce_timer.stop()
+        delay = max(0.2 - elapsed, 0)
+        self._debounce_timer = self.set_timer(delay, self._handle_debounce)
+
+    def _handle_debounce(self) -> None:
+        now = time.monotonic()
+        self._run_refresh(now)
+
+    def _run_refresh(self, now: float) -> None:
+        self._debounce_timer = None
+        self._last_refresh = now
+        if self.is_mounted:
+            self.refresh_conversation_list()
 
 
 class OverlayContainer(Container):
