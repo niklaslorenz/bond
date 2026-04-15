@@ -179,11 +179,13 @@ class BaseCommandHandler:
     def list_conversations(self) -> list[str]:
         if not self.conversation_base_path.exists():
             return []
-        return sorted(
-            path.stem
+        files = [
+            (path.stat().st_mtime if path.exists() else 0.0, path.stem)
             for path in self.conversation_base_path.iterdir()
             if path.is_file() and path.suffix == ".json"
-        )
+        ]
+        files.sort(key=lambda item: item[0], reverse=True)
+        return [name for _, name in files]
 
     def handle_cmd(self, cmd: str):
         try:
