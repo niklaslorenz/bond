@@ -24,3 +24,14 @@ class TuiWaitForToolResultState(TuiState):
         from . import TuiWaitingState
 
         self.machine.change_state(TuiWaitingState(self.machine))
+
+    def handle_request_confirmation_behaviour_event(
+        self, event: behaviour_event.RequestConfirmationEvent
+    ):
+        from . import TuiWaitForConfirmationResponseState
+
+        self.machine.change_state(
+            TuiWaitForConfirmationResponseState(
+                self.machine, self, event.request, event.result()
+            )
+        )

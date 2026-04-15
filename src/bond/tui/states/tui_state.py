@@ -140,13 +140,8 @@ class TuiState:
     def handle_request_confirmation_behaviour_event(
         self, event: behaviour_event.RequestConfirmationEvent
     ):
-        from . import TuiWaitForConfirmationResponseState
-
-        self.machine.change_state(
-            TuiWaitForConfirmationResponseState(
-                self.machine, self, event.request, event.result()
-            )
-        )
+        event.result().set_result(False)
+        self.handle_invalid_behaviour_event(event)
 
     def handle_call_tool_behaviour_event(self, event: behaviour_event.CallToolEvent):
         self.machine.notify(
