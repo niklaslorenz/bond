@@ -119,8 +119,6 @@ ConversationSelectorPopup > .conversation-selector-title {
 }
 
 ConversationSelectorPopup > ScrollableContainer.conversation-selector-list {
-    border: dashed $border;
-    padding: 1;
     max-height: 60%;
     width: 100%;
     background: $surface;
@@ -131,6 +129,7 @@ Button.conversation-selector-option {
     background: transparent;
     border: none;
     color: $text;
+    text-align: left;
 }
 
 Button.conversation-selector-option:focus {
@@ -144,4 +143,7 @@ ConversationSelectorPopup > ScrollableContainer.conversation-selector-list > Sta
 
 ConversationSelectorPopup > .button-bar {
     width: 100%;
+    height: auto;
+    align: right middle;
+    dock: bottom;
 }
