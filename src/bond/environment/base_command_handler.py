@@ -91,7 +91,10 @@ class BaseCommandHandler:
         )
 
     def load(self, args: Namespace) -> None:
-        name: str = args.name
+        name: str | None = args.name
+        if not name:
+            self.notify("Please specify a name for the conversation to load")
+            return
         path = self.conversation_base_path / (name + ".json")
         if not path.is_file():
             self.notify(f"Error: unknown conversation name: {name}")
@@ -173,6 +176,15 @@ class BaseCommandHandler:
         self.beh.conversation.save_to_file(path)
         self.save_last_conversation()
 
+    def list_conversations(self) -> list[str]:
+        if not self.conversation_base_path.exists():
+            return []
+        return sorted(
+            path.stem
+            for path in self.conversation_base_path.iterdir()
+            if path.is_file() and path.suffix == ".json"
+        )
+
     def handle_cmd(self, cmd: str):
         try:
             if cmd.strip().startswith(":"):
@@ -219,7 +231,10 @@ class BaseCommandHandler:
         )
         load_parser.set_defaults(callback=self.load)
         load_parser.add_argument(
-            "name", type=str, help="Name of the conversation to load"
+            "name",
+            nargs="?",
+            type=str,
+            help="Name of the conversation to load",
         )
 
         new_parser = subparsers.add_parser(

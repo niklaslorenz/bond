@@ -21,6 +21,11 @@ class RequestConfirmEvent(TuiEvent):
     accepted: bool
 
 
+class ConversationSelectionEvent(TuiEvent):
+    type: Literal["conversation_selected"] = "conversation_selected"
+    name: str | None
+
+
 class StopEvent(TuiEvent):
     type: Literal["stop"] = "stop"
     immediately: bool

@@ -40,6 +40,8 @@ class StdCommandHandler(BaseCommandHandler):
 
     def load(self, args: Namespace) -> None:
         super().load(args)
+        if args.name is None:
+            return
         self.notify(
             f"loaded '{args.name}' with {len(self.beh.conversation.history)} messages"
         )

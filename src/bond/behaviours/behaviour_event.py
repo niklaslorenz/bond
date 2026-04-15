@@ -81,6 +81,11 @@ class CommandResponseEvent(BehaviourEvent):
     type: Literal["command_response"] = "command_response"
 
 
+class ShowConversationSelectorEvent(BehaviourEvent):
+    type: Literal["show_conversation_selector"] = "show_conversation_selector"
+    conversations: list[str]
+
+
 class CallToolEvent(BehaviourEvent):
     type: Literal["call_tool"] = "call_tool"
     call: ToolCall
