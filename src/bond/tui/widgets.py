@@ -307,7 +307,6 @@ class ConversationSearchInput(Input):
             event.stop()
             self.owner.cancel()
             return
-        super().on_key(event)  # type: ignore[attr-defined]
 
 
 class ConversationSelectorPopup(Vertical):
@@ -378,11 +377,10 @@ class ConversationSelectorPopup(Vertical):
         self._schedule_refresh(event.value)
 
     def on_key(self, event: Key):
-        if event.key == "escape":
+        if event.key == "escape" or event.key == "ctrl+z":
             event.stop()
             self.cancel()
             return
-        super().on_key(event)  # type: ignore[attr-defined]
 
     def cancel(self):
         if self.on_cancel:
