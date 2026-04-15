@@ -101,3 +101,47 @@ ConfirmationPopup > .button-bar {
     align: center middle;
     dock: bottom;
 }
+
+ConversationSelectorPopup {
+    height: auto;
+    width: 75%;
+    max-height: 75%;
+    border: solid $primary;
+    background: $surface;
+    
+    padding: 1 2;
+}
+
+ConversationSelectorPopup > .conversation-selector-title {
+    content-align: center middle;
+    text-align: center;
+    color: $primary;
+}
+
+ConversationSelectorPopup > ScrollableContainer.conversation-selector-list {
+    border: dashed $border;
+    padding: 1;
+    max-height: 60%;
+    width: 100%;
+    background: $surface;
+}
+
+Button.conversation-selector-option {
+    width: 100%;
+    background: transparent;
+    border: none;
+    color: $text;
+}
+
+Button.conversation-selector-option:focus {
+    background: $surface
+}
+
+ConversationSelectorPopup > ScrollableContainer.conversation-selector-list > Static.empty-state {
+    color: $surface;
+    padding: 1;
+}
+
+ConversationSelectorPopup > .button-bar {
+    width: 100%;
+}

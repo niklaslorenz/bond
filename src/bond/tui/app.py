@@ -6,11 +6,13 @@ from textual.notifications import SeverityLevel
 from bond.conversation.conversation import Conversation
 from bond.conversation.types import (AssistantMessageChunk, SystemMessageChunk,
                                      TextChunk, ThinkChunk)
-from bond.tui.event import RequestConfirmEvent, StopEvent, UserInputEvent
+from bond.tui.event import (ConversationSelectionEvent, RequestConfirmEvent,
+                            StopEvent, UserInputEvent)
 from bond.tui.types import ITuiStateMachine, TuiStatus
 from bond.tui.widgets import (ChatLog, ChatMessage, ConfirmationPopup,
-                              InputBar, MultiLineInput, OverlayContainer,
-                              StatusBar, ToolResultBlock)
+                              ConversationSelectorPopup, InputBar,
+                              MultiLineInput, OverlayContainer, StatusBar,
+                              ToolResultBlock)
 
 from . import logger
 
@@ -130,6 +132,13 @@ class BondTui(App):
         self.state_machine.handle_event(StopEvent(immediately=False))
 
     def open_confirmation_prompt(self, request: str):
+        if self.popup is not None:
+            msg = (
+                "Could not open conversation selector, another popup is already opened"
+            )
+            logger.error(msg)
+            self.notify(msg, severity="error")
+            return
         popup = ConfirmationPopup(
             request,
             on_accept=lambda: self.state_machine.handle_event(
@@ -143,9 +152,31 @@ class BondTui(App):
         self.popup = overlay
         self.call_later(self.mount, overlay)
 
-    def cancel_confirmation_request(self):
+    def open_conversation_selector(self, conversations: list[str]):
+        if self.popup is not None:
+            msg = (
+                "Could not open conversation selector, another popup is already opened"
+            )
+            logger.error(msg)
+            self.notify(msg, severity="error")
+            return
+        popup = ConversationSelectorPopup(
+            conversations,
+            on_select=lambda name: self.state_machine.handle_event(
+                ConversationSelectionEvent(name=name)
+            ),
+            on_cancel=lambda: self.state_machine.handle_event(
+                ConversationSelectionEvent(name=None)
+            ),
+        )
+        overlay = OverlayContainer(popup)
+        self.popup = overlay
+        self.call_later(self.mount, overlay)
+
+    def close_popup(self):
         if self.popup is not None and self.popup.is_mounted:
             self.popup.remove()
+        self.popup = None
 
     def clear_chat(self):
         if self.chat_log.is_mounted:

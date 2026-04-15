@@ -278,6 +278,66 @@ class ConfirmationPopup(Vertical):
             self.popup = popup
 
 
+class ConversationSelectorPopup(Vertical):
+
+    overlay: "OverlayContainer | None" = None
+
+    def __init__(
+        self,
+        conversations: list[str],
+        on_select: Callable[[str], None],
+        on_cancel: Callable[[], None],
+    ):
+        super().__init__()
+        self.conversations = conversations
+        self.on_select = on_select
+        self.on_cancel = on_cancel
+        self.cancel_button = Button(
+            "Cancel",
+            variant="error",
+            id="conversation-selector-cancel-button",
+        )
+        self._option_map: dict[str, str] = {}
+
+    def set_overlay(self, overlay: "OverlayContainer"):
+        self.overlay = overlay
+
+    def on_button_pressed(self, event: Button.Pressed):
+        if event.button.id == "conversation-selector-cancel-button":
+            if self.on_cancel:
+                self.on_cancel()
+            if self.overlay is not None:
+                self.overlay.remove()
+            return
+
+        if event.button.id is None:
+            return
+        name = self._option_map.get(event.button.id)
+        if name:
+            if self.on_select:
+                self.on_select(name)
+            if self.overlay is not None:
+                self.overlay.remove()
+
+    def compose(self):
+        yield Static("Load Conversation", classes="conversation-selector-title")
+        with ScrollableContainer(classes="conversation-selector-list"):
+            if len(self.conversations) == 0:
+                yield Static("No saved conversations yet.", classes="empty-state")
+            for index, name in enumerate(self.conversations):
+                btn_id = f"conversation-selector-option-{index}"
+                button = Button(
+                    name,
+                    id=btn_id,
+                    variant="primary",
+                    classes="conversation-selector-option",
+                )
+                self._option_map[btn_id] = name
+                yield button
+        with Horizontal(classes="button-bar"):
+            yield self.cancel_button
+
+
 class OverlayContainer(Container):
 
     def __init__(
