@@ -280,6 +280,36 @@ class ConfirmationPopup(Vertical):
             self.popup = popup
 
 
+class ConversationSearchInput(Input):
+    def __init__(
+        self,
+        owner: "ConversationSelectorPopup",
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.owner = owner
+
+    def on_key(self, event: Key) -> None:
+        key = event.key
+        if key in ("up", "ctrl+k"):
+            event.stop()
+            self.owner.move_selection(-1)
+            return
+        if key in ("down", "ctrl+j"):
+            event.stop()
+            self.owner.move_selection(1)
+            return
+        if key == "enter":
+            event.stop()
+            self.owner.select_current()
+            return
+        if key == "escape":
+            event.stop()
+            self.owner.cancel()
+            return
+        super().on_key(event)  # type: ignore[attr-defined]
+
+
 class ConversationSelectorPopup(Vertical):
 
     overlay: "OverlayContainer | None" = None
@@ -302,7 +332,8 @@ class ConversationSelectorPopup(Vertical):
         self.list_container: ScrollableContainer = ScrollableContainer(
             classes="conversation-selector-list"
         )
-        self.search_field = Input(
+        self.search_field = ConversationSearchInput(
+            owner=self,
             placeholder="Search conversations",
             id="conversation-selector-search",
         )
@@ -321,10 +352,7 @@ class ConversationSelectorPopup(Vertical):
 
     def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "conversation-selector-cancel-button":
-            if self.on_cancel:
-                self.on_cancel()
-            if self.overlay is not None:
-                self.overlay.remove()
+            self.cancel()
             return
 
         if event.button.id is None:
@@ -350,18 +378,17 @@ class ConversationSelectorPopup(Vertical):
         self._schedule_refresh(event.value)
 
     def on_key(self, event: Key):
-        if not self.search_field.has_focus:
+        if event.key == "escape":
+            event.stop()
+            self.cancel()
             return
-        key = event.key
-        if key in ("up", "ctrl+k"):
-            event.stop()
-            self.move_selection(-1)
-        elif key in ("down", "ctrl+j"):
-            event.stop()
-            self.move_selection(1)
-        elif key == "enter":
-            event.stop()
-            self.select_current()
+        super().on_key(event)  # type: ignore[attr-defined]
+
+    def cancel(self):
+        if self.on_cancel:
+            self.on_cancel()
+        if self.overlay is not None:
+            self.overlay.remove()
 
     def refresh_conversation_list(self):
         if self.list_container is None:
