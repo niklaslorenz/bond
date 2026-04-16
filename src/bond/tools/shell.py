@@ -71,11 +71,11 @@ def run_shell_commands(commands: str, explaination: str):
     log_out = env.log_out()
     if log_out is not None:
         for line in process.stdout:
-            print(line, file=log_out)
+            print(line, file=log_out, end="")
     log_err = env.log_err()
     if log_err is not None:
         for line in process.stderr:
-            print(line, file=log_err)
+            print(line, file=log_err, end="")
 
     stdout, stderr = process.communicate()
 
