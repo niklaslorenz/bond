@@ -4,8 +4,7 @@ import subprocess
 from argparse import ArgumentParser, Namespace, _SubParsersAction
 from pathlib import Path
 
-from bond.behaviours.behaviour_event import (NotifyEvent,
-                                             RestoreConversationEvent)
+from bond.behaviours.behaviour_event import NotifyEvent, RestoreConversationEvent
 from bond.behaviours.behaviour_signal import StopSignal
 from bond.behaviours.loop import LoopBehaviour
 from bond.behaviours.types import IBehaviourEventHandler
@@ -116,12 +115,23 @@ class BaseCommandHandler:
     def crop(self, args: Namespace) -> None:
         keep = args.keep
         if keep < 0:
-            self.notify(
-                "Please specify a positive number for how many messages to keep"
-            )
+            self.notify("Please specify a positive number for how many turns to keep")
             return
-        self.beh.conversation.history = self.beh.conversation.history[-keep:]
-        self.event_handler(RestoreConversationEvent(conversation=self.beh.conversation))
+        if keep == 0:
+            self.beh.set_conversation(Conversation(current_persona=self.beh.persona_id))
+            return
+
+        user_msg_indices = [
+            idx
+            for (idx, msg) in enumerate(self.beh.conversation.history)
+            if msg.message.role == "user"
+        ]
+        delete_to = user_msg_indices[-keep] if len(user_msg_indices) >= keep else -1
+        if delete_to >= 0:
+            self.beh.conversation.history = self.beh.conversation.history[delete_to:]
+            self.event_handler(
+                RestoreConversationEvent(conversation=self.beh.conversation)
+            )
 
     def to(self, args: Namespace) -> None:
         persona_name: str = args.name
@@ -132,7 +142,20 @@ class BaseCommandHandler:
 
     def delete(self, args: Namespace) -> None:
         n: int = args.n
-        self.beh.conversation.history = self.beh.conversation.history[:-n]
+        if n < 0:
+            self.notify("Please specify a positive number for how many turns to delete")
+            return
+
+        user_msg_indices = [
+            idx
+            for (idx, msg) in enumerate(self.beh.conversation.history)
+            if msg.message.role == "user"
+        ]
+        delete_to = user_msg_indices[-n] if len(user_msg_indices) >= n else -1
+        if delete_to >= 0:
+            self.beh.conversation.history = self.beh.conversation.history[:delete_to]
+        else:
+            self.beh.conversation.history = []
         self.event_handler(RestoreConversationEvent(conversation=self.beh.conversation))
 
     # Helper methods
@@ -260,7 +283,7 @@ class BaseCommandHandler:
             exit_on_error=False,
         )
         crop_parser.set_defaults(callback=self.crop)
-        crop_parser.add_argument("keep", type=int, help="How many messages to keep")
+        crop_parser.add_argument("keep", type=int, help="How many turns to keep")
 
         to_parser = subparsers.add_parser(
             "talk-to",
@@ -279,5 +302,5 @@ class BaseCommandHandler:
         )
         del_parser.set_defaults(callback=self.delete)
         del_parser.add_argument(
-            "n", nargs="?", type=int, default=1, help="Number of messages to delete"
+            "n", nargs="?", type=int, default=1, help="Number of turns to delete"
         )
