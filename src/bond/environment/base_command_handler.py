@@ -4,7 +4,8 @@ import subprocess
 from argparse import ArgumentParser, Namespace, _SubParsersAction
 from pathlib import Path
 
-from bond.behaviours.behaviour_event import NotifyEvent, RestoreConversationEvent
+from bond.behaviours.behaviour_event import (NotifyEvent,
+                                             RestoreConversationEvent)
 from bond.behaviours.behaviour_signal import StopSignal
 from bond.behaviours.loop import LoopBehaviour
 from bond.behaviours.types import IBehaviourEventHandler
@@ -101,7 +102,7 @@ class BaseCommandHandler:
         self.beh.set_conversation(Conversation.model_validate_json(path.read_text()))
 
     def new(self, _: Namespace) -> None:
-        self.beh.set_conversation(Conversation(current_persona=self.beh.persona_id))
+        self.beh.new_conversation()
 
     def forget(self, _: Namespace) -> None:
         self.signal_handler.queue_signal(StopSignal())

@@ -47,6 +47,7 @@ class LoopBehaviour:
         self.command_handler = command_handler
         self.tool_environment = tool_environment
         self.persona_id = persona_id
+        self.new_conversation_persona = persona_id
         self.stream = stream
         self.allow_shell_executions = allow_shell_executions
         self.user_name = user_name
@@ -82,6 +83,11 @@ class LoopBehaviour:
                     )
                 )
         self.event_handler(RestoreConversationEvent(conversation=conversation))
+
+    def new_conversation(self):
+        self.set_conversation(
+            Conversation(current_persona=self.new_conversation_persona)
+        )
 
     def _build_turn(self):
         provider = self.env.get_provider(self.persona.provider)
