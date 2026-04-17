@@ -4,30 +4,15 @@ from textual.app import App, ComposeResult
 from textual.notifications import SeverityLevel
 
 from bond.conversation.conversation import Conversation
-from bond.conversation.types import (
-    AssistantMessageChunk,
-    SystemMessageChunk,
-    TextChunk,
-    ThinkChunk,
-)
-from bond.tui.event import (
-    ConversationSelectedEvent,
-    RequestConfirmEvent,
-    StopEvent,
-    UserInputEvent,
-)
+from bond.conversation.types import (AssistantMessageChunk, SystemMessageChunk,
+                                     TextChunk, ThinkChunk)
+from bond.tui.event import (ConversationSelectedEvent, RequestConfirmEvent,
+                            StopEvent, UserInputEvent)
 from bond.tui.types import ITuiStateMachine, TuiStatus
-from bond.tui.widgets import (
-    ChatLog,
-    ChatMessage,
-    ConfirmationPopup,
-    ConversationSelectorPopup,
-    InputBar,
-    MultiLineInput,
-    OverlayContainer,
-    StatusBar,
-    ToolResultBlock,
-)
+from bond.tui.widgets import (ChatLog, ChatMessage, ConfirmationPopup,
+                              ConversationSelectorPopup, InputBar,
+                              MultiLineInput, OverlayContainer, StatusBar,
+                              ToolResultBlock)
 
 from . import logger
 
@@ -82,7 +67,7 @@ class BondTui(App):
         self.input_bar.focus()
         for message in self.messages:
             self.chat_log.add_message(message)
-        self.chat_log.scroll_end(animate=False)
+        self.scroll_to_end()
 
     async def on_multi_line_input_submitted(self, event: MultiLineInput.Submitted):
         text = event.value.strip()
@@ -105,7 +90,7 @@ class BondTui(App):
     def add_user_message(self, text: str) -> ChatMessage:
         msg = ChatMessage.create_user_msg("User", text)
         self.add_message(msg)
-        self.chat_log.scroll_end(animate=False)
+        self.scroll_to_end(animate=False)
         return msg
 
     def add_assistant_message(
@@ -198,9 +183,9 @@ class BondTui(App):
             self.chat_log.remove_children()
         self.messages.clear()
 
-    def scroll_to_end(self):
+    def scroll_to_end(self, animate: bool = False):
         if self.chat_log.is_mounted:
-            self.chat_log.scroll_end()
+            self.chat_log.scroll_end(animate=animate)
 
     def synchronize(self, conversation: Conversation, length: int | None = None):
 
@@ -228,7 +213,7 @@ class BondTui(App):
                 self.add_user_message(text or "")
 
         if self.chat_log.is_mounted:
-            self.chat_log.scroll_end(animate=False)
+            self.scroll_to_end(animate=False)
 
     def _get_current_assistant_message(self) -> ChatMessage | None:
         return (

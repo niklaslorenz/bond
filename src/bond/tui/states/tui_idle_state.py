@@ -15,7 +15,6 @@ class TuiIdleState(TuiState):
 
     def handle_user_input_event(self, event: UserInputEvent):
         self.machine.get_app().clear_input()
-        self.machine.get_app().scroll_to_end()
         if event.input_type == "command":
             self.machine.send_signal(CommandSignal(command=event.message))
             from . import TuiWaitForCommandResponseState
