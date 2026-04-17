@@ -36,5 +36,7 @@ class TuiReceivingState(TuiState):
         text, think = parse_chunks_content(event.chunk.choices[0].delta.content)
         if think is not None:
             self.msg.append_thinking(think)
+            self.machine.get_app().scroll_message_to_top(self.msg)
         if text is not None:
             self.msg.append_text(text)
+            self.machine.get_app().scroll_message_to_top(self.msg)

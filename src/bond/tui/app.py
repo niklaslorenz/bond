@@ -90,7 +90,7 @@ class BondTui(App):
     def add_user_message(self, text: str) -> ChatMessage:
         msg = ChatMessage.create_user_msg("User", text)
         self.add_message(msg)
-        self.scroll_to_end(animate=False)
+        self.scroll_to_end()
         return msg
 
     def add_assistant_message(
@@ -183,9 +183,13 @@ class BondTui(App):
             self.chat_log.remove_children()
         self.messages.clear()
 
-    def scroll_to_end(self, animate: bool = False):
+    def scroll_to_end(self):
         if self.chat_log.is_mounted:
-            self.chat_log.scroll_end(animate=animate)
+            self.chat_log.scroll_end(animate=False)
+
+    def scroll_message_to_top(self, msg: ChatMessage):
+        if self.chat_log.is_mounted:
+            self.chat_log.scroll_to_widget(msg, animate=False, top=True, force=True)
 
     def synchronize(self, conversation: Conversation, length: int | None = None):
 
@@ -213,7 +217,7 @@ class BondTui(App):
                 self.add_user_message(text or "")
 
         if self.chat_log.is_mounted:
-            self.scroll_to_end(animate=False)
+            self.scroll_to_end()
 
     def _get_current_assistant_message(self) -> ChatMessage | None:
         return (
