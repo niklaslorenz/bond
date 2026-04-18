@@ -18,6 +18,9 @@ class TuiWaitForConfirmationResponseState(TuiState):
         self.machine.get_app().set_status("Waiting")
         self.machine.get_app().open_confirmation_prompt(self.request)
 
+    def on_exit(self, destination: ITuiState):
+        self.machine.get_app().close_popup()
+
     def handle_request_confirm_event(self, event: RequestConfirmEvent):
         self.result.set_result(event.accepted)
         self.machine.change_state(self.previous_state)

@@ -2,6 +2,7 @@ from pathlib import Path
 
 from textual.app import App, ComposeResult
 from textual.notifications import SeverityLevel
+from textual.widget import Widget
 
 from bond.conversation.conversation import Conversation
 from bond.conversation.types import (AssistantMessageChunk, SystemMessageChunk,
@@ -133,9 +134,7 @@ class BondTui(App):
 
     def open_confirmation_prompt(self, request: str):
         if self.popup is not None:
-            msg = (
-                "Could not open conversation selector, another popup is already opened"
-            )
+            msg = "Could not open confirmation prompt, another popup is already opened"
             logger.error(msg)
             self.notify(msg, severity="error")
             return
@@ -148,9 +147,7 @@ class BondTui(App):
                 RequestConfirmEvent(accepted=False)
             ),
         )
-        overlay = OverlayContainer(popup)
-        self.popup = overlay
-        self.call_later(self.mount, overlay)
+        self._open_popup(popup)
 
     def open_conversation_selector(self, conversations: list[str]):
         if self.popup is not None:
@@ -169,9 +166,7 @@ class BondTui(App):
                 ConversationSelectedEvent(name=None)
             ),
         )
-        overlay = OverlayContainer(popup)
-        self.popup = overlay
-        self.call_later(self.mount, overlay)
+        self._open_popup(popup)
 
     def close_popup(self):
         if self.popup is not None and self.popup.is_mounted:
@@ -242,3 +237,12 @@ class BondTui(App):
         return "".join(text) if len(text) > 0 else None, (
             "".join(thinking) if len(thinking) > 0 else None
         )
+
+    def _open_popup(self, popup: Widget):
+        if self.popup is not None:
+            logger.error(
+                "Tried to open multiple popups, only one can be open at a time."
+            )
+        overlay = OverlayContainer(popup)
+        self.popup = overlay
+        self.call_later(self.mount, overlay)

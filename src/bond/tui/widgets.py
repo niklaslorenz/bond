@@ -1,14 +1,16 @@
 import time
 from difflib import SequenceMatcher
-from typing import Callable, Protocol
+from typing import Callable
 
 from rich.markdown import Markdown
 from rich.text import Text
-from textual.containers import Container, Horizontal, ScrollableContainer, Vertical
+from textual.containers import (Container, Horizontal, ScrollableContainer,
+                                Vertical)
 from textual.events import Key
 from textual.message import Message
 from textual.reactive import reactive
 from textual.timer import Timer
+from textual.widget import Widget
 from textual.widgets import Button, Input, Static, TextArea
 
 _THINK_COLOR = "grey"
@@ -216,13 +218,7 @@ class MultiLineInput(TextArea):
             self.input_field.clear()
 
 
-class IPopup(Protocol):
-    def set_overlay(self, overlay: "OverlayContainer"): ...
-
-
 class ConfirmationPopup(Vertical):
-
-    overlay: "OverlayContainer | None" = None
 
     def __init__(
         self,
@@ -244,23 +240,16 @@ class ConfirmationPopup(Vertical):
 
         self.request_field = Static(request)
 
-    def set_overlay(self, overlay: "OverlayContainer"):
-        self.overlay = overlay
-
     def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "confirmation-request-accept-button":
             self.post_message(ConfirmationPopup.Accepted(self))
             if self.on_accept:
                 self.on_accept()
-            if self.close_on_confirm and self.overlay is not None:
-                self.overlay.remove()
 
         if event.button.id == "confirmation-request-deny-button":
             self.post_message(ConfirmationPopup.Denied(self))
             if self.on_deny:
                 self.on_deny()
-            if self.close_on_confirm and self.overlay is not None:
-                self.overlay.remove()
 
     def compose(self):
         with ScrollableContainer():
@@ -311,8 +300,6 @@ class ConversationSearchInput(Input):
 
 class ConversationSelectorPopup(Vertical):
 
-    overlay: "OverlayContainer | None" = None
-
     def __init__(
         self,
         conversations: list[str],
@@ -345,9 +332,6 @@ class ConversationSelectorPopup(Vertical):
         self._visible_conversations: list[str] = []
         self._selected_index: int = -1
         self._next_option_id = 0
-
-    def set_overlay(self, overlay: "OverlayContainer"):
-        self.overlay = overlay
 
     def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "conversation-selector-cancel-button":
@@ -385,8 +369,6 @@ class ConversationSelectorPopup(Vertical):
     def cancel(self):
         if self.on_cancel:
             self.on_cancel()
-        if self.overlay is not None:
-            self.overlay.remove()
 
     def refresh_conversation_list(self):
         if self.list_container is None:
@@ -488,8 +470,6 @@ class ConversationSelectorPopup(Vertical):
         self._apply_selection()
         if self.on_select:
             self.on_select(self._visible_conversations[target])
-        if self.overlay is not None:
-            self.overlay.remove()
 
     def _apply_selection(self):
         for idx, button in enumerate(self._visible_buttons):
@@ -503,11 +483,10 @@ class OverlayContainer(Container):
 
     def __init__(
         self,
-        popup: IPopup,
+        popup: Widget,
     ):
         super().__init__()
         self.popup = popup
-        popup.set_overlay(self)
 
     def compose(self):
         yield self.popup
