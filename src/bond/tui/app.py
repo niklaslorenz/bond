@@ -9,6 +9,7 @@ from bond.conversation.types import (AssistantMessageChunk, SystemMessageChunk,
                                      TextChunk, ThinkChunk)
 from bond.tui.event import (ConversationSelectedEvent, RequestConfirmEvent,
                             StopEvent, UserInputEvent)
+from bond.tui.states.tui_idle_state import TuiIdleState
 from bond.tui.types import ITuiStateMachine, TuiStatus
 from bond.tui.widgets import (ChatLog, ChatMessage, ConfirmationPopup,
                               ConversationSelectorPopup, InputBar,
@@ -72,6 +73,9 @@ class BondTui(App):
 
     async def on_multi_line_input_submitted(self, event: MultiLineInput.Submitted):
         text = event.value.strip()
+        if text == "!reset":
+            self.state_machine.change_state(TuiIdleState(self.state_machine))
+            self.clear_input()
         if text.startswith(":"):
             cmd = text[1:]
             user_event = UserInputEvent(input_type="command", message=cmd)
@@ -185,6 +189,12 @@ class BondTui(App):
     def scroll_message_to_top(self, msg: ChatMessage):
         if self.chat_log.is_mounted:
             self.chat_log.scroll_to_widget(msg, animate=False, top=True, force=True)
+
+    def get_chat_log(self) -> ChatLog:
+        return self.chat_log
+
+    def get_messages(self) -> list[ChatMessage]:
+        return self.messages
 
     def synchronize(self, conversation: Conversation, length: int | None = None):
 
