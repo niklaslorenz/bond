@@ -266,7 +266,7 @@ class MultiLineInput(TextArea):
             return
         log.scroll_to_widget(
             message,
-            animate=False,
+            animate=True,
             top=True,
             force=True,
             immediate=True,
@@ -284,13 +284,13 @@ class MultiLineInput(TextArea):
         if window_height <= 0:
             log.scroll_to_widget(
                 message,
-                animate=False,
+                animate=True,
                 force=True,
                 immediate=True,
             )
             return
         target_y = max(0, bottom - window_height)
-        log.scroll_to(y=target_y, animate=False, immediate=True, force=True)
+        log.scroll_to(y=target_y, animate=True, immediate=True, force=True)
 
     def _scroll_to_message_top_or_previous(self) -> bool:
         messages = self._get_chat_messages()
@@ -335,7 +335,7 @@ class MultiLineInput(TextArea):
         log = self._get_chat_log()
         if log is None:
             return
-        log.scroll_relative(y=delta, animate=False, immediate=True)
+        log.scroll_relative(y=delta, animate=True, immediate=True)
 
     def _scroll_half_page(self, direction: int) -> None:
         log = self._get_chat_log()
@@ -343,7 +343,7 @@ class MultiLineInput(TextArea):
             return
         height = log.scrollable_content_region.height
         amount = max(1, height // 2) if height > 0 else 1
-        log.scroll_relative(y=direction * amount, animate=False, immediate=True)
+        log.scroll_relative(y=direction * amount, animate=True, immediate=True)
 
     def _handle_scroll_shortcut(self, key: str, event: Key) -> bool:
         handled = False
@@ -359,9 +359,9 @@ class MultiLineInput(TextArea):
         elif key == "ctrl+d":
             self._scroll_half_page(1)
             handled = True
-        elif key == "ctrl+m":
+        elif key == "ctrl+h":
             handled = self._scroll_to_message_top_or_previous()
-        elif key == "ctrl+n":
+        elif key == "ctrl+l":
             handled = self._scroll_to_message_bottom_or_next()
         else:
             return False
