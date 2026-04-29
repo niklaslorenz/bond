@@ -25,6 +25,13 @@ class TuiReceivingState(TuiState):
 
         self.machine.change_state(TuiWaitingState(self.machine))
 
+    def handle_error_behaviour_event(self, event: behaviour_event.ErrorEvent):
+        super().handle_error_behaviour_event(event)
+        from . import TuiWaitingState
+
+        if not event.critical:
+            self.machine.change_state(TuiWaitingState(self.machine))
+
     def handle_append_message_chunk_behaviour_event(
         self, event: behaviour_event.AppendMessageChunkEvent
     ):
