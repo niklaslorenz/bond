@@ -76,6 +76,7 @@ class BondTui(App):
         if text == "!reset":
             self.state_machine.change_state(TuiIdleState(self.state_machine))
             self.clear_input()
+            return
         if text.startswith(":"):
             cmd = text[1:]
             user_event = UserInputEvent(input_type="command", message=cmd)
