@@ -82,9 +82,6 @@ class StdCommandHandler(BaseCommandHandler):
                 if text is not None:
                     print(f"{text}\n")
 
-                for chunk in msg.content:
-                    if isinstance(chunk, TextChunk):
-                        print(chunk.text, end="")
                 print("\n")
 
     def who(self, _: Namespace) -> None:
