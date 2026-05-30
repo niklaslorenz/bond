@@ -66,7 +66,7 @@ class ChatCompletionsEndpoint[ChatCompletionArgType: ModelOptions](Protocol):
         tools: list[Tool],
         system_message: SystemMessage | None = None,
         options: ChatCompletionArgType | None = None,
-        max_retries: int = 3,
+        max_retries: int = 10,
     ) -> CompletionResponse: ...
     def stream_chat_completion(
         self,
@@ -76,7 +76,7 @@ class ChatCompletionsEndpoint[ChatCompletionArgType: ModelOptions](Protocol):
         callback: ChatCompletionStreamCallback,
         system_message: SystemMessage | None = None,
         options: ChatCompletionArgType | None = None,
-        max_retries: int = 3,
+        max_retries: int = 10,
     ) -> CompletionResponse: ...
     def supports_streaming(self) -> bool: ...
 
