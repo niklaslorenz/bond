@@ -171,7 +171,18 @@ def apply_patch(patch: str) -> str:
     results: list[str] = []
     modified_files: set[str] = set()
 
-    for idx, m in enumerate(_BLOCK_RE.finditer(patch)):
+    patch_blocks = list(_BLOCK_RE.finditer(patch))
+    if len(patch_blocks) == 0:
+        return """Error: patch format. Could not find any valid patch blocks. Please stick to this format:
+        path/to/file.py
+        <<<<<<< SEARCH
+        old code
+        =======
+        new code
+        >>>>>>> REPLACE
+        """
+
+    for idx, m in enumerate(patch_blocks):
 
         file = m.group("file")
         search = m.group("search")
