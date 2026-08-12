@@ -3,6 +3,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from bond.endpoints.summarization import SummarizationOptions
+
 
 class MistralModelOptions(BaseModel):
     temperature: float = 0.7
@@ -16,4 +18,4 @@ class MistralConfig(BaseModel):
     model_specific_chat_completion_options: dict[str, MistralModelOptions] = field(
         default_factory=dict
     )
-    default_summarization_prompt: str | None = None
+    summarization: SummarizationOptions[MistralModelOptions] | None = None

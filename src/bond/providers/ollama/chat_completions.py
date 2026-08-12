@@ -24,7 +24,7 @@ from bond.endpoints.chat_completions import (
     FinishReason,
 )
 from bond.endpoints.model_options import merge_options
-from bond.providers.ollama.config import OllamaChatCompletionOptions, OllamaConfig
+from bond.providers.ollama.config import OllamaConfig, OllamaModelOptions
 from bond.tools.tool import Tool
 from bond.util import http_retry_loop, resolve_api_key
 
@@ -167,14 +167,14 @@ class OllamaChatCompletions:
         messages: list[Message],
         tools: list[Tool],
         system_message: SystemMessage | None = None,
-        options: OllamaChatCompletionOptions | None = None,
+        options: OllamaModelOptions | None = None,
         max_retries: int = 3,
         conversation_metadata: ConversationMetadata | None = None,
     ) -> CompletionResponse:
         if self.config.models is not None and model not in self.config.models:
             raise ValueError(f"This model is not whitelisted")
         merged_options = merge_options(
-            OllamaChatCompletionOptions,
+            OllamaModelOptions,
             [
                 self.config.chat_completion_options,
                 self.config.model_specific_chat_completion_options.get(model),
@@ -189,7 +189,7 @@ class OllamaChatCompletions:
             "model": model,
             "messages": [msg.model_dump(exclude={"thinking"}) for msg in all_messages],
             "tools": [tool.model_dump() for tool in tools],
-            **(merged_options.parse() if merged_options is not None else {}),
+            **(merged_options.model_dump() if merged_options is not None else {}),
         }
         payload["stream"] = False
         response = http_retry_loop(
@@ -211,7 +211,7 @@ class OllamaChatCompletions:
         tools: list[Tool],
         callback: ChatCompletionStreamCallback,
         system_message: SystemMessage | None = None,
-        options: OllamaChatCompletionOptions | None = None,
+        options: OllamaModelOptions | None = None,
         max_retries: int = 3,
         conversation_metadata: ConversationMetadata | None = None,
     ) -> CompletionResponse:
