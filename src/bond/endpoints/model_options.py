@@ -1,17 +1,9 @@
-from abc import ABC
-from typing import Any
-
 from pydantic import BaseModel
 
 
-class ModelOptions(ABC, BaseModel):
-    def parse(self) -> dict[str, Any]:
-        return self.model_dump()
-
-
-def merge_options[OptType: ModelOptions](
+def merge_options[OptType: BaseModel](
     t: type[OptType], options: list[OptType | None]
-) -> ModelOptions | None:
+) -> OptType | None:
     merged = None
     for opt in options:
         if opt is None:

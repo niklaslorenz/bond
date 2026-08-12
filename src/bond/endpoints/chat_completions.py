@@ -16,7 +16,6 @@ from bond.conversation.types import (
     ToolCall,
     UsageInfo,
 )
-from bond.endpoints.model_options import ModelOptions
 from bond.tools.tool import Tool
 
 FinishReason = Literal["stop", "length", "model_length", "error", "tool_calls"]
@@ -66,14 +65,14 @@ class CompletionChunk(BaseModel):
 ChatCompletionStreamCallback = Callable[[CompletionChunk], None]
 
 
-class ChatCompletionsEndpoint[ChatCompletionArgType: ModelOptions](Protocol):
+class ChatCompletionsEndpoint[ModelOptions: BaseModel](Protocol):
     def chat_completion(
         self,
         model: str,
         messages: list[Message],
         tools: list[Tool],
         system_message: SystemMessage | None = None,
-        options: ChatCompletionArgType | None = None,
+        options: ModelOptions | None = None,
         max_retries: int = 10,
         conversation_metadata: ConversationMetadata | None = None,
     ) -> CompletionResponse: ...
@@ -84,7 +83,7 @@ class ChatCompletionsEndpoint[ChatCompletionArgType: ModelOptions](Protocol):
         tools: list[Tool],
         callback: ChatCompletionStreamCallback,
         system_message: SystemMessage | None = None,
-        options: ChatCompletionArgType | None = None,
+        options: ModelOptions | None = None,
         max_retries: int = 10,
         conversation_metadata: ConversationMetadata | None = None,
     ) -> CompletionResponse: ...
