@@ -92,7 +92,7 @@ def main():
     # Setup turn
     allow_shell = "shell" in persona.toolbox
     turn = SingleTurn(
-        endpoint=provider.chat_completions(),
+        provider=provider,
         model=persona.model,
         event_handler=event_handler,
         signal_receiver=signal_receiver,

@@ -51,18 +51,46 @@ class Conversation(BaseModel):
     name: str | None = None
     current_persona: str | None = None
     metadata: ConversationMetadata = field(default_factory=ConversationMetadata)
+    summary: ToolMessage | None = None
+    summary_index: int = 0
 
     def add_message(self, message: ConversationMessage):
         self.history.append(message)
 
-    def get_chat_completion_messages(
-        self, skip_system_messages: bool = False
-    ) -> list[Message]:
-        return [
+    def get_summary_messages(self, keep: int) -> list[Message]:
+        if keep <= 0:
+            raise ValueError(f"keep must be a positive integer")
+        recent_messages: list[Message] = [
             m.message
-            for m in self.history
-            if m.message.role != "system" or not skip_system_messages
+            for m in self.history[self.summary_index : -keep]
+            if m.message.role != "system"
         ]
+        return (
+            recent_messages
+            if self.summary is None
+            else [self.summary] + recent_messages
+        )
+
+    def get_chat_completion_messages(self) -> list[Message]:
+        recent_messages: list[Message] = [
+            m.message
+            for m in self.history[self.summary_index :]
+            if m.message.role != "system"
+        ]
+        return (
+            recent_messages
+            if self.summary is None
+            else [self.summary] + recent_messages
+        )
+
+    def num_unsummarized_messages(self) -> int:
+        return len(self.history) - self.summary_index
+
+    def update_summary(self, new_summary: ToolMessage, keep: int):
+        if keep <= 0:
+            raise ValueError(f"keep must be a positive integer")
+        self.summary = new_summary
+        self.summary_index = len(self.history) - keep
 
     def save_to_file(self, path: Path):
         path.parent.mkdir(parents=True, exist_ok=True)

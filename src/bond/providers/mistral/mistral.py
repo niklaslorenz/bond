@@ -1,8 +1,9 @@
 import os
 from typing import Type
 
+from bond.providers.general.summarization import GenericSummarizationEndpoint
 from bond.providers.mistral.chat_completions import MistralChatCompletions
-from bond.providers.mistral.config import MistralConfig
+from bond.providers.mistral.config import MistralConfig, MistralModelOptions
 from bond.providers.mistral.models import MistralModels
 
 
@@ -11,12 +12,22 @@ class Mistral:
         self.config = config
         self._chat_completions = MistralChatCompletions(self.config)
         self._models = MistralModels(self.config)
+        self._summarization = (
+            GenericSummarizationEndpoint(
+                self._chat_completions, self.config.summarization
+            )
+            if self.config.summarization is not None
+            else None
+        )
 
     def chat_completions(self) -> MistralChatCompletions:
         return self._chat_completions
 
     def models(self) -> MistralModels:
         return self._models
+
+    def summarization(self) -> GenericSummarizationEndpoint[MistralModelOptions] | None:
+        return self._summarization
 
     @classmethod
     def default(cls) -> "Mistral":

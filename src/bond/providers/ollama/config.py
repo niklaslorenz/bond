@@ -2,10 +2,10 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from bond.endpoints.model_options import ModelOptions
+from bond.endpoints.summarization import SummarizationOptions
 
 
-class OllamaChatCompletionOptions(ModelOptions):
+class OllamaModelOptions(BaseModel):
     frequency_penalty: float | None = None
     presence_penalty: float | None = None
     seed: int | None = None
@@ -21,6 +21,7 @@ class OllamaConfig(BaseModel):
     base_url: str
     api_key: str | None = None
     models: list[str] | None = None
-    chat_completion_options: OllamaChatCompletionOptions | None = None
-    model_specific_chat_completion_options: dict[str, OllamaChatCompletionOptions] = {}
+    chat_completion_options: OllamaModelOptions | None = None
+    model_specific_chat_completion_options: dict[str, OllamaModelOptions] = {}
     max_context_length: int = 8192
+    summarization: SummarizationOptions[OllamaModelOptions] | None = None

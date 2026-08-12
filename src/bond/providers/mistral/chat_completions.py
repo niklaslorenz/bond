@@ -12,7 +12,7 @@ from bond.endpoints.chat_completions import (
     build_response,
 )
 from bond.endpoints.model_options import merge_options
-from bond.providers.mistral.config import MistralChatCompletionOptions, MistralConfig
+from bond.providers.mistral.config import MistralConfig, MistralModelOptions
 from bond.util import http_retry_loop, parse_sse_stream, resolve_api_key
 
 
@@ -33,14 +33,14 @@ class MistralChatCompletions:
         messages: list[Message],
         tools: list[Tool],
         system_message: SystemMessage | None = None,
-        options: MistralChatCompletionOptions | None = None,
+        options: MistralModelOptions | None = None,
         max_retries: int = 3,
         conversation_metadata: ConversationMetadata | None = None,
     ) -> CompletionResponse:
         if self.config.models is not None and model not in self.config.models:
             raise ValueError(f"This model is not whitelisted: {model}")
         merged_options = merge_options(
-            MistralChatCompletionOptions,
+            MistralModelOptions,
             [
                 self.config.chat_completion_options,
                 self.config.model_specific_chat_completion_options.get(model),
@@ -54,7 +54,7 @@ class MistralChatCompletions:
             "model": model,
             "messages": [msg.model_dump() for msg in all_messages],
             "tools": [tool.model_dump() for tool in tools],
-            **(merged_options.parse() if merged_options is not None else {}),
+            **(merged_options.model_dump() if merged_options is not None else {}),
         }
         if (
             conversation_metadata is not None
@@ -84,14 +84,14 @@ class MistralChatCompletions:
         tools: list[Tool],
         callback: ChatCompletionStreamCallback,
         system_message: SystemMessage | None = None,
-        options: MistralChatCompletionOptions | None = None,
+        options: MistralModelOptions | None = None,
         max_retries: int = 3,
         conversation_metadata: ConversationMetadata | None = None,
     ) -> CompletionResponse:
         if self.config.models is not None and model not in self.config.models:
             raise ValueError(f"Invalid model: {model}")
         merged_options = merge_options(
-            MistralChatCompletionOptions,
+            MistralModelOptions,
             [
                 self.config.chat_completion_options,
                 self.config.model_specific_chat_completion_options.get(model),

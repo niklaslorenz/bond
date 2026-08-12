@@ -1,5 +1,6 @@
 import logging
 
+from pydantic import BaseModel
 from returns.result import Success
 
 from bond.behaviours.behaviour_event import (
@@ -13,8 +14,15 @@ from bond.behaviours.behaviour_event import (
 from bond.behaviours.behaviour_signal import InterruptSignal
 from bond.behaviours.types import IBehaviourEventHandler, IBehaviourSignalReceiver
 from bond.conversation.conversation import Conversation, ConversationMessage
-from bond.conversation.types import AssistantMessage, FunctionCall, SystemMessage
-from bond.endpoints.chat_completions import ChatCompletionsEndpoint
+from bond.conversation.types import (
+    AssistantMessage,
+    FunctionCall,
+    SystemMessage,
+    ToolMessage,
+    UsageInfo,
+)
+from bond.endpoints.summarization import SummarizationEndpoint, SummarizationOptions
+from bond.providers.provider import Provider
 from bond.tools.shell_tools import allow_shell_commands
 from bond.tools.tool import ToolCallContext
 from bond.tools.toolbox import Toolbox
@@ -33,10 +41,10 @@ def _do_tool_call(
         return f"Error during tool execution: {result.failure()}"
 
 
-class SingleTurn:
+class SingleTurn[ModelOptions: BaseModel]:
     def __init__(
         self,
-        endpoint: ChatCompletionsEndpoint,
+        provider: Provider[ModelOptions],
         model: str,
         event_handler: IBehaviourEventHandler,
         signal_receiver: IBehaviourSignalReceiver,
@@ -46,9 +54,10 @@ class SingleTurn:
         model_display_name: str | None = None,
         stream: bool = False,
         allow_shell_executions: bool = False,
-        **additional_chat_completion_arguments,
+        model_options: ModelOptions | None = None,
+        max_retries: int = 10,
     ):
-        self.endpoint = endpoint
+        self.provider = provider
         self.model = model
         self.event_handler = event_handler
         self.signal_receiver = signal_receiver
@@ -59,9 +68,13 @@ class SingleTurn:
         self.model_display_name = model_display_name
         self.stream = stream
         self.allow_shell_executions = allow_shell_executions
-        self.additional_model_arguments = additional_chat_completion_arguments
+        self.model_options = model_options
+        self.max_retries = max_retries
 
-        if stream and not self.endpoint.supports_streaming():
+        self.completions = provider.chat_completions()
+        self.summary = provider.summarization()
+
+        if stream and not self.completions.supports_streaming():
             raise RuntimeError(
                 "The provider does not support streaming for chat completions"
             )
@@ -84,25 +97,27 @@ class SingleTurn:
                         author=self.model_display_name or "Assistant", role="assistant"
                     )
                 )
-                response = self.endpoint.stream_chat_completion(
+                response = self.completions.stream_chat_completion(
                     self.model,
-                    conversation.get_chat_completion_messages(True),
+                    conversation.get_chat_completion_messages(),
                     tools=self.tool_descriptions,
                     callback=lambda chunk: self.event_handler(
                         AppendMessageChunkEvent(chunk=chunk)
                     ),
                     system_message=system_msg,
-                    **self.additional_model_arguments,
+                    options=self.model_options,
+                    max_retries=self.max_retries,
                     conversation_metadata=conversation.metadata,
                 )
                 self.event_handler(ResponseEndEvent(usage=response.usage))
             else:
-                response = self.endpoint.chat_completion(
+                response = self.completions.chat_completion(
                     self.model,
-                    conversation.get_chat_completion_messages(True),
+                    conversation.get_chat_completion_messages(),
                     tools=self.tool_descriptions,
                     system_message=system_msg,
-                    **self.additional_model_arguments,
+                    options=self.model_options,
+                    max_retries=self.max_retries,
                     conversation_metadata=conversation.metadata,
                 )
                 self.event_handler(
@@ -125,6 +140,17 @@ class SingleTurn:
                 )
             )
 
+            if self.summary is not None and _check_summarize_condition(
+                self.summary.get_options(), conversation, response.usage
+            ):
+                _create_summary(
+                    self.summary,
+                    self.summary.get_options(),
+                    conversation,
+                    response.usage,
+                    self.max_retries,
+                )
+
             # Return when no tools are called
             if message.tool_calls is None:
                 return conversation
@@ -146,3 +172,49 @@ class SingleTurn:
                 conversation.add_message(
                     ConversationMessage.create_tool_response_message(result, tool_call)
                 )
+
+def _check_summarize_condition(
+    summarization_options: SummarizationOptions | None,
+    conversation: Conversation,
+    usage: UsageInfo,
+) -> bool:
+    if summarization_options is None:
+        return False
+    n_unsummarized = (
+        conversation.num_unsummarized_messages() - summarization_options.keep
+    )
+    if n_unsummarized > summarization_options.max_unsummarized_messages:
+        return True
+    if n_unsummarized < summarization_options.min_unsummarized_messages:
+        return False
+    if summarization_options.token_threshold is not None:
+        return usage.total_tokens > summarization_options.token_threshold
+    return False
+
+
+def _create_summary[ModelOptions: BaseModel](
+    summarize: SummarizationEndpoint,
+    summarization_options: SummarizationOptions[ModelOptions],
+    conversation: Conversation,
+    usage: UsageInfo,
+    max_retries: int,
+):
+    if summarization_options is not None and _check_summarize_condition(
+        summarization_options, conversation, usage
+    ):
+        logger.debug("Performing summarization")
+        summary_response = summarize.summarize(
+            conversation.get_summary_messages(summarization_options.keep), max_retries
+        )
+        summary = summary_response.choices[0].message
+        if summary.tool_calls:
+            logger.warning(
+                "Summary call returned with tool calls. This is not expected and the tool calls will be discarded."
+            )
+        if summary.content is None:
+            logger.warning("Summary call returned without content")
+        summary_tool_msg = ToolMessage(
+            content=[chunk for chunk in summary.content or []]
+        )
+        conversation.update_summary(summary_tool_msg, summarization_options.keep)
+        logger.debug("Updated summary")
