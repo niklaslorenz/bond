@@ -96,7 +96,7 @@ class LoopBehaviour:
         provider = self.runtime.get_provider(self.persona.provider)
         toolbox = Toolbox(self.runtime.get_tools(self.persona.toolbox))
         self.turn = SingleTurn(
-            endpoint=provider.chat_completions(),
+            provider=provider,
             model=self.persona.model,
             event_handler=self.event_handler,
             signal_receiver=self.signal_receiver,

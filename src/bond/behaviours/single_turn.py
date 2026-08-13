@@ -150,6 +150,7 @@ class SingleTurn[ModelOptions: BaseModel]:
                     response.usage,
                     self.max_retries,
                 )
+            conversation.current_usage = response.usage.total_tokens
 
             # Return when no tools are called
             if message.tool_calls is None:
