@@ -53,6 +53,7 @@ class Conversation(BaseModel):
     metadata: ConversationMetadata = field(default_factory=ConversationMetadata)
     summary: ToolMessage | None = None
     summary_index: int = 0
+    current_usage: int = 0
 
     def add_message(self, message: ConversationMessage):
         self.history.append(message)

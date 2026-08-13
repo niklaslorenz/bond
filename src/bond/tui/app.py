@@ -5,16 +5,32 @@ from textual.notifications import SeverityLevel
 from textual.widget import Widget
 
 from bond.conversation.conversation import Conversation
-from bond.conversation.types import (AssistantMessageChunk, SystemMessageChunk,
-                                     TextChunk, ThinkChunk)
-from bond.tui.event import (ConversationSelectedEvent, RequestConfirmEvent,
-                            StopEvent, UserInputEvent)
+from bond.conversation.types import (
+    AssistantMessageChunk,
+    SystemMessageChunk,
+    TextChunk,
+    ThinkChunk,
+    UsageInfo,
+)
+from bond.tui.event import (
+    ConversationSelectedEvent,
+    RequestConfirmEvent,
+    StopEvent,
+    UserInputEvent,
+)
 from bond.tui.states.tui_idle_state import TuiIdleState
 from bond.tui.types import ITuiStateMachine, TuiStatus
-from bond.tui.widgets import (ChatLog, ChatMessage, ConfirmationPopup,
-                              ConversationSelectorPopup, InputBar,
-                              MultiLineInput, OverlayContainer, StatusBar,
-                              ToolResultBlock)
+from bond.tui.widgets import (
+    ChatLog,
+    ChatMessage,
+    ConfirmationPopup,
+    ConversationSelectorPopup,
+    InputBar,
+    MultiLineInput,
+    OverlayContainer,
+    StatusBar,
+    ToolResultBlock,
+)
 
 from . import logger
 
@@ -129,6 +145,9 @@ class BondTui(App):
 
     def set_status(self, status: TuiStatus):
         self.status_bar.status = status
+
+    def set_usage(self, usage: UsageInfo):
+        self.status_bar.context_length = usage.total_tokens
 
     def set_persona(self, persona_name: str, provider: str):
         self.status_bar.persona = persona_name

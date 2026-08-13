@@ -23,6 +23,8 @@ class TuiReceivingState(TuiState):
     ):
         from . import TuiWaitingState
 
+        if event.usage:
+            self.machine.get_app().set_usage(event.usage)
         self.machine.change_state(TuiWaitingState(self.machine))
 
     def handle_error_behaviour_event(self, event: behaviour_event.ErrorEvent):
