@@ -1,9 +1,10 @@
 from pydantic import BaseModel
 
-from bond.conversation.conversation import Conversation
 from bond.conversation.types import Message, SystemMessage, TextChunk
 from bond.endpoints.chat_completions import ChatCompletionsEndpoint, CompletionResponse
 from bond.endpoints.summarization import SummarizationOptions
+
+from .. import logger
 
 
 class GenericSummarizationEndpoint[ModelOptions: BaseModel]:
@@ -26,7 +27,8 @@ class GenericSummarizationEndpoint[ModelOptions: BaseModel]:
         filtered_messages: list[Message] = [
             msg for msg in messages if msg.role != "system"
         ]
-        return self.chat_completions.chat_completion(
+        logger.debug(f"Summarizing messages: {messages}")
+        response = self.chat_completions.chat_completion(
             self.summarization_options.model,
             filtered_messages,
             [],
@@ -34,3 +36,5 @@ class GenericSummarizationEndpoint[ModelOptions: BaseModel]:
             self.summarization_options.model_options,
             max_retries,
         )
+        logger.debug(f"Summary: {response.choices[0].message}")
+        return response
