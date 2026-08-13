@@ -30,6 +30,7 @@ followup = "bond.cli.followup:main"
 chat = "bond.cli.chat:main"
 talk = "bond.tui.main:main"
 
+[project.entry-points."bond.plugins"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

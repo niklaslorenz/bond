@@ -10,20 +10,25 @@ _BLOCK_RE = re.compile(
 )
 
 
+@tool.tool(
+    name="create_file",
+    description="""
+Create a new file at the specified path with the given content.
+You are only expected to access files inside the current working directory.
+When creating files outside of the current working directory, the user has to manually grant access.
+Directories that do not exist yet will be created automatically.
+""",
+    parameters={
+        "file_path": tool.FunctionParameter(
+            type="string", description="The path where the new file should be created"
+        ),
+        "content": tool.FunctionParameter(
+            type="string", description="The content of the new file"
+        ),
+    },
+    required=["file_path", "content"],
+)
 def create_file(file_path: str, content: str) -> str:
-    """
-    Create a new file at the specified path with the given content.
-    You are only expected to access files inside the current working directory.
-    When creating files outside of the current working directory, the user has to manually grant access.
-    Directories that do not exist yet will be created automatically.
-
-    Args:
-        file_path (str): The path where the new file should be created.
-        content (str): The contents of the new file.
-
-    Returns:
-        None
-    """
     env = tool.get_tool_environment()
     work_dir = env.get_work_dir()
     if work_dir is None:
@@ -44,20 +49,26 @@ def create_file(file_path: str, content: str) -> str:
         return f"Error creating file: {str(e)}"
 
 
-def read_file(file_path: str, lines: int = 0) -> str:
-    """
+@tool.tool(
+    name="read_file",
+    description="""
     Read the contents of the specified file.
     You are only expected to access files inside the current working directory.
     When accessing files outside of the current working directory, the user has to manually grant access.
     You can specify how many lines from the top you want to read.
-
-    Args:
-        file_path (str): The path of the file to read.
-        lines (int): How many lines to read. Read all lines, if lines = 0
-
-    Returns:
-        str: The contents of the file
-    """
+""",
+    parameters={
+        "file_path": tool.FunctionParameter(
+            type="string", description="The path of the file to read."
+        ),
+        "content": tool.FunctionParameter(
+            type="integer",
+            description="How many lines to read. Read all lines, if lines = 0. Default value is 0.",
+        ),
+    },
+    required=["file_path"],
+)
+def read_file(file_path: str, lines: int = 0) -> str:
     env = tool.get_tool_environment()
     work_dir = env.get_work_dir()
     if work_dir is None:

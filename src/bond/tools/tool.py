@@ -3,16 +3,17 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from threading import local
-from typing import Any, Callable, Literal, Protocol, TextIO
+from typing import Any, Callable, Generic, Literal, ParamSpec, Protocol, TextIO
 
 from pydantic import BaseModel
 from returns.result import Failure, Result, Success
 
-from bond.conversation.types import ToolCall
-
 from . import logger
 
-ToolFn = Callable[..., str | list[str] | dict[str, Any] | list[dict[str, Any]]]
+P = ParamSpec("P")
+
+ToolReturnType = str | list[str] | dict[str, Any] | list[dict[str, Any]]
+ToolFn = Callable[..., ToolReturnType]
 Toolset = list[ToolFn]
 
 
@@ -22,7 +23,7 @@ class FunctionParameter(BaseModel):
 
 
 class FunctionParameters(BaseModel):
-    type: Literal["object"]
+    type: Literal["object"] = "object"
     properties: dict[str, FunctionParameter]
     required: list[str] = []
 
@@ -35,8 +36,48 @@ class Function(BaseModel):
 
 
 class Tool(BaseModel):
-    type: Literal["function"]
+    type: Literal["function"] = "function"
     function: Function
+
+
+class BondTool(Generic[P]):
+    base_fn: Callable[P, ToolReturnType]
+    tool: Tool
+
+    def __init__(self, base_fn: Callable[P, ToolReturnType], tool: Tool):
+        self.base_fn = base_fn
+        self.tool = tool
+
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> ToolReturnType:
+        return self.base_fn(*args, **kwargs)
+
+
+def tool(
+    *,
+    name: str,
+    description: str,
+    parameters: dict[str, FunctionParameter],
+    required: list[str] = [],
+    strict: bool = False,
+):
+    def build_tool(base_fn: Callable[P, ToolReturnType]) -> BondTool[P]:
+        tool = BondTool(
+            base_fn,
+            Tool(
+                function=Function(
+                    name=name,
+                    description=description,
+                    parameters=FunctionParameters(
+                        properties=parameters, required=required
+                    ),
+                    strict=strict,
+                )
+            ),
+        )
+        tool.__doc__ = description
+        return tool
+
+    return build_tool
 
 
 _tool_locals = local()
