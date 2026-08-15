@@ -3,12 +3,14 @@ from pathlib import Path
 from typing import Protocol
 
 from bond.persona import Persona
+from bond.plugins.registry import get_plugins
 from bond.providers.provider import (
     Provider,
     ProviderConfig,
     construct_provider,
     load_config_from,
 )
+from bond.runtime import BondRuntime
 from bond.tools.tool import BondTool, ToolFn
 from bond.tools.toolbox import Toolset
 
@@ -35,6 +37,15 @@ class StaticBondEnvironment:
         self.providers = providers
         self.personas = personas
         self.tools = tools
+        # Get the runtime to ensure it's initialized
+        self._runtime = BondRuntime.get_instance()
+        # Ensure plugins are loaded so their persona types are registered
+        get_plugins()
+
+    @property
+    def runtime(self) -> BondRuntime:
+        """Get the BondRuntime instance."""
+        return self._runtime
 
     def list_toolsets(self) -> list[str]:
         return list(self.tools.keys())
@@ -73,6 +84,15 @@ class DynamicBondEnvironment:
     def __init__(self, environment_path: Path, tools: dict[str, Toolset]):
         self.base_path = environment_path.expanduser().absolute()
         self.tools = tools
+        # Get the runtime to ensure it's initialized
+        self._runtime = BondRuntime.get_instance()
+        # Ensure plugins are loaded so their persona types are registered
+        get_plugins()
+
+    @property
+    def runtime(self) -> BondRuntime:
+        """Get the BondRuntime instance."""
+        return self._runtime
 
     def list_toolsets(self) -> list[str]:
         return list(self.tools.keys())
