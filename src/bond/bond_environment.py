@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import Protocol
 
 from bond.persona import Persona
-from bond.plugins.registry import get_plugins
 from bond.providers.provider import (
     Provider,
     ProviderConfig,
@@ -37,10 +36,7 @@ class StaticBondEnvironment:
         self.providers = providers
         self.personas = personas
         self.tools = tools
-        # Get the runtime to ensure it's initialized
         self._runtime = BondRuntime.get_instance()
-        # Ensure plugins are loaded so their persona types are registered
-        get_plugins()
 
     @property
     def runtime(self) -> BondRuntime:
@@ -84,10 +80,7 @@ class DynamicBondEnvironment:
     def __init__(self, environment_path: Path, tools: dict[str, Toolset]):
         self.base_path = environment_path.expanduser().absolute()
         self.tools = tools
-        # Get the runtime to ensure it's initialized
         self._runtime = BondRuntime.get_instance()
-        # Ensure plugins are loaded so their persona types are registered
-        get_plugins()
 
     @property
     def runtime(self) -> BondRuntime:

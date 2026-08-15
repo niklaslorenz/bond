@@ -4,8 +4,7 @@ from typing import Any, ClassVar
 
 from pydantic import BaseModel
 
-from bond.persona_registry import create_persona_from_dict
-
+from bond.runtime import BondRuntime
 
 class Persona(BaseModel):
     """
@@ -63,12 +62,17 @@ class Persona(BaseModel):
         if not path.suffix == ".json":
             raise ValueError(f"Invalid file extension, must be .json")
 
-        # Parse JSON first to access the type discriminator
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
-
-        # Use the registry to create the appropriate persona type
-        return create_persona_from_dict(data)
+            
+        if "type" in data:
+            registry = BondRuntime.get_instance().persona_registry
+            persona_type = registry.get(data["type"])
+            if persona_type is None:
+                raise ValueError(f"Unknown persona type: {data['type']}")
+        else:
+            persona_type=Persona
+        return persona_type.model_validate(data)
 
     @classmethod
     def get_type(cls) -> str:

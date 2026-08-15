@@ -11,7 +11,7 @@ from bond.behaviours.types import BehaviourEvent, BehaviourSignal
 from bond.bond_environment import DynamicBondEnvironment
 from bond.config import BondConfig, get_default_persona
 from bond.conversation.conversation import Conversation
-from bond.tools import global_toolbox
+from bond.tools import toolbox as global_toolbox
 from bond.tui.app import BondTui
 from bond.tui.default_state_machine import DefaultTuiStateMachine
 from bond.tui.environment.tui_command_handler import TuiCommandHandler
