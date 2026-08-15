@@ -9,7 +9,7 @@ from bond.environment.std_command_handler import StdCommandHandler
 from bond.environment.std_event_handler import StdEventHandler
 from bond.environment.std_signal_receiver import StdSignalReceiver
 from bond.environment.std_tool_environment import StdToolEnvironment
-from bond.tools import global_toolbox
+from bond.tools import toolbox as global_toolbox
 
 
 def main():

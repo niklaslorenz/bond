@@ -6,6 +6,8 @@ import requests
 from bs4 import BeautifulSoup
 from returns.result import Failure, Result, Success
 
+from bond.tools import tool
+
 from . import logger
 
 
@@ -66,17 +68,20 @@ class WebScraper:
         raise RuntimeError("unreachable")
 
 
-def access_web(url: str) -> str:
-    """
+@tool.tool(
+    name="access_web",
+    description="""
     Access a website's readable content. If a website does not allow
     scraping with automated tools, then an error description is returned.
-
-    Args:
-        url (str): The website's full url
-
-    Returns:
-        str: The content of the website stripped of scripts and styling
-    """
+    """,
+    parameters={
+        "url": tool.FunctionParameter(
+            type="string", description="The website's full url"
+        )
+    },
+    required=["url"],
+)
+def access_web(url: str) -> str:
     scraper = WebScraper("Bond-WebAgent")
     result: Result[str, str] = scraper.scrape(url)
     if isinstance(result, Success):

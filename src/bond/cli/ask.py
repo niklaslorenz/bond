@@ -9,8 +9,8 @@ from bond.conversation.conversation import Conversation, ConversationMessage
 from bond.environment.std_event_handler import StdEventHandler
 from bond.environment.std_signal_receiver import StdSignalReceiver
 from bond.environment.std_tool_environment import StdToolEnvironment
-from bond.providers.provider import build_toolbox
-from bond.tools import global_toolbox, tool
+from bond.tools import toolbox as global_toolbox
+from bond.tools.toolbox import Toolbox
 
 
 def main():
@@ -53,10 +53,7 @@ def main():
         )
     persona = env.get_persona(persona_id)
     provider = env.get_provider(persona.provider)
-    toolbox: tool.Toolbox = build_toolbox(
-        provider,
-        [tool for toolset in persona.toolbox for tool in env.get_toolset(toolset)],
-    )
+    toolbox = Toolbox(env.get_tools(persona.toolbox))
 
     # Setup conversation
     conversation = Conversation()

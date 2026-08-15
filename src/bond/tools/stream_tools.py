@@ -1,19 +1,23 @@
 from bond.tools import tool
 
 
-def write_to_output(text: str) -> str:
-    """
+@tool.tool(
+    name="write_to_output",
+    description="""
     Write data to the designated output stream.
-
-    Args:
-        text (str): The text to write to the output
-
-    Returns:
-        An error or success message
-    """
+    """,
+    parameters={
+        "text": tool.FunctionParameter(
+            type="string", description="The text to write to the output"
+        )
+    },
+    required=["text"],
+)
+def write_to_output(text: str) -> str:
     env = tool.get_tool_environment()
     if env.supports_stdout():
-        env.handle_stdout(text, True)
+        assert (stdout := env.stdout()) is not None
+        stdout.write(text)
         return "success: data written to output"
     else:
         return "error: no output stream"

@@ -2,6 +2,8 @@ import logging
 
 import ddgs
 
+from bond.tools import tool
+
 logger = logging.getLogger(__name__)
 
 
@@ -11,22 +13,15 @@ def _try_get(cont, name) -> str | None:
         logger.warning(f"Could not retrieve {name} from search result")
     return val
 
-
-def search_the_web(query: str, max_results: int = 5) -> list[dict[str, str]]:
-    """
+@tool.tool(name="search_the_web", description="""
     Perform a web search using DuckDuckGo and return structured results.
-
-    Args:
-        query (str): The search query string.
-        max_results (int): Maximum number of results to return (default: 5).
-
-    Returns:
-        list[dict[str, str]]: A list of result dictionaries. Each result contains:
-            - "title" (str): The result title.
-            - "link" (str): The result URL.
-            - "snippet" (str): A short description or snippet for the result.
-              If no description is available, the value will be "No description available."
-    """
+    """,
+    parameters={
+        "query": tool.FunctionParameter(type="string", description="The search query string"),
+        "max_results": tool.FunctionParameter(type="integer", description="Maximum number of results to return (default: 5)")
+    },
+    required=["query"])
+def search_the_web(query: str, max_results: int = 5) -> list[dict[str, str]]:
     try:
         results = ddgs.DDGS().text(query, backend="duckduckgo", max_results=max_results)
         return [

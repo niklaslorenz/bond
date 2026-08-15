@@ -3,9 +3,16 @@ from pathlib import Path
 from typing import Protocol
 
 from bond.persona import Persona
-from bond.providers.provider import (Provider, ProviderConfig,
-                                     construct_provider, load_config_from)
-from bond.tools.tool import ToolFn, Toolset
+from bond.providers.provider import (
+    Provider,
+    ProviderConfig,
+    construct_provider,
+    load_config_from,
+)
+from bond.tools.tool import BondTool, ToolFn
+from bond.tools.toolbox import Toolset
+
+from . import logger
 
 
 class BondEnvironment(Protocol):
@@ -13,6 +20,7 @@ class BondEnvironment(Protocol):
     def list_personas(self) -> list[str]: ...
     def list_providers(self) -> list[str]: ...
     def get_toolset(self, toolset_name: str) -> Toolset: ...
+    def get_tools(self, toolset_names: list[str]) -> set[BondTool]: ...
     def get_persona(self, persona_name: str) -> Persona: ...
     def get_provider(self, provider_name: str) -> Provider: ...
 
@@ -39,6 +47,12 @@ class StaticBondEnvironment:
 
     def get_toolset(self, toolset_name: str) -> list[ToolFn]:
         return self.tools[toolset_name]
+
+    def get_tools(self, toolset_names: list[str]) -> set[BondTool]:
+        for tn in toolset_names:
+            if tn not in self.tools:
+                logger.error(f"Unknown toolset name: {tn}")
+        return {t for tn in toolset_names for t in self.tools.get(tn) or []}
 
     def get_persona(self, persona_name: str) -> Persona:
         return self.personas[persona_name]
@@ -77,8 +91,14 @@ class DynamicBondEnvironment:
         self.provider_names = None
         self.persona_names = None
 
-    def get_toolset(self, toolset_name: str) -> list[ToolFn]:
+    def get_toolset(self, toolset_name: str) -> Toolset:
         return self.tools[toolset_name]
+
+    def get_tools(self, toolset_names: list[str]) -> set[BondTool]:
+        for tn in toolset_names:
+            if tn not in self.tools:
+                logger.error(f"Unknown toolset name: {tn}")
+        return {t for tn in toolset_names for t in self.tools.get(tn) or []}
 
     def get_persona(self, persona_name: str) -> Persona:
         persona = self.personas.get(persona_name)

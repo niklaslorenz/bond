@@ -13,8 +13,8 @@ from bond.behaviours.types import (IBehaviourEventHandler,
 from bond.bond_environment import BondEnvironment
 from bond.conversation.conversation import Conversation, ConversationMessage
 from bond.persona import Persona
-from bond.providers.provider import build_toolbox
 from bond.tools.tool import ToolEnvironment
+from bond.tools.toolbox import Toolbox
 
 from . import logger
 
@@ -91,14 +91,7 @@ class LoopBehaviour:
 
     def _build_turn(self):
         provider = self.env.get_provider(self.persona.provider)
-        toolbox = build_toolbox(
-            provider,
-            [
-                tool
-                for toolset in self.persona.toolbox
-                for tool in self.env.get_toolset(toolset)
-            ],
-        )
+        toolbox = Toolbox(self.env.get_tools(self.persona.toolbox))
         self.turn = SingleTurn(
             endpoint=provider.chat_completions(),
             model=self.persona.model,

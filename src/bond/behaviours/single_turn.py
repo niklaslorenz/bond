@@ -2,21 +2,23 @@ import logging
 
 from returns.result import Success
 
-from bond.behaviours.behaviour_event import (AppendMessageChunkEvent,
-                                             CallToolEvent, FullResponseEvent,
-                                             ResponseEndEvent,
-                                             ResponseStartEvent,
-                                             ToolReturnEvent)
+from bond.behaviours.behaviour_event import (
+    AppendMessageChunkEvent,
+    CallToolEvent,
+    FullResponseEvent,
+    ResponseEndEvent,
+    ResponseStartEvent,
+    ToolReturnEvent,
+)
 from bond.behaviours.behaviour_signal import InterruptSignal
-from bond.behaviours.types import (IBehaviourEventHandler,
-                                   IBehaviourSignalReceiver)
+from bond.behaviours.types import IBehaviourEventHandler, IBehaviourSignalReceiver
 from bond.conversation.conversation import Conversation, ConversationMessage
-from bond.conversation.types import (AssistantMessage, FunctionCall,
-                                     SystemMessage)
+from bond.conversation.types import AssistantMessage, FunctionCall, SystemMessage
 from bond.endpoints.chat_completions import ChatCompletionsEndpoint
 from bond.tools import tool
-from bond.tools.shell import allow_shell_commands
-from bond.tools.tool import Toolbox, ToolEnvironment
+from bond.tools.shell_tools import allow_shell_commands
+from bond.tools.tool import ToolEnvironment
+from bond.tools.toolbox import Toolbox
 
 logger = logging.getLogger(__name__)
 

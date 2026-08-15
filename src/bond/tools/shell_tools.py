@@ -4,6 +4,8 @@ from threading import local
 
 from bond.tools import tool
 
+from . import tool
+
 _shell_command_locals = local()
 
 
@@ -21,6 +23,18 @@ def allow_shell_commands():
         _shell_command_locals.allow_shell_commands = False
 
 
+@tool.tool(name="run_shell_commands", description="""
+    Run a list of shell commands.
+    The user has to allow these commands manually.
+    Make your commands simple and expressive so that the user can easily understand them.
+    Provide an explaination to help the user understand what you are doing.
+    """,
+    parameters={
+        "commands": tool.FunctionParameter(type="string", description="The commands to execute"),
+        "explaination": tool.FunctionParameter(type="string", description="The explaination of the commands")
+    },
+    required=["commands", "explaination"]
+)
 def run_shell_commands(commands: str, explaination: str):
     """
     Run a list of shell commands.

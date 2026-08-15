@@ -13,11 +13,11 @@ _BLOCK_RE = re.compile(
 @tool.tool(
     name="create_file",
     description="""
-Create a new file at the specified path with the given content.
-You are only expected to access files inside the current working directory.
-When creating files outside of the current working directory, the user has to manually grant access.
-Directories that do not exist yet will be created automatically.
-""",
+    Create a new file at the specified path with the given content.
+    You are only expected to access files inside the current working directory.
+    When creating files outside of the current working directory, the user has to manually grant access.
+    Directories that do not exist yet will be created automatically.
+    """,
     parameters={
         "file_path": tool.FunctionParameter(
             type="string", description="The path where the new file should be created"
@@ -56,12 +56,12 @@ def create_file(file_path: str, content: str) -> str:
     You are only expected to access files inside the current working directory.
     When accessing files outside of the current working directory, the user has to manually grant access.
     You can specify how many lines from the top you want to read.
-""",
+    """,
     parameters={
         "file_path": tool.FunctionParameter(
             type="string", description="The path of the file to read."
         ),
-        "content": tool.FunctionParameter(
+        "lines": tool.FunctionParameter(
             type="integer",
             description="How many lines to read. Read all lines, if lines = 0. Default value is 0.",
         ),
@@ -86,8 +86,9 @@ def read_file(file_path: str, lines: int = 0) -> str:
     return content[:lines]
 
 
-def list_directory(dir_path: str) -> str:
-    """
+@tool.tool(
+    name="list_directory",
+    description="""
     List the contents of the specified directory.
     You are only expected to access locations inside the current working directory.
     When accessing paths outside of the current working directory, the user has to manually grant access.
@@ -97,7 +98,15 @@ def list_directory(dir_path: str) -> str:
 
     Returns:
         str: The contents of the directory
-    """
+    """,
+    parameters={
+        "dir_path": tool.FunctionParameter(
+            type="string", description="directory path (absolute or relative to cwd)"
+        )
+    },
+    required=["dir_path"],
+)
+def list_directory(dir_path: str) -> str:
     env = tool.get_tool_environment()
     work_dir = env.get_work_dir()
     if work_dir is None:
@@ -114,12 +123,15 @@ def list_directory(dir_path: str) -> str:
     return f"Contents of {path}:\n" + "\n".join(results)
 
 
-def get_cwd() -> str:
-    """
+@tool.tool(
+    name="get_cwd",
+    description="""
     Retrieves the current working directory (cwd)
     that is used for all file related tool operations.
-    """
-
+    """,
+    parameters={},
+)
+def get_cwd() -> str:
     env = tool.get_tool_environment()
     work_dir = env.get_work_dir()
     if work_dir is None:
@@ -127,8 +139,9 @@ def get_cwd() -> str:
     return work_dir.as_posix()
 
 
-def apply_patch(patch: str) -> str:
-    """
+@tool.tool(
+    name="apply_patch",
+    description="""
     Apply Aider-style SEARCH/REPLACE patches.
     The user has to manually accept the changes unless specific conditions are met.
     Patch blocks must begin with a filename line.
@@ -148,23 +161,20 @@ def apply_patch(patch: str) -> str:
     You can chain as many blocks in one request as you want.
     Prefer fewer requests with multiple blocks over many requests
     with only one or two blocks.
-
-    Args:
-        patch (str): One or more SEARCH/REPLACE blocks.
-
-    Returns:
-        Dictionary describing results:
-        {
-            "applied": int,
-            "failed": int,
-            "files_modified": [paths]
-        }
-
+    
     Behavior:
         - SEARCH blocks should contain the current code.
         - Replacement occurs once per block.
         - If exact match fails, fuzzy matching is attempted.
-    """
+    """,
+    parameters={
+        "patch": tool.FunctionParameter(
+            type="string", description="One or more SEARCH/REPLACE blocks."
+        )
+    },
+    required=["patch"],
+)
+def apply_patch(patch: str) -> str:
 
     env = tool.get_tool_environment()
     work_dir = env.get_work_dir()
