@@ -8,10 +8,9 @@ from queue import Queue
 
 from bond.behaviours.loop import LoopBehaviour
 from bond.behaviours.types import BehaviourEvent, BehaviourSignal
-from bond.bond_environment import DynamicBondEnvironment
 from bond.config import BondConfig, get_default_persona
 from bond.conversation.conversation import Conversation
-from bond.tools import toolbox as global_toolbox
+from bond.runtime import BondRuntime
 from bond.tui.app import BondTui
 from bond.tui.default_state_machine import DefaultTuiStateMachine
 from bond.tui.environment.tui_command_handler import TuiCommandHandler
@@ -43,10 +42,8 @@ async def run():
     last_conv_path = data_base_path / "last-conv.json"
 
     config = BondConfig.load_from(config_base_path / "config.json")
-    env = DynamicBondEnvironment(
-        environment_path=config_base_path,
-        tools=global_toolbox.get_toolsets(config.chat.tools),
-    )
+    runtime = BondRuntime.get_instance()
+    runtime.initialize_dynamic(config_base_path)
     conversation = (
         Conversation.model_validate_json(last_conv_path.read_text())
         if last_conv_path.is_file()
@@ -74,8 +71,8 @@ async def run():
 
     tool_env = TuiToolEnvironment(lambda: Path(os.getcwd()), event_handler)
     loop = LoopBehaviour(
+        runtime=runtime,
         conversation=conversation,
-        environment=env,
         event_handler=event_handler,
         signal_receiver=receiver,
         command_handler=cmd_handler,

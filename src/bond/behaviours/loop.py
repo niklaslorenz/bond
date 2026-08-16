@@ -10,9 +10,9 @@ from bond.behaviours.behaviour_signal import (CommandSignal, PromptSignal,
 from bond.behaviours.single_turn import SingleTurn
 from bond.behaviours.types import (IBehaviourEventHandler,
                                    IBehaviourSignalReceiver)
-from bond.bond_environment import BondEnvironment
 from bond.conversation.conversation import Conversation, ConversationMessage
 from bond.persona import Persona
+from bond.runtime import BondRuntime
 from bond.tools.tool import ToolEnvironment
 from bond.tools.toolbox import Toolbox
 
@@ -27,8 +27,8 @@ class LoopBehaviour:
 
     def __init__(
         self,
+        runtime: BondRuntime,
         conversation: Conversation,
-        environment: BondEnvironment,
         event_handler: IBehaviourEventHandler,
         signal_receiver: IBehaviourSignalReceiver,
         command_handler: Callable[[str], None] | None,
@@ -40,8 +40,8 @@ class LoopBehaviour:
         allowed_personas: list[str] | None = None,
         **additional_chat_completion_arguments,
     ):
+        self.runtime = runtime
         self.conversation = conversation
-        self.env = environment
         self.event_handler = event_handler
         self.signal_receiver = signal_receiver
         self.command_handler = command_handler
@@ -59,7 +59,7 @@ class LoopBehaviour:
         self.set_conversation(conversation)
 
     def set_persona(self, persona_id: str, update_conversation: bool):
-        self.persona = self.env.get_persona(persona_id)
+        self.persona = self.runtime.get_persona(persona_id)
         self.persona_id = persona_id
         if update_conversation:
             self.conversation.current_persona = persona_id
@@ -90,8 +90,8 @@ class LoopBehaviour:
         )
 
     def _build_turn(self):
-        provider = self.env.get_provider(self.persona.provider)
-        toolbox = Toolbox(self.env.get_tools(self.persona.toolbox))
+        provider = self.runtime.get_provider(self.persona.provider)
+        toolbox = Toolbox(self.runtime.get_tools(self.persona.toolbox))
         self.turn = SingleTurn(
             endpoint=provider.chat_completions(),
             model=self.persona.model,

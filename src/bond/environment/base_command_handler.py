@@ -12,6 +12,7 @@ from bond.behaviours.types import IBehaviourEventHandler
 from bond.conversation.conversation import Conversation
 from bond.conversation.types import AssistantMessage
 from bond.environment.types import IBehaviourSignalHandler
+from bond.runtime import BondRuntime
 
 
 class BaseCommandHandler:
@@ -39,8 +40,9 @@ class BaseCommandHandler:
 
     def link(self, beh: LoopBehaviour):
         self.beh = beh
+        self.env = BondRuntime.get_instance()
         for name in self.available_personas:
-            if name not in beh.env.list_personas():
+            if name not in self.env.list_personas():
                 raise ValueError(
                     f"The persona '{name}' is not available in the environment"
                 )
@@ -136,7 +138,7 @@ class BaseCommandHandler:
 
     def to(self, args: Namespace) -> None:
         persona_name: str = args.name
-        if persona_name not in self.beh.env.list_personas():
+        if persona_name not in self.env.list_personas():
             self.notify(f"'{persona_name}' is not a valid persona")
             return
         self.beh.set_persona(persona_name, True)

@@ -3,13 +3,12 @@ from argparse import ArgumentParser
 from pathlib import Path
 
 from bond.behaviours.single_turn import SingleTurn
-from bond.bond_environment import DynamicBondEnvironment
 from bond.config import BondConfig, get_default_persona
 from bond.conversation.conversation import Conversation, ConversationMessage
 from bond.environment.std_event_handler import StdEventHandler
 from bond.environment.std_signal_receiver import StdSignalReceiver
 from bond.environment.std_tool_environment import StdToolEnvironment
-from bond.tools import toolbox as global_toolbox
+from bond.runtime import BondRuntime
 from bond.tools.toolbox import Toolbox
 
 
@@ -41,9 +40,9 @@ def main():
     config_path = env_path / "config.json"
     config = BondConfig.load_from(config_path)
 
-    env = DynamicBondEnvironment(
-        env_path, global_toolbox.get_toolsets(config.ask.tools)
-    )
+    runtime = BondRuntime.get_instance()
+    runtime.initialize_dynamic(env_path)
+
     persona_id: str = (
         get_default_persona(config.ask) if args.second is None else args.first
     )
@@ -51,9 +50,9 @@ def main():
         raise ValueError(
             f"not a valid persona: {persona_id}. Available personas: {'\n'.join(config.ask.personas)}"
         )
-    persona = env.get_persona(persona_id)
-    provider = env.get_provider(persona.provider)
-    toolbox = Toolbox(env.get_tools(persona.toolbox))
+    persona = runtime.get_persona(persona_id)
+    provider = runtime.get_provider(persona.provider)
+    toolbox = Toolbox(runtime.get_tools(persona.toolbox))
 
     # Setup conversation
     conversation = Conversation()

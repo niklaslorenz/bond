@@ -1,4 +1,5 @@
 import os
+from typing import Type
 
 import smolagents.tools
 
@@ -28,3 +29,11 @@ class Mistral:
     @classmethod
     def default(cls) -> "Mistral":
         return Mistral(config=MistralConfig(api_key=os.getenv("MISTRAL_API_KEY") or ""))
+
+    @classmethod
+    def get_config_type(cls) -> Type[MistralConfig]:
+        return MistralConfig
+
+    @classmethod
+    def from_config(cls, config: MistralConfig) -> "Mistral":
+        return Mistral(config)

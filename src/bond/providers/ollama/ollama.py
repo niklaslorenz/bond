@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Type
 
 from smolagents.tools import get_json_schema
 
@@ -58,3 +58,11 @@ class Ollama:
         if "return" in raw["function"]:
             raw["function"].pop("return")
         return raw["function"]["name"], Tool.model_validate(raw)
+
+    @classmethod
+    def get_config_type(cls) -> Type[OllamaConfig]:
+        return OllamaConfig
+
+    @classmethod
+    def from_config(cls, config: OllamaConfig):
+        return Ollama(config)

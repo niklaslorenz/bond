@@ -2,14 +2,13 @@ import os
 from pathlib import Path
 
 from bond.behaviours.loop import LoopBehaviour
-from bond.bond_environment import DynamicBondEnvironment
 from bond.config import BondConfig, get_default_persona
 from bond.conversation.conversation import Conversation
 from bond.environment.std_command_handler import StdCommandHandler
 from bond.environment.std_event_handler import StdEventHandler
 from bond.environment.std_signal_receiver import StdSignalReceiver
 from bond.environment.std_tool_environment import StdToolEnvironment
-from bond.tools import toolbox as global_toolbox
+from bond.runtime import BondRuntime
 
 
 def main():
@@ -21,9 +20,8 @@ def main():
     config_path = Path(env_path) / "config.json"
     config = BondConfig.load_from(config_path)
 
-    env = DynamicBondEnvironment(
-        env_path, global_toolbox.get_toolsets(config.chat.tools)
-    )
+    runtime = BondRuntime.get_instance()
+    runtime.initialize_dynamic(env_path)
     tool_environment = StdToolEnvironment(
         work_dir=lambda: Path(os.getcwd()),
         is_interactive=True,
@@ -56,8 +54,8 @@ def main():
         show_thoughts=show_thoughts,
     )
     loop = LoopBehaviour(
+        runtime=runtime,
         conversation=conversation,
-        environment=env,
         event_handler=event_handler,
         signal_receiver=receiver,
         command_handler=cmd_handler,

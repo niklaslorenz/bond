@@ -1,10 +1,8 @@
 import json
-from pathlib import Path
 from typing import Any, ClassVar
 
 from pydantic import BaseModel
 
-from bond.runtime import BondRuntime
 
 class Persona(BaseModel):
     """
@@ -37,42 +35,6 @@ class Persona(BaseModel):
     system_prompt: str | None = None
     toolbox: list[str] = []
     model_options: dict[str, Any] = {}
-
-    @classmethod
-    def load_from(cls, path: Path | str) -> "Persona":
-        """
-        Load a Persona from a JSON file.
-
-        Uses the registered persona type registry to support custom
-        persona subclasses defined by plugins.
-
-        Args:
-            path: Path to the persona JSON file (as Path or string)
-
-        Returns:
-            A Persona instance (or subclass instance if type discriminator is set)
-
-        Raises:
-            ValueError: If the path is invalid or JSON is malformed
-        """
-        path = Path(path) if isinstance(path, str) else path
-
-        if not path.is_file():
-            raise ValueError(f"Invalid path: {path}")
-        if not path.suffix == ".json":
-            raise ValueError(f"Invalid file extension, must be .json")
-
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            
-        if "type" in data:
-            registry = BondRuntime.get_instance().persona_registry
-            persona_type = registry.get(data["type"])
-            if persona_type is None:
-                raise ValueError(f"Unknown persona type: {data['type']}")
-        else:
-            persona_type=Persona
-        return persona_type.model_validate(data)
 
     @classmethod
     def get_type(cls) -> str:

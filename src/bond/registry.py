@@ -22,6 +22,9 @@ class BaseRegistry[T]:
     def get_all(self) -> dict[str, T]:
         return self._entries.copy()
 
+    def get_names(self) -> list[str]:
+        return list(self._entries.keys())
+
     def unregister(self, name: str) -> bool:
         """
         Unregister an entry.
