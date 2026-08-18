@@ -1,13 +1,10 @@
-from typing import Any, Type
-
-from smolagents.tools import get_json_schema
+from typing import Type
 
 from bond.conversation.types import (Message, ReferenceChunk, TextChunk,
                                      ThinkChunk, ToolReferenceChunk)
 from bond.providers.ollama.chat_completions import OllamaChatCompletions
 from bond.providers.ollama.config import OllamaConfig
 from bond.providers.ollama.models import OllamaModels
-from bond.tools.tool import Tool, ToolFn
 
 
 def _parse_text_like_chunks(
@@ -52,12 +49,6 @@ class Ollama:
 
     def chat_completions(self) -> OllamaChatCompletions:
         return self._chat_completions
-
-    def parse_tool(self, tool: ToolFn) -> tuple[str, Tool]:
-        raw: dict[str, Any] = get_json_schema(tool)
-        if "return" in raw["function"]:
-            raw["function"].pop("return")
-        return raw["function"]["name"], Tool.model_validate(raw)
 
     @classmethod
     def get_config_type(cls) -> Type[OllamaConfig]:

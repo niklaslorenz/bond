@@ -1,12 +1,9 @@
 import os
 from typing import Type
 
-import smolagents.tools
-
 from bond.providers.mistral.chat_completions import MistralChatCompletions
 from bond.providers.mistral.config import MistralConfig
 from bond.providers.mistral.models import MistralModels
-from bond.tools.tool import Tool, ToolFn
 
 
 class Mistral:
@@ -20,11 +17,6 @@ class Mistral:
 
     def models(self) -> MistralModels:
         return self._models
-
-    def parse_tool(self, tool: ToolFn) -> tuple[str, Tool]:
-        desc = smolagents.tools.get_json_schema(tool)
-        parsed = Tool.model_validate(desc)
-        return parsed.function.name, parsed
 
     @classmethod
     def default(cls) -> "Mistral":
