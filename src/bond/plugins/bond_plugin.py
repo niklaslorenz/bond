@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import TYPE_CHECKING, Type
 
 from bond.persona import Persona
-from bond.tools.tool import BondTool
 
 if TYPE_CHECKING:
     from bond.runtime import BondRuntime
@@ -21,7 +21,7 @@ class BondPlugin(ABC):
     which provides access to registries and other runtime services.
     """
 
-    def __init__(self, runtime: "BondRuntime"):
+    def __init__(self, runtime: "BondRuntime", data_dir: Path):
         """
         Initialize the plugin.
 
@@ -29,6 +29,7 @@ class BondPlugin(ABC):
             runtime: Optional BondRuntime instance. If None, will use the global instance.
         """
         self._runtime = runtime
+        self._data_dir = data_dir
         self._registered_persona_types: dict[str, Type[Persona]] = {}
 
     def on_enable(self):
@@ -39,6 +40,14 @@ class BondPlugin(ABC):
         such as registering persona types with the global registry.
         """
         pass
+
+    @property
+    def runtime(self) -> "BondRuntime":
+        return self._runtime
+
+    @property
+    def data_directory(self) -> Path:
+        return self._data_dir
 
     def register_persona_type(
         self,
@@ -76,6 +85,3 @@ class BondPlugin(ABC):
     def get_registered_persona_types(self) -> dict[str, Type[Persona]]:
         """Get all persona types registered with this plugin."""
         return self._registered_persona_types.copy()
-
-    @abstractmethod
-    def get_name(self) -> str: ...

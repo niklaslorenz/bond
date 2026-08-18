@@ -16,7 +16,7 @@ from bond.plugins.bond_plugin import BondPlugin
 from bond.providers.mistral.mistral import Mistral
 from bond.providers.ollama.ollama import Ollama
 from bond.providers.provider import Provider
-from bond.registry import MappedEntryRegistry, NamedEntryRegistry
+from bond.registry import NamedEntryRegistry
 from bond.tools.fs_tools import (apply_patch, create_file, get_cwd,
                                  list_directory, read_file)
 from bond.tools.shell_tools import run_shell_commands
@@ -47,11 +47,13 @@ class RuntimeEnvironment(ABC):
     @abstractmethod
     def list_personas(self) -> list[str]: ...
     @abstractmethod
-    def get_plugins(self) -> list[BondPlugin]: ...
+    def get_plugins(self) -> dict[str, BondPlugin]: ...
     @abstractmethod
     def load_provider(self, name: str, runtime: BondRuntime) -> Provider: ...
     @abstractmethod
     def load_persona(self, name: str, runtime: BondRuntime) -> Persona: ...
+    @abstractmethod
+    def get_data_dir(self) -> Path: ...
 
 
 class StaticRuntimeEnvironment(RuntimeEnvironment):
@@ -59,11 +61,13 @@ class StaticRuntimeEnvironment(RuntimeEnvironment):
         self,
         providers: dict[str, Provider],
         personas: dict[str, Persona],
-        plugins: list[BondPlugin],
+        plugins: dict[str, BondPlugin],
+        data_dir: Path | None = None,
     ):
         self._providers = providers
         self._personas = personas
         self._plugins = plugins
+        self._data_dir = data_dir or Path("~/.local/share/bond").expanduser().absolute()
 
     def list_providers(self) -> list[str]:
         return list(self._providers.keys())
@@ -71,7 +75,7 @@ class StaticRuntimeEnvironment(RuntimeEnvironment):
     def list_personas(self) -> list[str]:
         return list(self._personas.keys())
 
-    def get_plugins(self) -> list[BondPlugin]:
+    def get_plugins(self) -> dict[str, BondPlugin]:
         return self._plugins.copy()
 
     def load_provider(self, name: str, runtime: BondRuntime) -> Provider:
@@ -79,6 +83,9 @@ class StaticRuntimeEnvironment(RuntimeEnvironment):
 
     def load_persona(self, name: str, runtime: BondRuntime) -> Persona:
         return self._personas[name]
+
+    def get_data_dir(self) -> Path:
+        return self._data_dir
 
 
 class DynamicRuntimeEnvironment(RuntimeEnvironment):
@@ -101,28 +108,31 @@ class DynamicRuntimeEnvironment(RuntimeEnvironment):
             )
         ]
 
-    def get_plugins(self) -> list[BondPlugin]:
+    def get_plugins(self) -> dict[str, BondPlugin]:
         try:
             logger.debug("Discovering Plugins")
             entry_points = importlib.metadata.entry_points()
             bond_plugins = entry_points.select(group="bond.plugins")
             if not bond_plugins:
                 logger.debug("No plugins found in entry points.")
-                return []
-            plugins = []
+                return {}
+            plugins: dict[str, BondPlugin] = {}
             for plugin_ep in bond_plugins:
                 try:
                     plugin_class = plugin_ep.load()
-                    plugins.append(plugin_class(self))
+                    plugins[plugin_ep.name] = plugin_class(
+                        BondRuntime.get_instance(),
+                        self.get_data_dir() / f"plugins/{plugin_ep.name}",
+                    )
                 except Exception as e:
                     logger.error(f"Failed to load plugin {plugin_ep.name}: {e}")
             logger.debug(
-                "Found Plugins: " + ", ".join(plugin.name for plugin in plugins)
+                "Found Plugins: " + ", ".join(name for name, _ in plugins.items())
             )
             return plugins
         except Exception as e:
             logger.error(f"Failed to load plugins: {e}")
-        return []
+        return {}
 
     def load_provider(self, name: str, runtime: BondRuntime) -> Provider:
         path = self._config_dir / f"providers/{name}.json"
@@ -159,6 +169,9 @@ class DynamicRuntimeEnvironment(RuntimeEnvironment):
         else:
             return Persona.model_validate(data)
 
+    def get_data_dir(self) -> Path:
+        return Path("~/.local/share/bond").expanduser().absolute()
+
 
 class BondRuntime:
 
@@ -175,15 +188,11 @@ class BondRuntime:
         if hasattr(self, "_initialized") and self._initialized:
             return
         self._initialized = True
-        self._plugin_registry = MappedEntryRegistry[BondPlugin](
-            lambda plugin: plugin.get_name()
-        )
+        self._plugin_registry = NamedEntryRegistry[BondPlugin]()
         self._persona_type_registry = NamedEntryRegistry[Type[Persona]]()
         self._provider_type_registry = NamedEntryRegistry[Type[Provider]]()
         self._toolset_registry = NamedEntryRegistry[Toolset]()
-        self._loaded_plugins = MappedEntryRegistry[BondPlugin](
-            lambda plugin: plugin.get_name()
-        )
+        self._loaded_plugins = NamedEntryRegistry[BondPlugin]()
         self._loaded_providers = NamedEntryRegistry[Provider]()
         self._loaded_personas = NamedEntryRegistry[Persona]()
         self._environment: RuntimeEnvironment | None = None
@@ -193,7 +202,7 @@ class BondRuntime:
         self,
         providers: dict[str, Provider],
         personas: dict[str, Persona],
-        plugins: list[BondPlugin],
+        plugins: dict[str, BondPlugin],
     ) -> StaticRuntimeEnvironment:
         self._environment = StaticRuntimeEnvironment(providers, personas, plugins)
         self._register_builtin_toolsets()
@@ -202,13 +211,12 @@ class BondRuntime:
         return self._environment
 
     def initialize_dynamic(
-        self,
-        config_dir: Path,
+        self, config_dir: Path, enable_plugins: bool = True
     ) -> DynamicRuntimeEnvironment:
         self._environment = DynamicRuntimeEnvironment(config_dir)
         self._register_builtin_toolsets()
         self._register_builtin_provider_types()
-        self._load_plugins()
+        self._load_plugins(enable_plugins)
         return self._environment
 
     def list_providers(self) -> list[str]:
@@ -216,6 +224,12 @@ class BondRuntime:
 
     def list_personas(self) -> list[str]:
         return self._get_env().list_personas()
+
+    def list_plugins(self) -> list[str]:
+        return self._plugin_registry.get_names()
+
+    def get_data_dir(self) -> Path:
+        return self._get_env().get_data_dir()
 
     @classmethod
     def get_instance(cls) -> BondRuntime:
@@ -237,7 +251,7 @@ class BondRuntime:
         return self._toolset_registry
 
     @property
-    def plugin_registry(self) -> MappedEntryRegistry[BondPlugin]:
+    def plugin_registry(self) -> NamedEntryRegistry[BondPlugin]:
         return self._plugin_registry
 
     def list_toolsets(self) -> list[str]:
@@ -288,15 +302,16 @@ class BondRuntime:
         for k, v in _default_provider_types.items():
             self._provider_type_registry.register(k, v)
 
-    def _load_plugins(self):
-        for plugin in self._get_env().get_plugins():
-            self._plugin_registry.register(plugin)
-            try:
-                plugin.on_enable()
-                self._loaded_plugins.register(plugin)
-                logger.debug(f"Enabled plugin: {plugin.get_name}")
-            except Exception as e:
-                logger.error(f"Failed to enable plugin {plugin.get_name()}: {e}")
+    def _load_plugins(self, enable_plugins: bool = True):
+        for name, plugin in self._get_env().get_plugins().items():
+            self._plugin_registry.register(name, plugin)
+            if enable_plugins:
+                try:
+                    plugin.on_enable()
+                    self._loaded_plugins.register(name, plugin)
+                    logger.debug(f"Enabled plugin: {name}")
+                except Exception as e:
+                    logger.error(f"Failed to enable plugin {name}: {e}")
 
     def _get_env(self) -> RuntimeEnvironment:
         assert self._environment is not None, "Runtime not initialized"

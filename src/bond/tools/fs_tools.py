@@ -242,7 +242,12 @@ def apply_patch(patch: str) -> str:
         results.append(f"Block {idx}: success")
         modified_files.add(file)
 
-    results.append(f"Modified files: {modified_files}")
+    if len(modified_files) > 0:
+        results.append(f"Modified files: {modified_files}")
+    else:
+        results.append(
+            f"No files were modified. Make sure to use the correct patch syntax."
+        )
     return "\n".join(results)
 
 
