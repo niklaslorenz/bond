@@ -25,6 +25,7 @@ dependencies = [
 "Bug Tracker" = "https://github.com/niklaslorenz/bond/issues"
 
 [project.scripts]
+bond = "bond.cli.bond:main"
 ask = "bond.cli.ask:main"
 followup = "bond.cli.followup:main"
 chat = "bond.cli.chat:main"
