@@ -65,6 +65,7 @@ def main():
         is_interactive=True,
         show_tool_output=False,
         show_tool_logs=True,
+        executing_persona=persona_id,
     )
     signal_receiver = StdSignalReceiver()
     event_handler = StdEventHandler(signal_receiver, show_thoughts, show_tool_output)

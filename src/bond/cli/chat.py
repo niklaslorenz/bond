@@ -23,7 +23,6 @@ def main():
     runtime = BondRuntime.get_instance()
     runtime.initialize_dynamic(env_path)
 
-    persona_id = get_default_persona(config.chat)
     last_conv_path = conv_path / "last-conv.json"
     conversation = (
         Conversation.model_validate_json(last_conv_path.read_text())
@@ -34,12 +33,16 @@ def main():
         print("<New Conversation>")
     else:
         print(f"<Loaded {len(conversation.history)} messages>")
-
+    # TODO: Fix this persona mess. Get the default persona only if the conversation does not have one.
+    # Also, why does loop update the persona multiple times during construction? Either take the one from the conversation
+    # Or get the default yourself
+    persona_id = get_default_persona(config.chat)
     tool_environment = StdToolEnvironment(
         work_dir=lambda: Path(os.getcwd()),
         is_interactive=True,
         show_tool_output=False,
         show_tool_logs=True,
+        executing_persona=persona_id,
     )
 
     receiver = StdSignalReceiver()

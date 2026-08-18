@@ -41,6 +41,7 @@ class BaseCommandHandler:
     def link(self, beh: LoopBehaviour):
         self.beh = beh
         self.env = BondRuntime.get_instance()
+        # TODO: change the way available personas work. Misconfiguration should not result in a random crash
         for name in self.available_personas:
             if name not in self.env.list_personas():
                 raise ValueError(

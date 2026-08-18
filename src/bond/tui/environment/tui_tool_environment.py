@@ -19,9 +19,17 @@ class TuiToolEnvironment:
         self,
         work_dir: Path | Callable[[], Path] | None,
         event_handler: IBehaviourEventHandler,
+        executing_persona: str | None,
     ):
         self._work_dir = work_dir
         self._event_handler = event_handler
+        self._executing_persona = executing_persona
+
+    def executing_persona(self) -> str | None:
+        return self._executing_persona
+
+    def set_executing_persona(self, executing_persona: str | None):
+        self._executing_persona = executing_persona
 
     def ask_confirmation(self, prompt: str) -> bool:
         future: Future[bool] = Future()

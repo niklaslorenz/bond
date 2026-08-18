@@ -19,17 +19,19 @@ def main():
     env_path = Path("~/.config/bond/").expanduser().absolute()
     config_path = Path(env_path) / "config.json"
     config = BondConfig.load_from(config_path)
+    persona_id = get_default_persona(config.chat)
 
     runtime = BondRuntime.get_instance()
     runtime.initialize_dynamic(env_path)
+
     tool_environment = StdToolEnvironment(
         work_dir=lambda: Path(os.getcwd()),
         is_interactive=True,
         show_tool_output=False,
         show_tool_logs=True,
+        executing_persona=persona_id,
     )
 
-    persona_id = get_default_persona(config.chat)
     last_ask_path = conv_path / "last-ask.json"
     last_conv_path = conv_path / "last-conv.json"
     conversation = (

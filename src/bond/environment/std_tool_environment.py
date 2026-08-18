@@ -12,11 +12,19 @@ class StdToolEnvironment:
         is_interactive: bool,
         show_tool_output: bool,
         show_tool_logs: bool,
+        executing_persona: str | None,
     ):
         self.work_dir = work_dir
         self._is_interactive = is_interactive
         self.show_tool_output = show_tool_output
         self.show_logs = show_tool_logs
+        self._executing_persona: str | None = executing_persona
+
+    def executing_persona(self) -> str | None:
+        return self._executing_persona
+
+    def set_executing_persona(self, executing_persona: str | None):
+        self._executing_persona = executing_persona
 
     def is_interactive(self) -> bool:
         return self._is_interactive

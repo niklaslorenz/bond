@@ -69,7 +69,8 @@ async def run():
         save_on_quit=True,
     )
 
-    tool_env = TuiToolEnvironment(lambda: Path(os.getcwd()), event_handler)
+    persona_id = get_default_persona(config.chat)
+    tool_env = TuiToolEnvironment(lambda: Path(os.getcwd()), event_handler, persona_id)
     loop = LoopBehaviour(
         runtime=runtime,
         conversation=conversation,
@@ -77,7 +78,7 @@ async def run():
         signal_receiver=receiver,
         command_handler=cmd_handler,
         tool_environment=tool_env,
-        persona_id=get_default_persona(config.chat),
+        persona_id=persona_id,
         stream=True,
         allow_shell_executions=True,
         user_name=config.user_name,

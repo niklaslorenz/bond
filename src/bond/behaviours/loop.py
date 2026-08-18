@@ -61,6 +61,7 @@ class LoopBehaviour:
     def set_persona(self, persona_id: str, update_conversation: bool):
         self.persona = self.runtime.get_persona(persona_id)
         self.persona_id = persona_id
+        self.tool_environment.set_executing_persona(persona_id)
         if update_conversation:
             self.conversation.current_persona = persona_id
         self._build_turn()
