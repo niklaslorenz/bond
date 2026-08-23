@@ -1,5 +1,6 @@
 import os
-from argparse import ArgumentParser
+import sys
+from argparse import ArgumentParser, Namespace
 from pathlib import Path
 
 from bond.behaviours.single_turn import SingleTurn
@@ -10,6 +11,17 @@ from bond.environment.std_signal_receiver import StdSignalReceiver
 from bond.environment.std_tool_environment import StdToolEnvironment
 from bond.runtime import BondRuntime
 from bond.tools.toolbox import Toolbox
+
+
+def _get_input_file_content(args: Namespace):
+    if args.input_file:
+        if_path = Path(args.input_file).expanduser().absolute()
+        if not if_path.is_file():
+            raise ValueError(f"Not a file: {args.input_file}")
+        return if_path.read_text()
+    if not os.isatty(sys.stdin.fileno()):
+        return sys.stdin.read()
+    return None
 
 
 def main():
@@ -33,6 +45,8 @@ def main():
     show_tool_output: bool = args.show_tool_output
     stream: bool = not args.no_stream if not show_thoughts else False
     no_save: bool = args.no_save
+    if (input_file_content := _get_input_file_content(args)) is not None:
+        request = input_file_content + "\n\n\n" + request
 
     # Setup environment
     env_path = Path("~/.config/bond").expanduser().absolute()
