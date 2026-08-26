@@ -15,16 +15,17 @@ from bond.behaviours.types import IBehaviourEventHandler, IBehaviourSignalReceiv
 from bond.conversation.conversation import Conversation, ConversationMessage
 from bond.conversation.types import AssistantMessage, FunctionCall, SystemMessage
 from bond.endpoints.chat_completions import ChatCompletionsEndpoint
-from bond.tools import tool
 from bond.tools.shell_tools import allow_shell_commands
-from bond.tools.tool import ToolEnvironment
+from bond.tools.tool import ToolCallContext
 from bond.tools.toolbox import Toolbox
 
 logger = logging.getLogger(__name__)
 
 
-def _do_tool_call(toolbox: Toolbox, function_call: FunctionCall) -> str:
-    result = toolbox.call_tool(function_call.name, function_call.arguments)
+def _do_tool_call(
+    toolbox: Toolbox, function_call: FunctionCall, context: ToolCallContext
+) -> str:
+    result = toolbox.call_tool(function_call.name, function_call.arguments, context)
     logger.info(f"Tool call returned object of type {type(result)}\n{result}")
     if isinstance(result, Success):
         return result.unwrap()
@@ -39,7 +40,7 @@ class SingleTurn:
         model: str,
         event_handler: IBehaviourEventHandler,
         signal_receiver: IBehaviourSignalReceiver,
-        tool_environment: ToolEnvironment,
+        tool_call_context: ToolCallContext,
         system_message: str | None = None,
         toolbox: Toolbox | None = None,
         model_display_name: str | None = None,
@@ -54,7 +55,7 @@ class SingleTurn:
         self.system_message = system_message
         self.toolbox = toolbox if toolbox is not None else Toolbox({})
         self.tool_descriptions = self.toolbox.get_tool_descriptions()
-        self.tool_environment = tool_environment
+        self.tool_call_context = tool_call_context
         self.model_display_name = model_display_name
         self.stream = stream
         self.allow_shell_executions = allow_shell_executions
@@ -129,16 +130,17 @@ class SingleTurn:
             # Handle Tool calls
             for tool_call in message.tool_calls:
                 self.event_handler(CallToolEvent(call=tool_call))
-                with tool.activate_environment(self.tool_environment):
-                    if self.allow_shell_executions:
-                        with allow_shell_commands():
-                            result = _do_tool_call(self.toolbox, tool_call.function)
-                    else:
-                        result = _do_tool_call(self.toolbox, tool_call.function)
-
-                    self.event_handler(ToolReturnEvent(result=result))
-                    conversation.add_message(
-                        ConversationMessage.create_tool_response_message(
-                            result, tool_call
+                if self.allow_shell_executions:
+                    with allow_shell_commands():
+                        result = _do_tool_call(
+                            self.toolbox, tool_call.function, self.tool_call_context
                         )
+                else:
+                    result = _do_tool_call(
+                        self.toolbox, tool_call.function, self.tool_call_context
                     )
+
+                self.event_handler(ToolReturnEvent(result=result))
+                conversation.add_message(
+                    ConversationMessage.create_tool_response_message(result, tool_call)
+                )

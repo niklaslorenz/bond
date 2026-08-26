@@ -3,7 +3,7 @@ from typing import Any
 
 from returns.result import Failure, Result, Success
 
-from bond.tools.tool import BondTool, Tool
+from bond.tools.tool import BondTool, Tool, ToolCallContext
 
 from . import logger
 
@@ -20,13 +20,18 @@ class Toolbox:
             else dict(tools)
         )
 
-    def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> Result[str, str]:
+    def call_tool(
+        self,
+        tool_name: str,
+        arguments: dict[str, Any],
+        context: ToolCallContext,
+    ) -> Result[str, str]:
         if tool_name not in self.tool_map:
             logger.warning(f"Tried to call unknown tool: {tool_name}")
             return Failure("Invalid tool name")
         try:
             logger.debug(f"Calling tool {tool_name} with arguments '{arguments}'")
-            result = self.tool_map[tool_name](**arguments)
+            result = self.tool_map[tool_name](context, **arguments)
             if result is None:
                 return Success("Success (no output)")
             if isinstance(result, str):

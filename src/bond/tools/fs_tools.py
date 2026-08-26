@@ -28,14 +28,14 @@ _BLOCK_RE = re.compile(
     },
     required=["file_path", "content"],
 )
-def create_file(file_path: str, content: str) -> str:
-    env = tool.get_tool_environment()
-    work_dir = env.get_work_dir()
+def create_file(context: tool.ToolCallContext, file_path: str, content: str) -> str:
+
+    work_dir = context.cwd
     if work_dir is None:
         return "Error: Tool access to the filesystem is currently disabled."
     current_directory = work_dir.absolute()
     path = current_directory / Path(file_path)
-    has_access, why_not = _check_access(env, path)
+    has_access, why_not = _check_access(context, path)
     if not has_access:
         return why_not
     if path.exists():
@@ -68,14 +68,13 @@ def create_file(file_path: str, content: str) -> str:
     },
     required=["file_path"],
 )
-def read_file(file_path: str, lines: int = 0) -> str:
-    env = tool.get_tool_environment()
-    work_dir = env.get_work_dir()
+def read_file(context: tool.ToolCallContext, file_path: str, lines: int = 0) -> str:
+    work_dir = context.cwd
     if work_dir is None:
         return "Error: Tool access to the file system is currently disabled."
     current_directory = work_dir.absolute()
     path = current_directory / Path(file_path)
-    has_access, why_not = _check_access(env, path)
+    has_access, why_not = _check_access(context, path)
     if not has_access:
         return why_not
     if not path.is_file():
@@ -106,14 +105,13 @@ def read_file(file_path: str, lines: int = 0) -> str:
     },
     required=["dir_path"],
 )
-def list_directory(dir_path: str) -> str:
-    env = tool.get_tool_environment()
-    work_dir = env.get_work_dir()
+def list_directory(context: tool.ToolCallContext, dir_path: str) -> str:
+    work_dir = context.cwd
     if work_dir is None:
         return "Error: Tool access to the filesystem is currently disabled."
     current_directory = work_dir.absolute()
     path = current_directory / Path(dir_path)
-    has_access, why_not = _check_access(env, path)
+    has_access, why_not = _check_access(context, path)
     if not has_access:
         return why_not
     if not path.is_dir():
@@ -131,9 +129,8 @@ def list_directory(dir_path: str) -> str:
     """,
     parameters={},
 )
-def get_cwd() -> str:
-    env = tool.get_tool_environment()
-    work_dir = env.get_work_dir()
+def get_cwd(context: tool.ToolCallContext) -> str:
+    work_dir = context.cwd
     if work_dir is None:
         return "error: file operations are not available at the moment"
     return work_dir.as_posix()
@@ -174,17 +171,16 @@ def get_cwd() -> str:
     },
     required=["patch"],
 )
-def apply_patch(patch: str) -> str:
+def apply_patch(context: tool.ToolCallContext, patch: str) -> str:
 
-    env = tool.get_tool_environment()
-    work_dir = env.get_work_dir()
+    work_dir = context.cwd
     if work_dir is None:
         return "error: file modification is not available at the moment"
 
     git_dir = work_dir / ".git"
     skip_confirmation = git_dir.exists() and git_dir.is_dir()
 
-    if not skip_confirmation and not env.ask_confirmation(
+    if not skip_confirmation and not context.ask_confirmation(
         f"Bond wants to apply the following changes:\n\n{patch}\nMake changes?"
     ):
         return "Patching cancelled by user."
@@ -289,8 +285,8 @@ def _find_fuzzy_match(text: str, search: str):
     return None
 
 
-def _check_access(env: tool.ToolEnvironment, path: Path):
-    work_dir = env.get_work_dir()
+def _check_access(context: tool.ToolCallContext, path: Path) -> tuple[bool, str]:
+    work_dir = context.cwd
     if work_dir is None:
         return (
             False,
@@ -298,12 +294,12 @@ def _check_access(env: tool.ToolEnvironment, path: Path):
         )
     if path.is_relative_to(work_dir):
         return True, ""
-    if not env.is_interactive():
+    if not context.is_interactive:
         return (
             False,
             f"Permission denied, this tool is not run in interactive mode. Cannot access files outside of '{work_dir}'",
         )
-    if not env.ask_confirmation(
+    if not context.ask_confirmation(
         f"Bond wants to access the contents of {path}, which lies outside of the current working directory.\nDo you want to grant access?"
     ):
         return False, "Permission denied, the user has declined your request."

@@ -13,15 +13,26 @@ def _try_get(cont, name) -> str | None:
         logger.warning(f"Could not retrieve {name} from search result")
     return val
 
-@tool.tool(name="search_the_web", description="""
+
+@tool.tool(
+    name="search_the_web",
+    description="""
     Perform a web search using DuckDuckGo and return structured results.
     """,
     parameters={
-        "query": tool.FunctionParameter(type="string", description="The search query string"),
-        "max_results": tool.FunctionParameter(type="integer", description="Maximum number of results to return (default: 5)")
+        "query": tool.FunctionParameter(
+            type="string", description="The search query string"
+        ),
+        "max_results": tool.FunctionParameter(
+            type="integer",
+            description="Maximum number of results to return (default: 5)",
+        ),
     },
-    required=["query"])
-def search_the_web(query: str, max_results: int = 5) -> list[dict[str, str]]:
+    required=["query"],
+)
+def search_the_web(
+    _: tool.ToolCallContext, query: str, max_results: int = 5
+) -> list[dict[str, str]]:
     try:
         results = ddgs.DDGS().text(query, backend="duckduckgo", max_results=max_results)
         return [

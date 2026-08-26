@@ -23,19 +23,25 @@ def allow_shell_commands():
         _shell_command_locals.allow_shell_commands = False
 
 
-@tool.tool(name="run_shell_commands", description="""
+@tool.tool(
+    name="run_shell_commands",
+    description="""
     Run a list of shell commands.
     The user has to allow these commands manually.
     Make your commands simple and expressive so that the user can easily understand them.
     Provide an explaination to help the user understand what you are doing.
     """,
     parameters={
-        "commands": tool.FunctionParameter(type="string", description="The commands to execute"),
-        "explaination": tool.FunctionParameter(type="string", description="The explaination of the commands")
+        "commands": tool.FunctionParameter(
+            type="string", description="The commands to execute"
+        ),
+        "explaination": tool.FunctionParameter(
+            type="string", description="The explaination of the commands"
+        ),
     },
-    required=["commands", "explaination"]
+    required=["commands", "explaination"],
 )
-def run_shell_commands(commands: str, explaination: str):
+def run_shell_commands(context: tool.ToolCallContext, commands: str, explaination: str):
     """
     Run a list of shell commands.
     The user has to allow these commands manually.
@@ -57,8 +63,8 @@ def run_shell_commands(commands: str, explaination: str):
         raise RuntimeError(
             "Shell commands are disabled. Wrap the call with 'with allow_shell_commands():'"
         )
-    env = tool.get_tool_environment()
-    if not env.is_interactive():
+
+    if not context.is_interactive:
         return "error: the tool is not running in interactive mode, so the user cannot grant you access to the shell tool right now."
     prompt = (
         "Bond wants to run the following commands:\n  "
@@ -67,7 +73,7 @@ def run_shell_commands(commands: str, explaination: str):
         + explaination
         + "\nDo you want to run these commands?"
     )
-    if not env.ask_confirmation(prompt):
+    if not context.ask_confirmation(prompt):
         return "error: the user denied your request."
 
     process = subprocess.Popen(
@@ -81,15 +87,6 @@ def run_shell_commands(commands: str, explaination: str):
 
     assert process.stdout is not None
     assert process.stderr is not None
-
-    log_out = env.log_out()
-    if log_out is not None:
-        for line in process.stdout:
-            print(line, file=log_out, end="")
-    log_err = env.log_err()
-    if log_err is not None:
-        for line in process.stderr:
-            print(line, file=log_err, end="")
 
     stdout, stderr = process.communicate()
 

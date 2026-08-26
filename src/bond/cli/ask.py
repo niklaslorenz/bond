@@ -8,9 +8,11 @@ from bond.config import BondConfig, get_default_persona
 from bond.conversation.conversation import Conversation, ConversationMessage
 from bond.environment.std_event_handler import StdEventHandler
 from bond.environment.std_signal_receiver import StdSignalReceiver
-from bond.environment.std_tool_environment import StdToolEnvironment
 from bond.runtime import BondRuntime
+from bond.tools.tool import ToolCallContext
 from bond.tools.toolbox import Toolbox
+
+from . import logger
 
 
 def _get_input_file_content(args: Namespace):
@@ -47,6 +49,8 @@ def main():
     no_save: bool = args.no_save
     if (input_file_content := _get_input_file_content(args)) is not None:
         request = input_file_content + "\n\n\n" + request
+    is_interactive = not args.non_interactive
+    cwd = Path(os.getcwd())
 
     # Setup environment
     env_path = Path("~/.config/bond").expanduser().absolute()
@@ -74,12 +78,13 @@ def main():
         ConversationMessage.create_user_message(request, user_name)
     )
 
-    tool_environment = StdToolEnvironment(
-        work_dir=lambda: Path(os.getcwd()),
-        is_interactive=True,
-        show_tool_output=False,
-        show_tool_logs=True,
-        executing_persona=persona_id,
+    tool_call_context = ToolCallContext(
+        persona=persona_id,
+        stdout=sys.stdout,
+        stdin=sys.stdin,
+        is_interactive=is_interactive,
+        cwd=cwd,
+        logger=logger,
     )
     signal_receiver = StdSignalReceiver()
     event_handler = StdEventHandler(signal_receiver, show_thoughts, show_tool_output)
@@ -91,7 +96,7 @@ def main():
         model=persona.model,
         event_handler=event_handler,
         signal_receiver=signal_receiver,
-        tool_environment=tool_environment,
+        tool_call_context=tool_call_context,
         system_message=persona.system_prompt,
         toolbox=toolbox,
         model_display_name=persona.name,

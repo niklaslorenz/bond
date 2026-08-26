@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import os
 import threading
 from argparse import ArgumentParser
 from pathlib import Path
@@ -11,11 +10,11 @@ from bond.behaviours.types import BehaviourEvent, BehaviourSignal
 from bond.config import BondConfig, get_default_persona
 from bond.conversation.conversation import Conversation
 from bond.runtime import BondRuntime
+from bond.tools.tool import ToolCallContext
 from bond.tui.app import BondTui
 from bond.tui.default_state_machine import DefaultTuiStateMachine
 from bond.tui.environment.tui_command_handler import TuiCommandHandler
 from bond.tui.environment.tui_signal_receiver import TuiSignalReceiver
-from bond.tui.environment.tui_tool_environment import TuiToolEnvironment
 from bond.tui.types import ITuiEvent
 
 logger = logging.getLogger("bond")
@@ -70,14 +69,16 @@ async def run():
     )
 
     persona_id = get_default_persona(config.chat)
-    tool_env = TuiToolEnvironment(lambda: Path(os.getcwd()), event_handler, persona_id)
+
+    tool_call_context = ToolCallContext.default(persona_id, True)
+
     loop = LoopBehaviour(
         runtime=runtime,
         conversation=conversation,
         event_handler=event_handler,
         signal_receiver=receiver,
         command_handler=cmd_handler,
-        tool_environment=tool_env,
+        tool_call_context=tool_call_context,
         persona_id=persona_id,
         stream=True,
         allow_shell_executions=True,
