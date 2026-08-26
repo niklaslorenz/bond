@@ -30,7 +30,9 @@ def _try_get(cont, name) -> str | None:
     },
     required=["query"],
 )
-def search_the_web(query: str, max_results: int = 5) -> list[dict[str, str]]:
+def search_the_web(
+    _: tool.ToolCallContext, query: str, max_results: int = 5
+) -> list[dict[str, str]]:
     try:
         results = ddgs.DDGS().text(query, backend="auto", max_results=max_results)
         return [

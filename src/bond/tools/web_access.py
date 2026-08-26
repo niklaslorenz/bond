@@ -81,7 +81,7 @@ class WebScraper:
     },
     required=["url"],
 )
-def access_web(url: str) -> str:
+def access_web(context: tool.ToolCallContext, url: str) -> str:
     scraper = WebScraper("Bond-WebAgent")
     result: Result[str, str] = scraper.scrape(url)
     if isinstance(result, Success):

@@ -1,15 +1,85 @@
-from contextlib import contextmanager
+import os
+import sys
 from dataclasses import dataclass
+from logging import Logger
 from pathlib import Path
-from threading import local
-from typing import Any, Callable, Generic, Literal, ParamSpec, Protocol, TextIO
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Concatenate,
+    Generic,
+    Literal,
+    ParamSpec,
+    TextIO,
+)
 
 from pydantic import BaseModel
 
-P = ParamSpec("P")
+from . import logger
+
+if TYPE_CHECKING:
+    from bond.conversation.conversation import Conversation
 
 ToolReturnType = str | list[str] | dict[str, Any] | list[dict[str, Any]] | None
 ToolFn = Callable[..., ToolReturnType]
+
+
+@dataclass
+class ToolCallContext:
+    persona: str
+    stdout: TextIO | None
+    stdin: TextIO | None
+    is_interactive: bool
+    cwd: Path | None
+    logger: Logger | None
+
+    @classmethod
+    def default(cls, persona: str, is_interactive: bool) -> "ToolCallContext":
+        return ToolCallContext(
+            persona, sys.stdout, sys.stdin, is_interactive, Path(os.getcwd()), logger
+        )
+
+    def debug(self, msg: str):
+        if self.logger:
+            self.logger.debug(msg)
+
+    def info(self, msg: str):
+        if self.logger:
+            self.logger.info(msg)
+
+    def warning(self, msg: str):
+        if self.logger:
+            self.logger.warning(msg)
+
+    def error(self, msg: str):
+        if self.logger:
+            self.logger.error(msg)
+
+    def critical(self, msg: str):
+        if self.logger:
+            self.logger.critical(msg)
+
+    def ask_confirmation(self, prompt: str) -> bool:
+        if not self.is_interactive:
+            return False
+        print(prompt)
+        try:
+            while True:
+                access = input("[yes|no] > ")
+                if access == "yes" or access == "y":
+                    return True
+                if access == "no" or access == "n":
+                    return False
+                print("Invalid input.")
+        except Exception as e:
+            logger.error(e)
+            return False
+
+
+@dataclass
+class ConversationalToolCallContext(ToolCallContext):
+    conversation: "Conversation"
 
 
 class FunctionParameter(BaseModel):
@@ -35,16 +105,48 @@ class Tool(BaseModel):
     function: Function
 
 
-class BondTool(Generic[P]):
-    base_fn: Callable[P, ToolReturnType]
-    description: Tool
+P = ParamSpec("P")
 
-    def __init__(self, base_fn: Callable[P, ToolReturnType], tool: Tool):
+
+class BondTool(Generic[P]):
+
+    def __init__(
+        self,
+        base_fn: Callable[Concatenate[ToolCallContext, P], ToolReturnType],
+        tool: Tool,
+    ):
         self.base_fn = base_fn
         self.description = tool
 
-    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> ToolReturnType:
-        return self.base_fn(*args, **kwargs)
+    def __call__(
+        self, context: ToolCallContext, *args: P.args, **kwargs: P.kwargs
+    ) -> ToolReturnType:
+        return self.base_fn(context, *args, **kwargs)
+
+
+def _build_tool(
+    base_fn: Callable[Concatenate[ToolCallContext, P], ToolReturnType],
+    name: str,
+    description: str,
+    parameters: dict[str, FunctionParameter],
+    required: list[str] | None,
+    strict: bool,
+) -> BondTool[P]:
+    tool = BondTool(
+        base_fn,
+        Tool(
+            function=Function(
+                name=name,
+                description=description,
+                parameters=FunctionParameters(
+                    properties=parameters, required=required or []
+                ),
+                strict=strict,
+            )
+        ),
+    )
+    tool.__doc__ = description
+    return tool
 
 
 def tool(
@@ -55,70 +157,16 @@ def tool(
     required: list[str] | None = None,
     strict: bool = False,
 ):
-    def build_tool(base_fn: Callable[P, ToolReturnType]) -> BondTool[P]:
-        tool = BondTool(
+    def build(
+        base_fn: Callable[Concatenate[ToolCallContext, P], ToolReturnType],
+    ) -> BondTool[P]:
+        return _build_tool(
             base_fn,
-            Tool(
-                function=Function(
-                    name=name,
-                    description=description,
-                    parameters=FunctionParameters(
-                        properties=parameters, required=required or []
-                    ),
-                    strict=strict,
-                )
-            ),
+            name=name,
+            description=description,
+            parameters=parameters,
+            required=required,
+            strict=strict,
         )
-        tool.__doc__ = description
-        return tool
 
-    return build_tool
-
-
-_tool_locals = local()
-
-
-@dataclass
-class BidirectionalTextIO:
-    text_in: TextIO
-    text_out: TextIO
-
-
-class ToolEnvironment(Protocol):
-    def executing_persona(self) -> str | None: ...
-
-    def set_executing_persona(self, executing_persona: str | None): ...
-
-    def ask_confirmation(self, prompt: str) -> bool: ...
-
-    def is_interactive(self) -> bool: ...
-
-    def get_work_dir(self) -> Path | None: ...
-
-    def supports_stdout(self) -> bool: ...
-
-    def stdout(self) -> TextIO | None: ...
-
-    def log_out(self) -> TextIO | None: ...
-
-    def log_err(self) -> TextIO | None: ...
-
-
-def get_tool_environment() -> ToolEnvironment:
-    global _tool_locals
-    if not hasattr(_tool_locals, "env") or _tool_locals.env is None:
-        raise RuntimeError("No tool environment")
-    return _tool_locals.env
-
-
-@contextmanager
-def activate_environment(env: ToolEnvironment):
-    global _tool_locals
-    if not hasattr(_tool_locals, "env"):
-        _tool_locals.env = None
-    old_env = _tool_locals.env
-    _tool_locals.env = env
-    try:
-        yield
-    finally:
-        _tool_locals.env = old_env
+    return build

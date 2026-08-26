@@ -1,19 +1,21 @@
 from typing import Callable
 
-from bond.behaviours.behaviour_event import (ChangePersonaEvent,
-                                             CommandResponseEvent, ErrorEvent,
-                                             NotifyEvent,
-                                             RestoreConversationEvent,
-                                             StopEvent, WaitingForInputEvent)
-from bond.behaviours.behaviour_signal import (CommandSignal, PromptSignal,
-                                              StopSignal)
+from bond.behaviours.behaviour_event import (
+    ChangePersonaEvent,
+    CommandResponseEvent,
+    ErrorEvent,
+    NotifyEvent,
+    RestoreConversationEvent,
+    StopEvent,
+    WaitingForInputEvent,
+)
+from bond.behaviours.behaviour_signal import CommandSignal, PromptSignal, StopSignal
 from bond.behaviours.single_turn import SingleTurn
-from bond.behaviours.types import (IBehaviourEventHandler,
-                                   IBehaviourSignalReceiver)
+from bond.behaviours.types import IBehaviourEventHandler, IBehaviourSignalReceiver
 from bond.conversation.conversation import Conversation, ConversationMessage
 from bond.persona import Persona
 from bond.runtime import BondRuntime
-from bond.tools.tool import ToolEnvironment
+from bond.tools.tool import ToolCallContext
 from bond.tools.toolbox import Toolbox
 
 from . import logger
@@ -32,7 +34,7 @@ class LoopBehaviour:
         event_handler: IBehaviourEventHandler,
         signal_receiver: IBehaviourSignalReceiver,
         command_handler: Callable[[str], None] | None,
-        tool_environment: ToolEnvironment,
+        tool_call_context: ToolCallContext,
         persona_id: str,
         stream: bool = False,
         allow_shell_executions: bool = False,
@@ -45,7 +47,7 @@ class LoopBehaviour:
         self.event_handler = event_handler
         self.signal_receiver = signal_receiver
         self.command_handler = command_handler
-        self.tool_environment = tool_environment
+        self.tool_call_context = tool_call_context
         self.persona_id = persona_id
         self.new_conversation_persona = persona_id
         self.stream = stream
@@ -61,7 +63,7 @@ class LoopBehaviour:
     def set_persona(self, persona_id: str, update_conversation: bool):
         self.persona = self.runtime.get_persona(persona_id)
         self.persona_id = persona_id
-        self.tool_environment.set_executing_persona(persona_id)
+        self.tool_call_context.persona = persona_id
         if update_conversation:
             self.conversation.current_persona = persona_id
         self._build_turn()
@@ -98,7 +100,7 @@ class LoopBehaviour:
             model=self.persona.model,
             event_handler=self.event_handler,
             signal_receiver=self.signal_receiver,
-            tool_environment=self.tool_environment,
+            tool_call_context=self.tool_call_context,
             system_message=self.persona.system_prompt,
             toolbox=toolbox,
             model_display_name=self.persona.name,

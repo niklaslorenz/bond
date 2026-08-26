@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 from bond.behaviours.loop import LoopBehaviour
@@ -7,8 +6,8 @@ from bond.conversation.conversation import Conversation
 from bond.environment.std_command_handler import StdCommandHandler
 from bond.environment.std_event_handler import StdEventHandler
 from bond.environment.std_signal_receiver import StdSignalReceiver
-from bond.environment.std_tool_environment import StdToolEnvironment
 from bond.runtime import BondRuntime
+from bond.tools.tool import ToolCallContext
 
 
 def main():
@@ -24,13 +23,7 @@ def main():
     runtime = BondRuntime.get_instance()
     runtime.initialize_dynamic(env_path)
 
-    tool_environment = StdToolEnvironment(
-        work_dir=lambda: Path(os.getcwd()),
-        is_interactive=True,
-        show_tool_output=False,
-        show_tool_logs=True,
-        executing_persona=persona_id,
-    )
+    tool_call_context = ToolCallContext.default(persona_id, True)
 
     last_ask_path = conv_path / "last-ask.json"
     last_conv_path = conv_path / "last-conv.json"
@@ -61,7 +54,7 @@ def main():
         event_handler=event_handler,
         signal_receiver=receiver,
         command_handler=cmd_handler,
-        tool_environment=tool_environment,
+        tool_call_context=tool_call_context,
         persona_id=persona_id,
         stream=True,
         allow_shell_executions=True,
