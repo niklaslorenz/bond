@@ -16,19 +16,9 @@ from bond.tui.default_state_machine import DefaultTuiStateMachine
 from bond.tui.environment.tui_command_handler import TuiCommandHandler
 from bond.tui.environment.tui_signal_receiver import TuiSignalReceiver
 from bond.tui.types import ITuiEvent
+from bond.util import setup_logger
 
 logger = logging.getLogger("bond")
-
-
-def setup_logger():
-    debug_dir = Path("~/.local/share/bond/logs/").expanduser().absolute()
-    debug_dir.mkdir(parents=True, exist_ok=True)
-    logging.basicConfig(
-        filename=(debug_dir / "app.log").as_posix(),
-        level=logging.INFO,
-        format="%(asctime)s - %(levelname)s - %(message)s",
-    )
-    logger.setLevel(logging.DEBUG)
 
 
 async def run(args: Namespace):
@@ -36,7 +26,9 @@ async def run(args: Namespace):
     event_queue: Queue[BehaviourEvent | ITuiEvent] = Queue()
 
     config_base_path = Path("~/.config/bond").expanduser().absolute()
-    data_base_path = Path("~/.local/share/bond").expanduser().absolute()
+    data_base_path = (
+        Path(args.conversation_path or "~/.local/share/bond").expanduser().absolute()
+    )
     conversation_base_path = data_base_path / "conversations"
     last_conv_path = data_base_path / "last-conv.json"
 
@@ -104,10 +96,13 @@ def main():
     parser = ArgumentParser()
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--temp", action="store_true")
+    parser.add_argument("--temp", "-t", action="store_true")
+    parser.add_argument("--conversation-path", type=str)
+    parser.add_argument("--no-save-after-turn", action="store_true")
     parser.add_argument("--to", type=str)
     args = parser.parse_args()
     if args.debug:
-        setup_logger()
+        setup_logger(args.debug, "talk.log")
     asyncio.run(run(args))
 
 
