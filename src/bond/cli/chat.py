@@ -1,3 +1,4 @@
+from argparse import ArgumentParser
 from pathlib import Path
 
 from bond.behaviours.loop import LoopBehaviour
@@ -10,12 +11,27 @@ from bond.runtime import BondRuntime
 from bond.tools.tool import ToolCallContext
 
 
+def build_parser():
+    parser = ArgumentParser()
+    parser.add_argument("--conversation-path", type=str)
+    parser.add_argument("--environment-path", type=str)
+    parser.add_argument("--no-save-after-turn", action="store_true")
+
+    return parser
+
+
 def main():
     show_thoughts = False
     show_tool_output = False
 
-    conv_path = Path("~/.local/share/bond").expanduser().absolute()
-    env_path = Path("~/.config/bond/").expanduser().absolute()
+    parser = build_parser()
+    args = parser.parse_args()
+
+    conv_path = (
+        Path(args.conversation_path or "~/.local/share/bond").expanduser().absolute()
+    )
+    conv_path.mkdir(exist_ok=True, parents=True)
+    env_path = Path(args.environment_path or "~/.config/bond/").expanduser().absolute()
     config_path = Path(env_path) / "config.json"
     config = BondConfig.load_from(config_path)
 

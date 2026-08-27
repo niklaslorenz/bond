@@ -31,12 +31,14 @@ def setup_logger():
     logger.setLevel(logging.DEBUG)
 
 
-async def run():
+async def run(conversation_path: str | None, save_after_turn: bool):
     signal_queue: Queue[BehaviourSignal] = Queue()
     event_queue: Queue[BehaviourEvent | ITuiEvent] = Queue()
 
     config_base_path = Path("~/.config/bond").expanduser().absolute()
-    data_base_path = Path("~/.local/share/bond").expanduser().absolute()
+    data_base_path = (
+        Path(conversation_path or "~/.local/share/bond").expanduser().absolute()
+    )
     conversation_base_path = data_base_path / "conversations"
     last_conv_path = data_base_path / "last-conv.json"
 
@@ -97,10 +99,12 @@ async def run():
 def main():
     parser = ArgumentParser()
     parser.add_argument("--debug", action="store_true")
+    parser.add_argument("--conversation-path", type=str)
+    parser.add_argument("--no-save-after-turn", action="store_true")
     args = parser.parse_args()
     if args.debug:
         setup_logger()
-    asyncio.run(run())
+    asyncio.run(run(args.conversation_path, not args.no_save_after_turn))
 
 
 if __name__ == "__main__":
