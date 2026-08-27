@@ -40,6 +40,7 @@ class LoopBehaviour:
         allow_shell_executions: bool = False,
         user_name: str | None = None,
         allowed_personas: list[str] | None = None,
+        save_after_turn: bool = False,
         **additional_chat_completion_arguments,
     ):
         self.runtime = runtime
@@ -54,6 +55,7 @@ class LoopBehaviour:
         self.allow_shell_executions = allow_shell_executions
         self.user_name = user_name
         self.allowed_personas = allowed_personas
+        self.save_after_turn = save_after_turn
         self.additional_chat_completion_arguments = additional_chat_completion_arguments
 
         self.running = False
@@ -141,6 +143,12 @@ class LoopBehaviour:
                 )
                 try:
                     self.turn.run(self.conversation)
+                    if self.save_after_turn:
+                        if self.conversation.name is not None:
+                            conv_path = self.runtime.get_data_dir()
+                            self.conversation.save_to_file(
+                                conv_path / self.conversation.name
+                            )
                 except Exception as e:
                     self.event_handler(ErrorEvent(error=e, critical=False))
             else:

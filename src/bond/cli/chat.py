@@ -35,6 +35,8 @@ def main():
     config_path = Path(env_path) / "config.json"
     config = BondConfig.load_from(config_path)
 
+    save_after_turn = not args.no_save_after_turn
+
     runtime = BondRuntime.get_instance()
     runtime.initialize_dynamic(env_path)
 
@@ -77,6 +79,7 @@ def main():
         allow_shell_executions=True,
         user_name=config.user_name,
         allowed_personas=config.chat.personas,
+        save_after_turn=save_after_turn,
     )
     receiver.link(lambda: loop.persona.name)
     cmd_handler.link(loop)
