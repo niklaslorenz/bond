@@ -138,7 +138,7 @@ class DynamicRuntimeEnvironment(RuntimeEnvironment):
         path = self._config_dir / f"providers/{name}.json"
         if not path.exists():
             raise ValueError(f"Invalid provider name: {name}. Path does not exist.")
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
         if (provider_type_name := data.get("type")) is None:
             raise ValueError(
                 f"Missing provider type in {path}. Valid values are {runtime._provider_type_registry.get_names()}"
@@ -157,7 +157,7 @@ class DynamicRuntimeEnvironment(RuntimeEnvironment):
         path = self._config_dir / f"personas/{name}.json"
         if not path.exists():
             raise ValueError(f"Invalid persona name: {name}. Path does not exist.")
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
         if (persona_type_name := data.get("type")) is not None:
             if (
                 persona_type := runtime._persona_type_registry.get(persona_type_name)
