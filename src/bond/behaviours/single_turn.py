@@ -92,6 +92,7 @@ class SingleTurn:
                     ),
                     system_message=system_msg,
                     **self.additional_model_arguments,
+                    conversation_metadata=conversation.metadata,
                 )
                 self.event_handler(ResponseEndEvent(usage=response.usage))
             else:
@@ -101,6 +102,7 @@ class SingleTurn:
                     tools=self.tool_descriptions,
                     system_message=system_msg,
                     **self.additional_model_arguments,
+                    conversation_metadata=conversation.metadata,
                 )
                 self.event_handler(
                     FullResponseEvent(

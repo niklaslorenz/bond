@@ -110,6 +110,10 @@ class UsageInfo(BaseModel):
     total_tokens: int
 
 
+class ConversationMetadata(BaseModel):
+    mistral_cache_key: str | None = None
+
+
 def parse_chunks_content(chunks: list) -> tuple[str | None, str | None]:
     text = []
     think = []

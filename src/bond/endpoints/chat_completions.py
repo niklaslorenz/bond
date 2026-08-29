@@ -4,10 +4,18 @@ from typing import Callable, Literal, Protocol
 
 from pydantic import BaseModel, field_validator
 
-from bond.conversation.types import (AssistantMessage, AssistantMessageChunk,
-                                     Message, ReferenceChunk, SystemMessage,
-                                     TextChunk, ThinkChunk, ToolCall,
-                                     UsageInfo)
+from bond.conversation.types import (
+    AssistantMessage,
+    AssistantMessageChunk,
+    ConversationMetadata,
+    Message,
+    ReferenceChunk,
+    SystemMessage,
+    TextChunk,
+    ThinkChunk,
+    ToolCall,
+    UsageInfo,
+)
 from bond.endpoints.model_options import ModelOptions
 from bond.tools.tool import Tool
 
@@ -67,6 +75,7 @@ class ChatCompletionsEndpoint[ChatCompletionArgType: ModelOptions](Protocol):
         system_message: SystemMessage | None = None,
         options: ChatCompletionArgType | None = None,
         max_retries: int = 10,
+        conversation_metadata: ConversationMetadata | None = None,
     ) -> CompletionResponse: ...
     def stream_chat_completion(
         self,
@@ -77,6 +86,7 @@ class ChatCompletionsEndpoint[ChatCompletionArgType: ModelOptions](Protocol):
         system_message: SystemMessage | None = None,
         options: ChatCompletionArgType | None = None,
         max_retries: int = 10,
+        conversation_metadata: ConversationMetadata | None = None,
     ) -> CompletionResponse: ...
     def supports_streaming(self) -> bool: ...
 

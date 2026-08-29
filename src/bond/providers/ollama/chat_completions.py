@@ -5,15 +5,26 @@ from urllib.parse import urljoin
 import requests
 from pydantic import BaseModel
 
-from bond.conversation.types import (AssistantMessage, Message, SystemMessage,
-                                     TextChunk, ThinkChunk, ToolCall,
-                                     ToolMessage, UsageInfo, UserMessage)
-from bond.endpoints.chat_completions import (ChatCompletionStreamCallback,
-                                             CompletionChoice,
-                                             CompletionResponse, FinishReason)
+from bond.conversation.types import (
+    AssistantMessage,
+    ConversationMetadata,
+    Message,
+    SystemMessage,
+    TextChunk,
+    ThinkChunk,
+    ToolCall,
+    ToolMessage,
+    UsageInfo,
+    UserMessage,
+)
+from bond.endpoints.chat_completions import (
+    ChatCompletionStreamCallback,
+    CompletionChoice,
+    CompletionResponse,
+    FinishReason,
+)
 from bond.endpoints.model_options import merge_options
-from bond.providers.ollama.config import (OllamaChatCompletionOptions,
-                                          OllamaConfig)
+from bond.providers.ollama.config import OllamaChatCompletionOptions, OllamaConfig
 from bond.tools.tool import Tool
 from bond.util import http_retry_loop, resolve_api_key
 
@@ -158,6 +169,7 @@ class OllamaChatCompletions:
         system_message: SystemMessage | None = None,
         options: OllamaChatCompletionOptions | None = None,
         max_retries: int = 3,
+        conversation_metadata: ConversationMetadata | None = None,
     ) -> CompletionResponse:
         if self.config.models is not None and model not in self.config.models:
             raise ValueError(f"This model is not whitelisted")
@@ -201,6 +213,7 @@ class OllamaChatCompletions:
         system_message: SystemMessage | None = None,
         options: OllamaChatCompletionOptions | None = None,
         max_retries: int = 3,
+        conversation_metadata: ConversationMetadata | None = None,
     ) -> CompletionResponse:
         raise NotImplementedError()
 
