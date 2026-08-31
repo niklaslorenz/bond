@@ -41,10 +41,10 @@ def _do_tool_call(
         return f"Error during tool execution: {result.failure()}"
 
 
-class SingleTurn[ModelOptions: BaseModel]:
+class SingleTurn[ConfigType: BaseModel, ModelOptions: BaseModel]:
     def __init__(
         self,
-        provider: Provider[ModelOptions],
+        provider: Provider[ConfigType, ModelOptions],
         model: str,
         event_handler: IBehaviourEventHandler,
         signal_receiver: IBehaviourSignalReceiver,
