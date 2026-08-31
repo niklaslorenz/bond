@@ -27,7 +27,7 @@ class GenericSummarizationEndpoint[ModelOptions: BaseModel]:
         filtered_messages: list[Message] = [
             msg for msg in messages if msg.role != "system"
         ]
-        logger.debug(f"Summarizing messages: {messages}")
+        logger.debug(f"Summarizing {len(messages)} messages")
         response = self.chat_completions.chat_completion(
             self.summarization_options.model,
             filtered_messages,
@@ -36,5 +36,5 @@ class GenericSummarizationEndpoint[ModelOptions: BaseModel]:
             self.summarization_options.model_options,
             max_retries,
         )
-        logger.debug(f"Summary: {response.choices[0].message}")
+        logger.debug(f"successfully created summary")
         return response
