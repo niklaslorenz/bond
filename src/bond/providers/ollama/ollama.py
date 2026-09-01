@@ -1,16 +1,11 @@
 from typing import Type
 
-from bond.conversation.types import (
-    Message,
-    ReferenceChunk,
-    TextChunk,
-    ThinkChunk,
-    ToolReferenceChunk,
-)
+from bond.conversation.types import (Message, ReferenceChunk, TextChunk,
+                                     ThinkChunk, ToolReferenceChunk)
 from bond.endpoints.summarization import SummarizationEndpoint
 from bond.providers.general.summarization import GenericSummarizationEndpoint
 from bond.providers.ollama.chat_completions import OllamaChatCompletions
-from bond.providers.ollama.config import OllamaConfig, OllamaModelOptions
+from bond.providers.ollama.config import OllamaConfig
 from bond.providers.ollama.models import OllamaModels
 
 
@@ -51,12 +46,12 @@ class Ollama:
         self._models = OllamaModels(config)
         self._chat_completions = OllamaChatCompletions(config)
         self._summarize = (
-            GenericSummarizationEndpoint(self._chat_completions, config.summarization)
+            GenericSummarizationEndpoint(self._chat_completions)
             if config.summarization is not None
             else None
         )
 
-    def summarization(self) -> SummarizationEndpoint[OllamaModelOptions] | None:
+    def summarization(self) -> SummarizationEndpoint | None:
         return self._summarize
 
     def models(self) -> OllamaModels:

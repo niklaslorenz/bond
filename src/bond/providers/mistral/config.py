@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from bond.endpoints.summarization import SummarizationOptions
+from bond.persona import SummarizationOptions
 
 
 class MistralModelOptions(BaseModel):
@@ -15,7 +15,4 @@ class MistralConfig(BaseModel):
     api_key: str
     models: list[str] | None = None
     chat_completion_options: MistralModelOptions | None = None
-    model_specific_chat_completion_options: dict[str, MistralModelOptions] = field(
-        default_factory=dict
-    )
     summarization: SummarizationOptions[MistralModelOptions] | None = None

@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from bond.endpoints.summarization import SummarizationOptions
+from bond.persona import SummarizationOptions
 
 
 class OllamaModelOptions(BaseModel):
@@ -22,6 +22,5 @@ class OllamaConfig(BaseModel):
     api_key: str | None = None
     models: list[str] | None = None
     chat_completion_options: OllamaModelOptions | None = None
-    model_specific_chat_completion_options: dict[str, OllamaModelOptions] = {}
     max_context_length: int = 8192
     summarization: SummarizationOptions[OllamaModelOptions] | None = None

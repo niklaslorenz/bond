@@ -1,28 +1,23 @@
 import logging
 
-from pydantic import BaseModel
 from returns.result import Success
 
-from bond.behaviours.behaviour_event import (
-    AppendMessageChunkEvent,
-    CallToolEvent,
-    FullResponseEvent,
-    ResponseEndEvent,
-    ResponseStartEvent,
-    ToolReturnEvent,
-)
+from bond.behaviours.behaviour_event import (AppendMessageChunkEvent,
+                                             CallToolEvent, FullResponseEvent,
+                                             ResponseEndEvent,
+                                             ResponseStartEvent,
+                                             ToolReturnEvent)
 from bond.behaviours.behaviour_signal import InterruptSignal
-from bond.behaviours.types import IBehaviourEventHandler, IBehaviourSignalReceiver
+from bond.behaviours.types import (IBehaviourEventHandler,
+                                   IBehaviourSignalReceiver)
 from bond.conversation.conversation import Conversation, ConversationMessage
-from bond.conversation.types import (
-    AssistantMessage,
-    FunctionCall,
-    SystemMessage,
-    ToolMessage,
-    UsageInfo,
-)
-from bond.endpoints.summarization import SummarizationEndpoint, SummarizationOptions
+from bond.conversation.types import (AssistantMessage, FunctionCall,
+                                     SystemMessage, TextChunk, ToolMessage,
+                                     UsageInfo)
+from bond.endpoints.summarization import SummarizationEndpoint
+from bond.persona import Persona, SummarizationOptions
 from bond.providers.provider import Provider
+from bond.runtime import BondRuntime
 from bond.tools.shell_tools import allow_shell_commands
 from bond.tools.tool import ToolCallContext
 from bond.tools.toolbox import Toolbox
@@ -41,42 +36,42 @@ def _do_tool_call(
         return f"Error during tool execution: {result.failure()}"
 
 
-class SingleTurn[ConfigType: BaseModel, ModelOptions: BaseModel]:
+class SingleTurn:
     def __init__(
         self,
-        provider: Provider[ConfigType, ModelOptions],
-        model: str,
+        persona: Persona,
         event_handler: IBehaviourEventHandler,
         signal_receiver: IBehaviourSignalReceiver,
         tool_call_context: ToolCallContext,
-        system_message: str | None = None,
-        toolbox: Toolbox | None = None,
-        model_display_name: str | None = None,
         stream: bool = False,
         allow_shell_executions: bool = False,
-        model_options: ModelOptions | None = None,
         max_retries: int = 10,
+        runtime: BondRuntime | None = None,
     ):
-        self.provider = provider
-        self.model = model
+        self.persona = persona
         self.event_handler = event_handler
         self.signal_receiver = signal_receiver
-        self.system_message = system_message
-        self.toolbox = toolbox if toolbox is not None else Toolbox({})
-        self.tool_descriptions = self.toolbox.get_tool_descriptions()
         self.tool_call_context = tool_call_context
-        self.model_display_name = model_display_name
         self.stream = stream
         self.allow_shell_executions = allow_shell_executions
-        self.model_options = model_options
         self.max_retries = max_retries
+        self.runtime = runtime or BondRuntime.get_instance()
 
-        self.completions = provider.chat_completions()
-        self.summary = provider.summarization()
+        self.provider: Provider = self.runtime.get_provider(persona.provider)
+        self.toolbox = Toolbox(self.runtime.get_tools(persona.toolbox))
+        self.tool_descriptions = self.toolbox.get_tool_descriptions()
+
+        self.completions = self.provider.chat_completions()
+        self.summary = self.provider.summarization()
 
         if stream and not self.completions.supports_streaming():
             raise RuntimeError(
                 "The provider does not support streaming for chat completions"
+            )
+
+        if persona.summarization is not None and self.summary is None:
+            logger.error(
+                f"The provider does not support summarization while the persona {persona.name} expects it"
             )
 
     def run(self, conversation: Conversation) -> Conversation:
@@ -87,42 +82,42 @@ class SingleTurn[ConfigType: BaseModel, ModelOptions: BaseModel]:
                 return conversation
 
             system_msg = (
-                SystemMessage.create(self.system_message)
-                if self.system_message is not None
+                SystemMessage.create(self.persona.system_prompt)
+                if self.persona.system_prompt is not None
                 else None
             )
             if self.stream:
                 self.event_handler(
                     ResponseStartEvent(
-                        author=self.model_display_name or "Assistant", role="assistant"
+                        author=self.persona.name or "Assistant", role="assistant"
                     )
                 )
                 response = self.completions.stream_chat_completion(
-                    self.model,
+                    self.persona.model,
                     conversation.get_chat_completion_messages(),
                     tools=self.tool_descriptions,
                     callback=lambda chunk: self.event_handler(
                         AppendMessageChunkEvent(chunk=chunk)
                     ),
                     system_message=system_msg,
-                    options=self.model_options,
+                    options=self.persona.model_options,
                     max_retries=self.max_retries,
                     conversation_metadata=conversation.metadata,
                 )
                 self.event_handler(ResponseEndEvent(usage=response.usage))
             else:
                 response = self.completions.chat_completion(
-                    self.model,
+                    self.persona.model,
                     conversation.get_chat_completion_messages(),
                     tools=self.tool_descriptions,
                     system_message=system_msg,
-                    options=self.model_options,
+                    options=self.persona.model_options,
                     max_retries=self.max_retries,
                     conversation_metadata=conversation.metadata,
                 )
                 self.event_handler(
                     FullResponseEvent(
-                        author=self.model_display_name or "Assistant",
+                        author=self.persona.name or "Assistant",
                         role="assistant",
                         response=response,
                     )
@@ -133,19 +128,24 @@ class SingleTurn[ConfigType: BaseModel, ModelOptions: BaseModel]:
             message = response.choices[0].message
             conversation.add_message(
                 ConversationMessage(
-                    author=self.model_display_name or self.model,
+                    author=self.persona.name or self.persona.model,
                     message=AssistantMessage(
                         content=message.content, tool_calls=message.tool_calls
                     ),
                 )
             )
 
-            if self.summary is not None and _check_summarize_condition(
-                self.summary.get_options(), conversation, response.usage
+            if (
+                self.summary is not None
+                and self.persona.summarization is not None
+                and self.persona.summarization.auto_summarize
+                and _check_summarize_condition(
+                    self.persona.summarization, conversation, response.usage
+                )
             ):
                 _create_summary(
                     self.summary,
-                    self.summary.get_options(),
+                    self.persona,
                     conversation,
                     response.usage,
                     self.max_retries,
@@ -174,6 +174,7 @@ class SingleTurn[ConfigType: BaseModel, ModelOptions: BaseModel]:
                     ConversationMessage.create_tool_response_message(result, tool_call)
                 )
 
+
 def _check_summarize_condition(
     summarization_options: SummarizationOptions | None,
     conversation: Conversation,
@@ -193,19 +194,30 @@ def _check_summarize_condition(
     return False
 
 
-def _create_summary[ModelOptions: BaseModel](
+def _create_summary(
     summarize: SummarizationEndpoint,
-    summarization_options: SummarizationOptions[ModelOptions],
+    persona: Persona,
     conversation: Conversation,
     usage: UsageInfo,
     max_retries: int,
 ):
-    if summarization_options is not None and _check_summarize_condition(
-        summarization_options, conversation, usage
+    if persona.summarization is not None and _check_summarize_condition(
+        persona.summarization, conversation, usage
     ):
         logger.debug("Performing summarization")
         summary_response = summarize.summarize(
-            conversation.get_summary_messages(summarization_options.keep), max_retries
+            persona.summarization.model or persona.model,
+            conversation.get_summary_messages(persona.summarization.keep),
+            (
+                SystemMessage(
+                    content=[TextChunk(type="text", text=persona.summarization.prompt)]
+                )
+                if persona.summarization.prompt is not None
+                else None
+            ),
+            persona.summarization.model_options or persona.model_options,
+            max_retries,
+            conversation.metadata,
         )
         summary = summary_response.choices[0].message
         if summary.tool_calls:
@@ -217,5 +229,5 @@ def _create_summary[ModelOptions: BaseModel](
         summary_tool_msg = ToolMessage(
             content=[chunk for chunk in summary.content or []]
         )
-        conversation.update_summary(summary_tool_msg, summarization_options.keep)
+        conversation.update_summary(summary_tool_msg, persona.summarization.keep)
         logger.debug("Updated summary")

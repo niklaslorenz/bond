@@ -14,7 +14,6 @@ from bond.conversation.conversation import Conversation, ConversationMessage
 from bond.persona import Persona
 from bond.runtime import BondRuntime
 from bond.tools.tool import ToolCallContext
-from bond.tools.toolbox import Toolbox
 
 from . import logger
 
@@ -38,7 +37,7 @@ class LoopBehaviour:
         allow_shell_executions: bool = False,
         user_name: str | None = None,
         allowed_personas: list[str] | None = None,
-        **additional_chat_completion_arguments,
+        max_retries: int = 10,
     ):
         self.runtime = runtime
         self.conversation = conversation
@@ -52,7 +51,7 @@ class LoopBehaviour:
         self.allow_shell_executions = allow_shell_executions
         self.user_name = user_name
         self.allowed_personas = allowed_personas
-        self.additional_chat_completion_arguments = additional_chat_completion_arguments
+        self.max_retries = max_retries
 
         self.running = False
         self.set_persona(persona_id, False)
@@ -91,20 +90,15 @@ class LoopBehaviour:
         )
 
     def _build_turn(self):
-        provider = self.runtime.get_provider(self.persona.provider)
-        toolbox = Toolbox(self.runtime.get_tools(self.persona.toolbox))
         self.turn = SingleTurn(
-            provider=provider,
-            model=self.persona.model,
+            persona=self.persona,
             event_handler=self.event_handler,
             signal_receiver=self.signal_receiver,
             tool_call_context=self.tool_call_context,
-            system_message=self.persona.system_prompt,
-            toolbox=toolbox,
-            model_display_name=self.persona.name,
             stream=self.stream,
             allow_shell_executions=self.allow_shell_executions,
-            **self.additional_chat_completion_arguments,
+            max_retries=self.max_retries,
+            runtime=self.runtime
         )
 
     def run(self):

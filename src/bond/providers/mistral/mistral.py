@@ -13,9 +13,7 @@ class Mistral:
         self._chat_completions = MistralChatCompletions(self.config)
         self._models = MistralModels(self.config)
         self._summarization = (
-            GenericSummarizationEndpoint(
-                self._chat_completions, self.config.summarization
-            )
+            GenericSummarizationEndpoint(self._chat_completions)
             if self.config.summarization is not None
             else None
         )
@@ -26,7 +24,7 @@ class Mistral:
     def models(self) -> MistralModels:
         return self._models
 
-    def summarization(self) -> GenericSummarizationEndpoint[MistralModelOptions] | None:
+    def summarization(self) -> GenericSummarizationEndpoint | None:
         return self._summarization
 
     @classmethod

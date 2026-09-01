@@ -1,18 +1,15 @@
+from typing import Any
 from uuid import uuid4
 
 import requests
 
 from bond.conversation.types import ConversationMetadata, SystemMessage
-from bond.endpoints.chat_completions import (
-    ChatCompletionStreamCallback,
-    CompletionChunk,
-    CompletionResponse,
-    Message,
-    Tool,
-    build_response,
-)
+from bond.endpoints.chat_completions import (ChatCompletionStreamCallback,
+                                             CompletionChunk,
+                                             CompletionResponse, Message, Tool,
+                                             build_response)
 from bond.endpoints.model_options import merge_options
-from bond.providers.mistral.config import MistralConfig, MistralModelOptions
+from bond.providers.mistral.config import MistralConfig
 from bond.util import http_retry_loop, parse_sse_stream, resolve_api_key
 
 
@@ -26,6 +23,11 @@ class MistralChatCompletions:
             "Authorization": f"Bearer {resolve_api_key(config.api_key)}",
             "Content-Type": "application/json",
         }
+        self.chat_completion_options = (
+            config.chat_completion_options.model_dump()
+            if config.chat_completion_options
+            else {}
+        )
 
     def chat_completion(
         self,
@@ -33,19 +35,16 @@ class MistralChatCompletions:
         messages: list[Message],
         tools: list[Tool],
         system_message: SystemMessage | None = None,
-        options: MistralModelOptions | None = None,
+        options: dict[str, Any] | None = None,
         max_retries: int = 3,
         conversation_metadata: ConversationMetadata | None = None,
     ) -> CompletionResponse:
         if self.config.models is not None and model not in self.config.models:
             raise ValueError(f"This model is not whitelisted: {model}")
-        merged_options = merge_options(
-            MistralModelOptions,
-            [
-                self.config.chat_completion_options,
-                self.config.model_specific_chat_completion_options.get(model),
-                options,
-            ],
+        merged_options = (
+            self.chat_completion_options | options
+            if options is not None
+            else self.chat_completion_options
         )
         all_messages = (
             [system_message] if system_message is not None else []
@@ -54,7 +53,7 @@ class MistralChatCompletions:
             "model": model,
             "messages": [msg.model_dump() for msg in all_messages],
             "tools": [tool.model_dump() for tool in tools],
-            **(merged_options.model_dump() if merged_options is not None else {}),
+            **merged_options,
         }
         if (
             conversation_metadata is not None
@@ -84,19 +83,16 @@ class MistralChatCompletions:
         tools: list[Tool],
         callback: ChatCompletionStreamCallback,
         system_message: SystemMessage | None = None,
-        options: MistralModelOptions | None = None,
+        options: dict[str, Any] | None = None,
         max_retries: int = 3,
         conversation_metadata: ConversationMetadata | None = None,
     ) -> CompletionResponse:
         if self.config.models is not None and model not in self.config.models:
             raise ValueError(f"Invalid model: {model}")
-        merged_options = merge_options(
-            MistralModelOptions,
-            [
-                self.config.chat_completion_options,
-                self.config.model_specific_chat_completion_options.get(model),
-                options,
-            ],
+        merged_options = (
+            self.chat_completion_options | options
+            if options is not None
+            else self.chat_completion_options
         )
         all_messages = (
             [system_message] if system_message is not None else []
@@ -106,7 +102,7 @@ class MistralChatCompletions:
             "messages": [msg.model_dump() for msg in all_messages],
             "tools": [tool.model_dump() for tool in tools],
             "stream": True,
-            **(merged_options.model_dump() if merged_options is not None else {}),
+            **merged_options,
         }
         if (
             conversation_metadata is not None
