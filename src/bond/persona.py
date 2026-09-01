@@ -17,10 +17,12 @@ class SummarizationOptions[ModelOptions: BaseModel](BaseModel):
     """The minumum number of unsummarized messages that need to exist before a summarization is triggered (takes precedence over token_threshold)"""
     max_unsummarized_messages: int = 30
     """The maximum number of unsummarized messages that can exist before a summarization is triggered (takes precedence over min_summarized_messages)"""
-    prompt: str | None = None
+    system_prompt: str | None = None
     """System prompt that is used for the summarization task"""
     model_options: ModelOptions | None = None
     """Model options for summarization"""
+    user_instruction: str | None = None
+    """The user message that is appended to the message list in order to instruct the model to create the summary"""
 
 
 class Persona(BaseModel):
