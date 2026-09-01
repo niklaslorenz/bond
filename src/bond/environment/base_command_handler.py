@@ -4,13 +4,13 @@ import subprocess
 from argparse import ArgumentParser, Namespace, _SubParsersAction
 from pathlib import Path
 
-from bond.behaviours.behaviour_event import (NotifyEvent,
-                                             RestoreConversationEvent)
+from bond.behaviours.behaviour_event import NotifyEvent, RestoreConversationEvent
 from bond.behaviours.behaviour_signal import StopSignal
 from bond.behaviours.loop import LoopBehaviour
 from bond.behaviours.types import IBehaviourEventHandler
 from bond.conversation.conversation import Conversation
 from bond.conversation.types import AssistantMessage
+from bond.endpoints.summarization import summarize_conversation
 from bond.environment.types import IBehaviourSignalHandler
 from bond.runtime import BondRuntime
 
@@ -162,6 +162,23 @@ class BaseCommandHandler:
             self.beh.conversation.history = []
         self.event_handler(RestoreConversationEvent(conversation=self.beh.conversation))
 
+    def summarize(self, _: Namespace):
+        summarization_options = self.beh.persona.summarization
+        if summarization_options is None:
+            self.notify("Summarization is disabled for this persona")
+            return
+        provider = BondRuntime.get_instance().get_provider(self.beh.persona.provider)
+        summarization = provider.summarization()
+        if summarization is None:
+            self.notify(
+                f"Summarization is not possible with this provider: {self.beh.persona.provider}"
+            )
+            return
+        summarize_conversation(
+            summarization, self.beh.persona, self.beh.conversation, self.beh.max_retries
+        )
+        pass
+
     # Helper methods
 
     def notify(self, text: str):
@@ -308,3 +325,11 @@ class BaseCommandHandler:
         del_parser.add_argument(
             "n", nargs="?", type=int, default=1, help="Number of turns to delete"
         )
+
+        summarize_parser = subparsers.add_parser(
+            "summarize",
+            help="Create a summary of the conversation",
+            aliases=["sum"],
+            exit_on_error=False,
+        )
+        summarize_parser.set_defaults(callback=self.summarize)

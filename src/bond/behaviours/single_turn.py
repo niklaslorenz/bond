@@ -2,19 +2,24 @@ import logging
 
 from returns.result import Success
 
-from bond.behaviours.behaviour_event import (AppendMessageChunkEvent,
-                                             CallToolEvent, FullResponseEvent,
-                                             ResponseEndEvent,
-                                             ResponseStartEvent,
-                                             ToolReturnEvent)
+from bond.behaviours.behaviour_event import (
+    AppendMessageChunkEvent,
+    CallToolEvent,
+    FullResponseEvent,
+    ResponseEndEvent,
+    ResponseStartEvent,
+    ToolReturnEvent,
+)
 from bond.behaviours.behaviour_signal import InterruptSignal
-from bond.behaviours.types import (IBehaviourEventHandler,
-                                   IBehaviourSignalReceiver)
+from bond.behaviours.types import IBehaviourEventHandler, IBehaviourSignalReceiver
 from bond.conversation.conversation import Conversation, ConversationMessage
-from bond.conversation.types import (AssistantMessage, FunctionCall,
-                                     SystemMessage, TextChunk, ToolMessage,
-                                     UsageInfo)
-from bond.endpoints.summarization import SummarizationEndpoint
+from bond.conversation.types import (
+    AssistantMessage,
+    FunctionCall,
+    SystemMessage,
+    UsageInfo,
+)
+from bond.endpoints.summarization import summarize_conversation
 from bond.persona import Persona, SummarizationOptions
 from bond.providers.provider import Provider
 from bond.runtime import BondRuntime
@@ -134,6 +139,7 @@ class SingleTurn:
                     ),
                 )
             )
+            conversation.current_usage = response.usage.total_tokens
 
             if (
                 self.summary is not None
@@ -143,14 +149,12 @@ class SingleTurn:
                     self.persona.summarization, conversation, response.usage
                 )
             ):
-                _create_summary(
+                summarize_conversation(
                     self.summary,
                     self.persona,
                     conversation,
-                    response.usage,
                     self.max_retries,
                 )
-            conversation.current_usage = response.usage.total_tokens
 
             # Return when no tools are called
             if message.tool_calls is None:
@@ -192,42 +196,3 @@ def _check_summarize_condition(
     if summarization_options.token_threshold is not None:
         return usage.total_tokens > summarization_options.token_threshold
     return False
-
-
-def _create_summary(
-    summarize: SummarizationEndpoint,
-    persona: Persona,
-    conversation: Conversation,
-    usage: UsageInfo,
-    max_retries: int,
-):
-    if persona.summarization is not None and _check_summarize_condition(
-        persona.summarization, conversation, usage
-    ):
-        logger.debug("Performing summarization")
-        summary_response = summarize.summarize(
-            persona.summarization.model or persona.model,
-            conversation.get_summary_messages(persona.summarization.keep),
-            (
-                SystemMessage(
-                    content=[TextChunk(type="text", text=persona.summarization.prompt)]
-                )
-                if persona.summarization.prompt is not None
-                else None
-            ),
-            persona.summarization.model_options or persona.model_options,
-            max_retries,
-            conversation.metadata,
-        )
-        summary = summary_response.choices[0].message
-        if summary.tool_calls:
-            logger.warning(
-                "Summary call returned with tool calls. This is not expected and the tool calls will be discarded."
-            )
-        if summary.content is None:
-            logger.warning("Summary call returned without content")
-        summary_tool_msg = ToolMessage(
-            content=[chunk for chunk in summary.content or []]
-        )
-        conversation.update_summary(summary_tool_msg, persona.summarization.keep)
-        logger.debug("Updated summary")

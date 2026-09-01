@@ -19,10 +19,6 @@ from . import logger
 
 
 class LoopBehaviour:
-    persona: Persona
-    persona_id: str
-    turn: SingleTurn
-    running: bool
 
     def __init__(
         self,
@@ -54,6 +50,10 @@ class LoopBehaviour:
         self.max_retries = max_retries
 
         self.running = False
+        self.persona: Persona
+        self.persona_id: str
+        self.turn: SingleTurn
+        self.running: bool
         self.set_persona(persona_id, False)
         self.set_conversation(conversation)
 
@@ -98,7 +98,7 @@ class LoopBehaviour:
             stream=self.stream,
             allow_shell_executions=self.allow_shell_executions,
             max_retries=self.max_retries,
-            runtime=self.runtime
+            runtime=self.runtime,
         )
 
     def run(self):

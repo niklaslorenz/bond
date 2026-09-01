@@ -51,7 +51,7 @@ class Conversation(BaseModel):
     name: str | None = None
     current_persona: str | None = None
     metadata: ConversationMetadata = field(default_factory=ConversationMetadata)
-    summary: ToolMessage | None = None
+    summary: str | None = None
     summary_index: int = 0
     current_usage: int = 0
 
@@ -62,32 +62,38 @@ class Conversation(BaseModel):
         if keep <= 0:
             raise ValueError(f"keep must be a positive integer")
         recent_messages: list[Message] = [
-            m.message
-            for m in self.history[self.summary_index : -keep]
-            if m.message.role != "system"
+            m.message for m in self.history[self.summary_index : -keep]
         ]
-        return (
-            recent_messages
-            if self.summary is None
-            else [self.summary] + recent_messages
-        )
+        return self._merge_summary(recent_messages)
 
     def get_chat_completion_messages(self) -> list[Message]:
         recent_messages: list[Message] = [
-            m.message
-            for m in self.history[self.summary_index :]
-            if m.message.role != "system"
+            m.message for m in self.history[self.summary_index :]
         ]
-        return (
-            recent_messages
-            if self.summary is None
-            else [self.summary] + recent_messages
-        )
+        return self._merge_summary(recent_messages)
+
+    def _merge_summary(self, recent_messages: list[Message]) -> list[Message]:
+        if self.summary is None:
+            return recent_messages
+        if len(recent_messages) == 0:
+            return [UserMessage(content=[TextChunk(text=self.summary)])]
+        if isinstance(recent_messages[0], UserMessage):
+            if recent_messages[0].content is None:
+                recent_messages[0] = UserMessage(content=[TextChunk(text=self.summary)])
+            else:
+                recent_messages[0] = UserMessage(
+                    content=[TextChunk(text=self.summary)] + recent_messages[0].content
+                )
+        else:
+            recent_messages = [
+                UserMessage(content=[TextChunk(text=self.summary)])
+            ] + recent_messages
+        return recent_messages
 
     def num_unsummarized_messages(self) -> int:
         return len(self.history) - self.summary_index
 
-    def update_summary(self, new_summary: ToolMessage, keep: int):
+    def update_summary(self, new_summary: str, keep: int):
         if keep <= 0:
             raise ValueError(f"keep must be a positive integer")
         self.summary = new_summary
