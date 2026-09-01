@@ -3,15 +3,9 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from bond.conversation.types import (
-    ConversationMetadata,
-    Message,
-    SystemMessage,
-    TextChunk,
-    ToolCall,
-    ToolMessage,
-    UserMessage,
-)
+from bond.conversation.types import (ConversationMetadata, Message,
+                                     SystemMessage, TextChunk, ToolCall,
+                                     ToolMessage, UserMessage)
 
 # TODO: Add a size attribute to the history objects and update them
 # whenever a prompt returns a usage report.
@@ -70,9 +64,8 @@ class Conversation(BaseModel):
             if m.message.role != "system" or not skip_system_messages
         ]
 
-    def save_to_file(self, path: Path, create_dir: bool = False):
-        if not path.parent.exists() and create_dir:
-            path.parent.mkdir(parents=True, exist_ok=True)
+    def save_to_file(self, path: Path):
+        path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(self.model_dump_json(), encoding="utf-8")
 
     @classmethod
