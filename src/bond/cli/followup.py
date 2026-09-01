@@ -1,5 +1,7 @@
+from argparse import ArgumentParser
 from pathlib import Path
 
+from bond import util
 from bond.behaviours.loop import LoopBehaviour
 from bond.config import BondConfig, get_default_persona
 from bond.conversation.conversation import Conversation
@@ -13,6 +15,12 @@ from bond.tools.tool import ToolCallContext
 def main():
     show_thoughts = False
     show_tool_output = False
+
+    parser = ArgumentParser()
+    parser.add_argument("--debug", action="store_true")
+
+    args = parser.parse_args()
+    util.setup_logger(args.debug, "chat.log")
 
     conv_path = Path("~/.local/share/bond").expanduser().absolute()
     env_path = Path("~/.config/bond/").expanduser().absolute()

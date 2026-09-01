@@ -5,6 +5,7 @@ from argparse import ArgumentParser
 from pathlib import Path
 from queue import Queue
 
+from bond import util
 from bond.behaviours.loop import LoopBehaviour
 from bond.behaviours.types import BehaviourEvent, BehaviourSignal
 from bond.config import BondConfig, get_default_persona
@@ -18,17 +19,6 @@ from bond.tui.environment.tui_signal_receiver import TuiSignalReceiver
 from bond.tui.types import ITuiEvent
 
 logger = logging.getLogger("bond")
-
-
-def setup_logger():
-    debug_dir = Path("~/.local/share/bond/logs/").expanduser().absolute()
-    debug_dir.mkdir(parents=True, exist_ok=True)
-    logging.basicConfig(
-        filename=(debug_dir / "app.log").as_posix(),
-        level=logging.INFO,
-        format="%(asctime)s - %(levelname)s - %(message)s",
-    )
-    logger.setLevel(logging.DEBUG)
 
 
 async def run():
@@ -98,8 +88,7 @@ def main():
     parser = ArgumentParser()
     parser.add_argument("--debug", action="store_true")
     args = parser.parse_args()
-    if args.debug:
-        setup_logger()
+    util.setup_logger(args.debug, "talk.log")
     asyncio.run(run())
 
 

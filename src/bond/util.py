@@ -2,6 +2,8 @@ import email.utils
 import logging
 import os
 from datetime import datetime, timezone
+from logging.handlers import TimedRotatingFileHandler
+from pathlib import Path
 from time import sleep
 from typing import Callable
 
@@ -82,3 +84,22 @@ def parse_sse_stream(stream):
         event_data = b"\n".join(event_buffer).decode("utf-8")
         if event_data.startswith("data:"):
             yield event_data[5:].strip()
+
+
+def setup_logger(debug: bool, log_file_name: str):
+    logger = logging.getLogger("bond")
+    log_dir = Path("~/.local/share/bond/logs/").expanduser().absolute()
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    logger.handlers.clear()
+    handler = TimedRotatingFileHandler(
+        filename=(log_dir / log_file_name).as_posix(),
+        when="midnight",
+        interval=1,
+        backupCount=10,
+        encoding="utf-8",
+    )
+    formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(logging.DEBUG if debug else logging.INFO)
