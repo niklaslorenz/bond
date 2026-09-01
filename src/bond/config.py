@@ -34,4 +34,7 @@ class BondConfig(BaseModel):
 
     @classmethod
     def load_from(cls, config_path: Path) -> "BondConfig":
-        return BondConfig.model_validate_json(config_path.read_text())
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        if not config_path.exists():
+            return BondConfig()
+        return BondConfig.model_validate_json(config_path.read_text(encoding="utf-8"))
