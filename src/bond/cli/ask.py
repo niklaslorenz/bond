@@ -3,6 +3,7 @@ import sys
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
 
+from bond import util
 from bond.behaviours.single_turn import SingleTurn
 from bond.config import BondConfig, get_default_persona
 from bond.conversation.conversation import Conversation, ConversationMessage
@@ -40,8 +41,10 @@ def main():
     parser.add_argument("--output-file", "-o", type=str)
     parser.add_argument("--no-stream", action="store_true")
     parser.add_argument("--no-save", action="store_true")
+    parser.add_argument("--debug", action="store_true")
 
     args = parser.parse_args()
+    util.setup_logger(args.debug, "ask.log")
     request: str = args.first if args.second is None else args.second
     show_thoughts: bool = args.show_thoughts
     show_tool_output: bool = args.show_tool_output

@@ -1,17 +1,15 @@
 from typing import Callable
 
-from bond.behaviours.behaviour_event import (
-    ChangePersonaEvent,
-    CommandResponseEvent,
-    ErrorEvent,
-    NotifyEvent,
-    RestoreConversationEvent,
-    StopEvent,
-    WaitingForInputEvent,
-)
-from bond.behaviours.behaviour_signal import CommandSignal, PromptSignal, StopSignal
+from bond.behaviours.behaviour_event import (ChangePersonaEvent,
+                                             CommandResponseEvent, ErrorEvent,
+                                             NotifyEvent,
+                                             RestoreConversationEvent,
+                                             StopEvent, WaitingForInputEvent)
+from bond.behaviours.behaviour_signal import (CommandSignal, PromptSignal,
+                                              StopSignal)
 from bond.behaviours.single_turn import SingleTurn
-from bond.behaviours.types import IBehaviourEventHandler, IBehaviourSignalReceiver
+from bond.behaviours.types import (IBehaviourEventHandler,
+                                   IBehaviourSignalReceiver)
 from bond.conversation.conversation import Conversation, ConversationMessage
 from bond.persona import Persona
 from bond.runtime import BondRuntime

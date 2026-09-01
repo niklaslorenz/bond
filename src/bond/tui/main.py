@@ -5,6 +5,7 @@ from argparse import ArgumentParser, Namespace
 from pathlib import Path
 from queue import Queue
 
+from bond import util
 from bond.behaviours.loop import LoopBehaviour
 from bond.behaviours.types import BehaviourEvent, BehaviourSignal
 from bond.config import BondConfig, get_default_persona
@@ -44,10 +45,14 @@ async def run(args: Namespace):
     runtime = BondRuntime.get_instance()
     runtime.initialize_dynamic(config_base_path)
     conversation = (
-        Conversation.model_validate_json(last_conv_path.read_text())
-        if last_conv_path.is_file()
+        (
+            Conversation.model_validate_json(last_conv_path.read_text())
+            if last_conv_path.is_file()
+            else Conversation()
+        )
+        if not args.temp
         else Conversation()
-    ) if not args.temp else Conversation()
+    )
 
     state_machine = DefaultTuiStateMachine(
         signal_queue=signal_queue,
