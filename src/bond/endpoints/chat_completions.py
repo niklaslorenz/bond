@@ -1,6 +1,6 @@
 import functools
 from collections import defaultdict
-from typing import Callable, Literal, Protocol
+from typing import Any, Callable, Literal, Protocol
 
 from pydantic import BaseModel, field_validator
 
@@ -65,14 +65,14 @@ class CompletionChunk(BaseModel):
 ChatCompletionStreamCallback = Callable[[CompletionChunk], None]
 
 
-class ChatCompletionsEndpoint[ModelOptions: BaseModel](Protocol):
+class ChatCompletionsEndpoint(Protocol):
     def chat_completion(
         self,
         model: str,
         messages: list[Message],
         tools: list[Tool],
         system_message: SystemMessage | None = None,
-        options: ModelOptions | None = None,
+        options: dict[str, Any] | None = None,
         max_retries: int = 10,
         conversation_metadata: ConversationMetadata | None = None,
     ) -> CompletionResponse: ...
@@ -83,7 +83,7 @@ class ChatCompletionsEndpoint[ModelOptions: BaseModel](Protocol):
         tools: list[Tool],
         callback: ChatCompletionStreamCallback,
         system_message: SystemMessage | None = None,
-        options: ModelOptions | None = None,
+        options: dict[str, Any] | None = None,
         max_retries: int = 10,
         conversation_metadata: ConversationMetadata | None = None,
     ) -> CompletionResponse: ...

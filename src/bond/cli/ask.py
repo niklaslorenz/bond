@@ -72,8 +72,6 @@ def main():
             f"not a valid persona: {persona_id}. Available personas: {'\n'.join(config.ask.personas)}"
         )
     persona = runtime.get_persona(persona_id)
-    provider = runtime.get_provider(persona.provider)
-    toolbox = Toolbox(runtime.get_tools(persona.toolbox))
 
     # Setup conversation
     conversation = Conversation()
@@ -95,16 +93,14 @@ def main():
     # Setup turn
     allow_shell = "shell" in persona.toolbox
     turn = SingleTurn(
-        provider=provider,
-        model=persona.model,
+        persona=persona,
         event_handler=event_handler,
         signal_receiver=signal_receiver,
         tool_call_context=tool_call_context,
-        system_message=persona.system_prompt,
-        toolbox=toolbox,
-        model_display_name=persona.name,
         stream=stream,
         allow_shell_executions=allow_shell,
+        max_retries=10,
+        runtime=runtime,
     )
     signal_receiver.link(lambda: persona.name)
 

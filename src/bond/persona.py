@@ -1,7 +1,26 @@
 import json
 from typing import Any, ClassVar
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+
+class SummarizationOptions[ModelOptions: BaseModel](BaseModel):
+    model: str | None = None
+    """The model to use for summarization. Falls back to the persona model if not specified."""
+    auto_summarize: bool = False
+    """If set, summarization is """
+    keep: int = 10
+    """The number of last messages to not summarize and keep as is"""
+    token_threshold: int | None = None
+    """The total number of tokens in the last completion that will trigger a summarization"""
+    min_unsummarized_messages: int = 10
+    """The minumum number of unsummarized messages that need to exist before a summarization is triggered (takes precedence over token_threshold)"""
+    max_unsummarized_messages: int = 30
+    """The maximum number of unsummarized messages that can exist before a summarization is triggered (takes precedence over min_summarized_messages)"""
+    prompt: str | None = None
+    """System prompt that is used for the summarization task"""
+    model_options: ModelOptions | None = None
+    """Model options for summarization"""
 
 
 class Persona(BaseModel):
@@ -33,8 +52,9 @@ class Persona(BaseModel):
     model: str
     provider: str
     system_prompt: str | None = None
-    toolbox: list[str] = []
-    model_options: dict[str, Any] = {}
+    toolbox: list[str] = Field(default_factory=list)
+    model_options: dict[str, Any] = Field(default_factory=dict)
+    summarization: SummarizationOptions | None = None
 
     @classmethod
     def get_type(cls) -> str:
