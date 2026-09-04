@@ -3,4 +3,5 @@
 *.egg-info/
 **/scratch.py
 build/
+/.conversations/
 

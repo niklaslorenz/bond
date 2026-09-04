@@ -1,0 +1,13 @@
+
+[language-server.basedpyright]
+command = ".venv/bin/basedpyright-langserver"
+args = ["--stdio"]
+
+[language-server.basedpyright.config]
+basedpyright.analysis.diagnosticMode = "workspace"
+
+[[language]]
+name = "python"
+language-servers = ["basedpyright"]
+formatter = { command = "sh", args = ["-c", ".venv/bin/isort - | .venv/bin/black -"] }
+auto-format = true

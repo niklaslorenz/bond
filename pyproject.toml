@@ -19,6 +19,13 @@ dependencies = [
     "textual>=8.2.0",
 ]
 
+[dependency-groups]
+dev = [
+    "basedpyright>=1.39.10",
+    "black>=26.5.1",
+    "isort>=8.0.1",
+]
+
 [project.urls]
 "Homepage" = "https://github.com/niklaslorenz/bond"
 "Bug Tracker" = "https://github.com/niklaslorenz/bond/issues"
@@ -35,5 +42,17 @@ talk = "bond.tui.main:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
-[tool.pyright]
+[tool.basedpyright]
+include = ["src"]
+exclude = ["**/__pycache__", ".venv"]
 typeCheckingMode = "basic"
+venvPath = "."
+venv=".venv"
+extraPaths = ["src"]
+
+[tool.black]
+line-length = 88
+
+[tool.isort]
+profile = "black"
+line_length = 88
