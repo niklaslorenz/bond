@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import threading
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
 from pathlib import Path
 from queue import Queue
 
@@ -31,7 +31,7 @@ def setup_logger():
     logger.setLevel(logging.DEBUG)
 
 
-async def run():
+async def run(args: Namespace):
     signal_queue: Queue[BehaviourSignal] = Queue()
     event_queue: Queue[BehaviourEvent | ITuiEvent] = Queue()
 
@@ -47,7 +47,7 @@ async def run():
         Conversation.model_validate_json(last_conv_path.read_text())
         if last_conv_path.is_file()
         else Conversation()
-    )
+    ) if not args.temp else Conversation()
 
     state_machine = DefaultTuiStateMachine(
         signal_queue=signal_queue,
@@ -65,7 +65,7 @@ async def run():
         conversation_base_path=conversation_base_path,
         last_conv_path=last_conv_path,
         available_personas=config.chat.personas,
-        save_on_quit=True,
+        save_on_quit=not args.temp,
     )
 
     persona_id = get_default_persona(config.chat)
@@ -97,10 +97,11 @@ async def run():
 def main():
     parser = ArgumentParser()
     parser.add_argument("--debug", action="store_true")
+    parser.add_argument("--temp", "-t", action="store_true")
     args = parser.parse_args()
     if args.debug:
         setup_logger()
-    asyncio.run(run())
+    asyncio.run(run(args))
 
 
 if __name__ == "__main__":
