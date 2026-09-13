@@ -5,15 +5,25 @@ from urllib.parse import urljoin
 import requests
 from pydantic import BaseModel
 
-from bond.conversation.types import (AssistantMessage, ConversationMetadata,
-                                     Message, SystemMessage, TextChunk,
-                                     ThinkChunk, ToolCall, ToolMessage,
-                                     UsageInfo, UserMessage)
-from bond.endpoints.chat_completions import (ChatCompletionStreamCallback,
-                                             CompletionChoice,
-                                             CompletionResponse, FinishReason)
-from bond.endpoints.model_options import merge_options
-from bond.providers.ollama.config import OllamaConfig, OllamaModelOptions
+from bond.conversation.types import (
+    AssistantMessage,
+    ConversationMetadata,
+    Message,
+    SystemMessage,
+    TextChunk,
+    ThinkChunk,
+    ToolCall,
+    ToolMessage,
+    UsageInfo,
+    UserMessage,
+)
+from bond.endpoints.chat_completions import (
+    ChatCompletionStreamCallback,
+    CompletionChoice,
+    CompletionResponse,
+    FinishReason,
+)
+from bond.providers.ollama.config import OllamaConfig
 from bond.tools.tool import Tool
 from bond.util import http_retry_loop, resolve_api_key
 

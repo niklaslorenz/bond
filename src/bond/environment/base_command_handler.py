@@ -10,7 +10,6 @@ from bond.behaviours.loop import LoopBehaviour
 from bond.behaviours.types import IBehaviourEventHandler
 from bond.conversation.conversation import Conversation
 from bond.conversation.types import AssistantMessage
-from bond.endpoints.summarization import summarize_conversation
 from bond.environment.types import IBehaviourSignalHandler
 from bond.runtime import BondRuntime
 
@@ -167,17 +166,13 @@ class BaseCommandHandler:
         if summarization_options is None:
             self.notify("Summarization is disabled for this persona")
             return
-        provider = BondRuntime.get_instance().get_provider(self.beh.persona.provider)
-        summarization = provider.summarization()
+        summarization = self.beh.summarize
         if summarization is None:
             self.notify(
                 f"Summarization is not possible with this provider: {self.beh.persona.provider}"
             )
             return
-        summarize_conversation(
-            summarization, self.beh.persona, self.beh.conversation, self.beh.max_retries
-        )
-        pass
+        summarization(self.beh.conversation)
 
     # Helper methods
 

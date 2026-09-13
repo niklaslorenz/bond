@@ -4,11 +4,14 @@ from uuid import uuid4
 import requests
 
 from bond.conversation.types import ConversationMetadata, SystemMessage
-from bond.endpoints.chat_completions import (ChatCompletionStreamCallback,
-                                             CompletionChunk,
-                                             CompletionResponse, Message, Tool,
-                                             build_response)
-from bond.endpoints.model_options import merge_options
+from bond.endpoints.chat_completions import (
+    ChatCompletionStreamCallback,
+    CompletionChunk,
+    CompletionResponse,
+    Message,
+    Tool,
+    build_response,
+)
 from bond.providers.mistral.config import MistralConfig
 from bond.util import http_retry_loop, parse_sse_stream, resolve_api_key
 

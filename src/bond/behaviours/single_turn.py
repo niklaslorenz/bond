@@ -1,7 +1,8 @@
 import logging
 
-from returns.result import Success
+from returns.result import Failure, Result, Success
 
+from bond.behaviours.auto_summarize import AutoSummarize
 from bond.behaviours.behaviour_event import (
     AppendMessageChunkEvent,
     CallToolEvent,
@@ -14,14 +15,11 @@ from bond.behaviours.behaviour_signal import InterruptSignal
 from bond.behaviours.types import IBehaviourEventHandler, IBehaviourSignalReceiver
 from bond.conversation.conversation import Conversation, ConversationMessage
 from bond.conversation.types import (
-    AssistantMessage,
     FunctionCall,
-    SystemMessage,
-    UsageInfo,
 )
-from bond.endpoints.summarization import summarize_conversation
-from bond.persona import Persona, SummarizationOptions
-from bond.providers.provider import Provider
+from bond.providers.provider import (
+    ConversationPromptingStrategy,
+)
 from bond.runtime import BondRuntime
 from bond.tools.shell_tools import allow_shell_commands
 from bond.tools.tool import ToolCallContext
@@ -44,155 +42,85 @@ def _do_tool_call(
 class SingleTurn:
     def __init__(
         self,
-        persona: Persona,
+        conversation_prompt: ConversationPromptingStrategy,
+        auto_summarize: AutoSummarize | None,
+        author_name: str,
         event_handler: IBehaviourEventHandler,
         signal_receiver: IBehaviourSignalReceiver,
         tool_call_context: ToolCallContext,
+        toolbox: Toolbox,
         stream: bool = False,
         allow_shell_executions: bool = False,
-        max_retries: int = 10,
         runtime: BondRuntime | None = None,
     ):
-        self.persona = persona
-        self.event_handler = event_handler
-        self.signal_receiver = signal_receiver
-        self.tool_call_context = tool_call_context
-        self.stream = stream
-        self.allow_shell_executions = allow_shell_executions
-        self.max_retries = max_retries
-        self.runtime = runtime or BondRuntime.get_instance()
+        self._conversation_prompt = conversation_prompt
+        self._auto_summarize = auto_summarize
+        self._author_name = author_name
+        self._event_handler = event_handler
+        self._signal_receiver = signal_receiver
+        self._tool_call_context = tool_call_context
+        self._toolbox = toolbox
+        self._stream = stream
+        self._allow_shell_executions = allow_shell_executions
+        self._runtime = runtime or BondRuntime.get_instance()
 
-        self.provider: Provider = self.runtime.get_provider(persona.provider)
-        self.toolbox = Toolbox(self.runtime.get_tools(persona.toolbox))
-        self.tool_descriptions = self.toolbox.get_tool_descriptions()
+        self._tool_descriptions = self._toolbox.get_tool_descriptions()
 
-        self.completions = self.provider.chat_completions()
-        self.summary = self.provider.summarization()
-
-        if stream and not self.completions.supports_streaming():
-            raise RuntimeError(
-                "The provider does not support streaming for chat completions"
-            )
-
-        if persona.summarization is not None and self.summary is None:
-            logger.error(
-                f"The provider does not support summarization while the persona {persona.name} expects it"
-            )
-
-    def run(self, conversation: Conversation) -> Conversation:
+    def run(self, conversation: Conversation) -> Result[None, str]:
+        stream_callback = (
+            (lambda chunk: self._event_handler(AppendMessageChunkEvent(chunk=chunk)))
+            if self._stream
+            else None
+        )
         while True:
-            signal = self.signal_receiver.peek()
+            signal = self._signal_receiver.peek()
             if signal is not None and isinstance(signal, InterruptSignal):
-                self.signal_receiver.get()
-                return conversation
+                self._signal_receiver.get()
+                return Success(None)
 
-            system_msg = (
-                SystemMessage.create(self.persona.system_prompt)
-                if self.persona.system_prompt is not None
-                else None
+            if self._stream:
+                self._event_handler(
+                    ResponseStartEvent(author=self._author_name, role="assistant")
+                )
+            response = self._conversation_prompt(conversation, stream_callback)
+            if isinstance(response, Failure):
+                return response
+            response = response.unwrap()
+            self._event_handler(
+                ResponseEndEvent(usage=response.usage)
+                if self._stream
+                else FullResponseEvent(
+                    author=self._author_name, role="assistant", response=response
+                )
             )
-            if self.stream:
-                self.event_handler(
-                    ResponseStartEvent(
-                        author=self.persona.name or "Assistant", role="assistant"
-                    )
-                )
-                response = self.completions.stream_chat_completion(
-                    self.persona.model,
-                    conversation.get_chat_completion_messages(),
-                    tools=self.tool_descriptions,
-                    callback=lambda chunk: self.event_handler(
-                        AppendMessageChunkEvent(chunk=chunk)
-                    ),
-                    system_message=system_msg,
-                    options=self.persona.model_options,
-                    max_retries=self.max_retries,
-                    conversation_metadata=conversation.metadata,
-                )
-                self.event_handler(ResponseEndEvent(usage=response.usage))
-            else:
-                response = self.completions.chat_completion(
-                    self.persona.model,
-                    conversation.get_chat_completion_messages(),
-                    tools=self.tool_descriptions,
-                    system_message=system_msg,
-                    options=self.persona.model_options,
-                    max_retries=self.max_retries,
-                    conversation_metadata=conversation.metadata,
-                )
-                self.event_handler(
-                    FullResponseEvent(
-                        author=self.persona.name or "Assistant",
-                        role="assistant",
-                        response=response,
-                    )
-                )
 
-            if len(response.choices) == 0:
-                raise RuntimeError(f"Received empty response: {response}")
+            if self._auto_summarize is not None:
+                result = self._auto_summarize.run(conversation)
+                if isinstance(result, Failure):
+                    logger.warning(
+                        f"Could not create summarization: {result.failure()}"
+                    )
+
             message = response.choices[0].message
-            conversation.add_message(
-                ConversationMessage(
-                    author=self.persona.name or self.persona.model,
-                    message=AssistantMessage(
-                        content=message.content, tool_calls=message.tool_calls
-                    ),
-                )
-            )
-            conversation.current_usage = response.usage.total_tokens
-
-            if (
-                self.summary is not None
-                and self.persona.summarization is not None
-                and self.persona.summarization.auto_summarize
-                and _check_summarize_condition(
-                    self.persona.summarization, conversation, response.usage
-                )
-            ):
-                summarize_conversation(
-                    self.summary,
-                    self.persona,
-                    conversation,
-                    self.max_retries,
-                )
 
             # Return when no tools are called
             if message.tool_calls is None:
-                return conversation
+                return Success(None)
 
             # Handle Tool calls
             for tool_call in message.tool_calls:
-                self.event_handler(CallToolEvent(call=tool_call))
-                if self.allow_shell_executions:
+                self._event_handler(CallToolEvent(call=tool_call))
+                if self._allow_shell_executions:
                     with allow_shell_commands():
                         result = _do_tool_call(
-                            self.toolbox, tool_call.function, self.tool_call_context
+                            self._toolbox, tool_call.function, self._tool_call_context
                         )
                 else:
                     result = _do_tool_call(
-                        self.toolbox, tool_call.function, self.tool_call_context
+                        self._toolbox, tool_call.function, self._tool_call_context
                     )
 
-                self.event_handler(ToolReturnEvent(result=result))
+                self._event_handler(ToolReturnEvent(result=result))
                 conversation.add_message(
                     ConversationMessage.create_tool_response_message(result, tool_call)
                 )
-
-
-def _check_summarize_condition(
-    summarization_options: SummarizationOptions | None,
-    conversation: Conversation,
-    usage: UsageInfo,
-) -> bool:
-    if summarization_options is None:
-        return False
-    n_unsummarized = (
-        conversation.num_unsummarized_messages() - summarization_options.keep
-    )
-    if n_unsummarized > summarization_options.max_unsummarized_messages:
-        return True
-    if n_unsummarized < summarization_options.min_unsummarized_messages:
-        return False
-    if summarization_options.token_threshold is not None:
-        return usage.total_tokens > summarization_options.token_threshold
-    return False

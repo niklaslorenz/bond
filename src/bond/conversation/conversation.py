@@ -3,9 +3,15 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from bond.conversation.types import (ConversationMetadata, Message,
-                                     SystemMessage, TextChunk, ToolCall,
-                                     ToolMessage, UserMessage)
+from bond.conversation.types import (
+    ConversationMetadata,
+    Message,
+    SystemMessage,
+    TextChunk,
+    ToolCall,
+    ToolMessage,
+    UserMessage,
+)
 
 # TODO: Add a size attribute to the history objects and update them
 # whenever a prompt returns a usage report.

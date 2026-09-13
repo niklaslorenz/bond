@@ -4,25 +4,26 @@ from typing import Any, ClassVar
 from pydantic import BaseModel, Field
 
 
-class SummarizationOptions[ModelOptions: BaseModel](BaseModel):
+class AutoSummarization(BaseModel):
+    token_threshold: int | None = None
+    """Number of input and output tokens that triggers an automatic summarization at the end ot the turn."""
+    min_messages: int = 10
+    """Minimum number of messages required to trigger an automatic summarization. Takes precedence over token_threshold"""
+    max_messages: int = 30
+    """Maximum number of messages before triggering an automatic summarization. Takes precedence over token_threshold"""
+
+
+class SummarizationOptions(BaseModel):
+    instruction: str
+    """System prompt that is used for the summarization task"""
     model: str | None = None
     """The model to use for summarization. Falls back to the persona model if not specified."""
-    auto_summarize: bool = False
-    """If set, summarization is """
     keep: int = 10
     """The number of last messages to not summarize and keep as is"""
-    token_threshold: int | None = None
-    """The total number of tokens in the last completion that will trigger a summarization"""
-    min_unsummarized_messages: int = 10
-    """The minumum number of unsummarized messages that need to exist before a summarization is triggered (takes precedence over token_threshold)"""
-    max_unsummarized_messages: int = 30
-    """The maximum number of unsummarized messages that can exist before a summarization is triggered (takes precedence over min_summarized_messages)"""
-    system_prompt: str | None = None
-    """System prompt that is used for the summarization task"""
-    model_options: ModelOptions | None = None
+    model_options: dict[str, Any] | None = None
     """Model options for summarization"""
-    user_instruction: str | None = None
-    """The user message that is appended to the message list in order to instruct the model to create the summary"""
+    auto_summarize: AutoSummarization | None = None
+    """Options for automatic summarization"""
 
 
 class Persona(BaseModel):

@@ -1,12 +1,20 @@
 from typing import Type
 
-from bond.conversation.types import (Message, ReferenceChunk, TextChunk,
-                                     ThinkChunk, ToolReferenceChunk)
-from bond.endpoints.summarization import SummarizationEndpoint
-from bond.providers.general.summarization import GenericSummarizationEndpoint
+from bond.conversation.types import (
+    Message,
+    ReferenceChunk,
+    TextChunk,
+    ThinkChunk,
+    ToolReferenceChunk,
+)
+from bond.persona import Persona
+from bond.providers.general.default_conversation_prompting import (
+    DefaultConversationPromptingStrategy,
+)
 from bond.providers.ollama.chat_completions import OllamaChatCompletions
 from bond.providers.ollama.config import OllamaConfig
 from bond.providers.ollama.models import OllamaModels
+from bond.tools.toolbox import Toolbox
 
 
 def _parse_text_like_chunks(
@@ -45,20 +53,28 @@ class Ollama:
         self.config = config
         self._models = OllamaModels(config)
         self._chat_completions = OllamaChatCompletions(config)
-        self._summarize = (
-            GenericSummarizationEndpoint(self._chat_completions)
-            if config.summarization is not None
-            else None
-        )
-
-    def summarization(self) -> SummarizationEndpoint | None:
-        return self._summarize
 
     def models(self) -> OllamaModels:
         return self._models
 
     def chat_completions(self) -> OllamaChatCompletions:
         return self._chat_completions
+
+    def conversation_summarization(self, persona: Persona):
+        return None
+
+    def conversation_prompting(
+        self, persona: Persona, toolbox: Toolbox
+    ) -> DefaultConversationPromptingStrategy:
+        return DefaultConversationPromptingStrategy(
+            persona.model,
+            persona.model_options,
+            persona.system_prompt,
+            toolbox.get_tool_descriptions(),
+            10,
+            persona.name,
+            self.chat_completions(),
+        )
 
     @classmethod
     def get_config_type(cls) -> Type[OllamaConfig]:

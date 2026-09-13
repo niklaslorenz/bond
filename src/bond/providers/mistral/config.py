@@ -1,4 +1,3 @@
-from dataclasses import field
 from typing import Literal
 
 from pydantic import BaseModel
@@ -15,4 +14,4 @@ class MistralConfig(BaseModel):
     api_key: str
     models: list[str] | None = None
     chat_completion_options: MistralModelOptions | None = None
-    summarization: SummarizationOptions[MistralModelOptions] | None = None
+    summarization: SummarizationOptions | None = None

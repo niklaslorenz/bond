@@ -5,7 +5,6 @@ from argparse import ArgumentParser, Namespace
 from pathlib import Path
 from queue import Queue
 
-from bond import util
 from bond.behaviours.loop import LoopBehaviour
 from bond.behaviours.types import BehaviourEvent, BehaviourSignal
 from bond.config import BondConfig, get_default_persona

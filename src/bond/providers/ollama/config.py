@@ -23,4 +23,4 @@ class OllamaConfig(BaseModel):
     models: list[str] | None = None
     chat_completion_options: OllamaModelOptions | None = None
     max_context_length: int = 8192
-    summarization: SummarizationOptions[OllamaModelOptions] | None = None
+    summarization: SummarizationOptions | None = None

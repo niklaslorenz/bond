@@ -1,10 +1,17 @@
 import os
 from typing import Type
 
-from bond.providers.general.summarization import GenericSummarizationEndpoint
+from bond.persona import Persona
+from bond.providers.general.default_conversation_prompting import (
+    DefaultConversationPromptingStrategy,
+)
 from bond.providers.mistral.chat_completions import MistralChatCompletions
-from bond.providers.mistral.config import MistralConfig, MistralModelOptions
+from bond.providers.mistral.config import MistralConfig
+from bond.providers.mistral.conversation_summary import (
+    MistralConversationSummarizationStrategy,
+)
 from bond.providers.mistral.models import MistralModels
+from bond.tools.toolbox import Toolbox
 
 
 class Mistral:
@@ -12,11 +19,6 @@ class Mistral:
         self.config = config
         self._chat_completions = MistralChatCompletions(self.config)
         self._models = MistralModels(self.config)
-        self._summarization = (
-            GenericSummarizationEndpoint(self._chat_completions)
-            if self.config.summarization is not None
-            else None
-        )
 
     def chat_completions(self) -> MistralChatCompletions:
         return self._chat_completions
@@ -24,8 +26,36 @@ class Mistral:
     def models(self) -> MistralModels:
         return self._models
 
-    def summarization(self) -> GenericSummarizationEndpoint | None:
-        return self._summarization
+    def conversation_summarization(
+        self, persona: Persona
+    ) -> MistralConversationSummarizationStrategy | None:
+        if persona.summarization is None:
+            return None
+        options = persona.summarization
+        return MistralConversationSummarizationStrategy(
+            options.model or persona.model,
+            options.model_options,
+            options.instruction,
+            options.keep,
+            10,
+            self.chat_completions(),
+        )
+
+    def conversation_prompting(
+        self,
+        persona: Persona,
+        toolbox: Toolbox,
+    ) -> DefaultConversationPromptingStrategy:
+        assert persona.provider == "mistral"
+        return DefaultConversationPromptingStrategy(
+            persona.model,
+            persona.model_options,
+            persona.system_prompt,
+            toolbox.get_tool_descriptions(),
+            10,
+            persona.name,
+            self.chat_completions(),
+        )
 
     @classmethod
     def default(cls) -> "Mistral":

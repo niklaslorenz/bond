@@ -3,9 +3,12 @@ from argparse import Namespace, _SubParsersAction
 from pathlib import Path
 
 from bond.behaviours.types import IBehaviourEventHandler
-from bond.conversation.types import (AssistantMessage, SystemMessage,
-                                     TextChunk, UserMessage,
-                                     parse_chunks_content)
+from bond.conversation.types import (
+    AssistantMessage,
+    SystemMessage,
+    UserMessage,
+    parse_chunks_content,
+)
 from bond.environment.base_command_handler import BaseCommandHandler
 from bond.environment.types import IBehaviourSignalHandler
 

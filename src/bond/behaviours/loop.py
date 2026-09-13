@@ -1,19 +1,24 @@
 from typing import Callable
 
-from bond.behaviours.behaviour_event import (ChangePersonaEvent,
-                                             CommandResponseEvent, ErrorEvent,
-                                             NotifyEvent,
-                                             RestoreConversationEvent,
-                                             StopEvent, WaitingForInputEvent)
-from bond.behaviours.behaviour_signal import (CommandSignal, PromptSignal,
-                                              StopSignal)
+from bond.behaviours.auto_summarize import AutoSummarize
+from bond.behaviours.behaviour_event import (
+    ChangePersonaEvent,
+    CommandResponseEvent,
+    ErrorEvent,
+    NotifyEvent,
+    RestoreConversationEvent,
+    StopEvent,
+    WaitingForInputEvent,
+)
+from bond.behaviours.behaviour_signal import CommandSignal, PromptSignal, StopSignal
 from bond.behaviours.single_turn import SingleTurn
-from bond.behaviours.types import (IBehaviourEventHandler,
-                                   IBehaviourSignalReceiver)
+from bond.behaviours.types import IBehaviourEventHandler, IBehaviourSignalReceiver
 from bond.conversation.conversation import Conversation, ConversationMessage
 from bond.persona import Persona
+from bond.providers.provider import ConversationSummarizationStrategy
 from bond.runtime import BondRuntime
 from bond.tools.tool import ToolCallContext
+from bond.tools.toolbox import Toolbox
 
 from . import logger
 
@@ -51,6 +56,7 @@ class LoopBehaviour:
 
         self.running = False
         self.persona: Persona
+        self.summarize: ConversationSummarizationStrategy | None
         self.persona_id: str
         self.turn: SingleTurn
         self.running: bool
@@ -90,16 +96,42 @@ class LoopBehaviour:
         )
 
     def _build_turn(self):
+        provider = self.runtime.get_provider(self.persona.provider)
+        toolbox = Toolbox(self.runtime.get_tools(self.persona.toolbox))
+        prompting = provider.conversation_prompting(self.persona, toolbox)
+        if prompting is None:
+            raise ValueError("provider does not support conversation prompting")
+        if self.persona.summarization is not None:
+            summarize = provider.conversation_summarization(self.persona)
+            if summarize is None:
+                raise ValueError(
+                    "provider does not support summarization but the persona configures it"
+                )
+            auto_summarize = (
+                AutoSummarize(
+                    self.persona.summarization.auto_summarize,
+                    summarize,
+                    self.persona.summarization.keep,
+                )
+                if self.persona.summarization.auto_summarize is not None
+                else None
+            )
+        else:
+            summarize = None
+            auto_summarize = None
         self.turn = SingleTurn(
-            persona=self.persona,
+            conversation_prompt=prompting,
+            auto_summarize=auto_summarize,
+            author_name=self.persona.name,
             event_handler=self.event_handler,
             signal_receiver=self.signal_receiver,
             tool_call_context=self.tool_call_context,
+            toolbox=toolbox,
             stream=self.stream,
             allow_shell_executions=self.allow_shell_executions,
-            max_retries=self.max_retries,
             runtime=self.runtime,
         )
+        self.summarize = summarize
 
     def run(self):
         logger.info("Starting Loop Behaviour")
