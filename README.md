@@ -1,6 +1,22 @@
 # Bond
 
+Bond is an agent framework for the terminal. It provides different methods to interact with an agent and can be configured to fit your needs.
+
+## Personas
+
+Personas are at the heart of bond. For every persona, you can define:
+- Which model to use
+- The system prompt
+- The tools available to the agent
+- The context summarization behaviour
+- etc.
+
+Personas are also part of the plugin system, so they can be even more customizable
+
 ## Providers
+
+Providers are what gives you access to language models. You configure them with your access credentials
+so bond can work with its models.
 
 ### Mistral
 
