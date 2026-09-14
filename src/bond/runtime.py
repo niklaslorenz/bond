@@ -47,11 +47,15 @@ class RuntimeEnvironment(ABC):
     @abstractmethod
     def list_personas(self) -> list[str]: ...
     @abstractmethod
+    def list_skills(self) -> list[str]: ...
+    @abstractmethod
     def get_plugins(self) -> dict[str, BondPlugin]: ...
     @abstractmethod
     def load_provider(self, name: str, runtime: BondRuntime) -> Provider: ...
     @abstractmethod
     def load_persona(self, name: str, runtime: BondRuntime) -> Persona: ...
+    @abstractmethod
+    def load_skill(self, name: str, runtime: BondRuntime) -> str: ...
     @abstractmethod
     def get_data_dir(self) -> Path: ...
 
@@ -62,11 +66,13 @@ class StaticRuntimeEnvironment(RuntimeEnvironment):
         providers: dict[str, Provider],
         personas: dict[str, Persona],
         plugins: dict[str, BondPlugin],
+        skills: dict[str, str],
         data_dir: Path | None = None,
     ):
         self._providers = providers
         self._personas = personas
         self._plugins = plugins
+        self._skills = skills
         self._data_dir = data_dir or Path("~/.local/share/bond").expanduser().absolute()
 
     def list_providers(self) -> list[str]:
@@ -74,6 +80,9 @@ class StaticRuntimeEnvironment(RuntimeEnvironment):
 
     def list_personas(self) -> list[str]:
         return list(self._personas.keys())
+
+    def list_skills(self) -> list[str]:
+        return list(self._skills.keys())
 
     def get_plugins(self) -> dict[str, BondPlugin]:
         return self._plugins.copy()
@@ -83,6 +92,9 @@ class StaticRuntimeEnvironment(RuntimeEnvironment):
 
     def load_persona(self, name: str, runtime: BondRuntime) -> Persona:
         return self._personas[name]
+
+    def load_skill(self, name: str, runtime: BondRuntime) -> str:
+        return self._skills[name]
 
     def get_data_dir(self) -> Path:
         return self._data_dir
@@ -105,6 +117,14 @@ class DynamicRuntimeEnvironment(RuntimeEnvironment):
             f[:-5]
             for f in glob.glob(
                 "*.json", root_dir=(self._config_dir / "personas").as_posix()
+            )
+        ]
+
+    def list_skills(self) -> list[str]:
+        return [
+            f[:-3]
+            for f in glob.glob(
+                "*.md", root_dir=(self._config_dir / "skills").as_posix()
             )
         ]
 
@@ -155,19 +175,14 @@ class DynamicRuntimeEnvironment(RuntimeEnvironment):
 
     def load_persona(self, name: str, runtime: BondRuntime) -> Persona:
         path = self._config_dir / f"personas/{name}.json"
+        return Persona.from_file(path, runtime)
+        pass
+
+    def load_skill(self, name: str, runtime: BondRuntime) -> str:
+        path = self._config_dir / f"skills/{name}.md"
         if not path.exists():
-            raise ValueError(f"Invalid persona name: {name}. Path does not exist.")
-        data = json.loads(path.read_text(encoding="utf-8"))
-        if (persona_type_name := data.get("type")) is not None:
-            if (
-                persona_type := runtime._persona_type_registry.get(persona_type_name)
-            ) is None:
-                raise ValueError(
-                    f"Unknown persona type in {path}: {persona_type_name}. Valid values are {runtime._persona_type_registry.get_names()}"
-                )
-            return persona_type.model_validate(data)
-        else:
-            return Persona.model_validate(data)
+            raise ValueError(f"Invalid skill name: {name}. Path does not exist.")
+        return path.read_text(encoding="utf-8")
 
     def get_data_dir(self) -> Path:
         return Path("~/.local/share/bond").expanduser().absolute()
@@ -195,6 +210,7 @@ class BondRuntime:
         self._loaded_plugins = NamedEntryRegistry[BondPlugin]()
         self._loaded_providers = NamedEntryRegistry[Provider]()
         self._loaded_personas = NamedEntryRegistry[Persona]()
+        self._loaded_skills = NamedEntryRegistry[str]()
         self._environment: RuntimeEnvironment | None = None
         logger.debug("BondRuntime created")
 
@@ -203,8 +219,9 @@ class BondRuntime:
         providers: dict[str, Provider],
         personas: dict[str, Persona],
         plugins: dict[str, BondPlugin],
+        skills: dict[str, str],
     ) -> StaticRuntimeEnvironment:
-        self._environment = StaticRuntimeEnvironment(providers, personas, plugins)
+        self._environment = StaticRuntimeEnvironment(providers, personas, plugins, skills)
         self._register_builtin_toolsets()
         self._register_builtin_provider_types()
         self._load_plugins()
@@ -227,6 +244,9 @@ class BondRuntime:
 
     def list_plugins(self) -> list[str]:
         return self._plugin_registry.get_names()
+
+    def list_skills(self) -> list[str]:
+        return self._get_env().list_skills()
 
     def get_data_dir(self) -> Path:
         return self._get_env().get_data_dir()
@@ -293,6 +313,15 @@ class BondRuntime:
         provider = env.load_provider(provider_name, self)
         self._loaded_providers.register(provider_name, provider)
         return provider
+
+    def get_skill(self, skill_name: str) -> str:
+        """Get a skill by name, loading it if necessary"""
+        env = self._get_env()
+        if (skill := self._loaded_skills.get(skill_name)) is not None:
+            return skill
+        skill = env.load_skill(skill_name, self)
+        self._loaded_skills.register(skill_name, skill)
+        return skill
 
     def _register_builtin_toolsets(self):
         for k, v in _default_toolsets.items():

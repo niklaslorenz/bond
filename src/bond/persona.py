@@ -1,7 +1,13 @@
 import json
-from typing import Any, ClassVar
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import BaseModel, Field
+
+from bond.util import resolve_instruction
+
+if TYPE_CHECKING:
+    from bond.runtime import BondRuntime
 
 
 class AutoSummarization(BaseModel):
@@ -63,6 +69,29 @@ class Persona(BaseModel):
     def get_type(cls) -> str:
         """Get the type discriminator for this persona class."""
         return getattr(cls, "type", "default")
+
+    @classmethod
+    def from_file(cls, file: Path, runtime: "BondRuntime | None"):
+        if runtime is None:
+            from bond.runtime import BondRuntime
+            runtime = BondRuntime.get_instance()
+        if not file.exists():
+            raise ValueError(f"Could not load persona from file: '{file}'. Does not exist.")
+        data = json.loads(file.read_text(encoding="utf-8"))
+        if (persona_type_name := data.get("type")) is not None:
+            if (
+                persona_type := runtime._persona_type_registry.get(persona_type_name)
+            ) is None:
+                raise ValueError(
+                    f"Unknown persona type in {file}: {persona_type_name}. Valid values are {runtime._persona_type_registry.get_names()}"
+                )
+        else:
+            persona_type = Persona
+        persona = persona_type.model_validate(data)
+        if (summarization := persona.summarization) is not None:
+            summarization.instruction = resolve_instruction(summarization.instruction, runtime)
+        return persona
+        
 
     def model_dump_json(self, **kwargs) -> str:
         """Serialize to JSON, including the type discriminator."""

@@ -5,9 +5,12 @@ from datetime import datetime, timezone
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 from time import sleep
-from typing import Callable
+from typing import Callable, TYPE_CHECKING
 
 import requests
+
+if TYPE_CHECKING:
+    from bond.runtime import BondRuntime
 
 _retry_codes: list[int] = [408, 429, 500, 502, 503, 504]
 
@@ -60,6 +63,19 @@ def resolve_api_key(api_key_raw: str) -> str:
             )
         return api_key
     return api_key_raw
+
+def resolve_instruction(instruction_raw: str, runtime: "BondRuntime | None"):
+    if runtime is None:
+        from bond.runtime import BondRuntime
+        runtime = BondRuntime.get_instance()
+    if instruction_raw.startswith("SKILL:"):
+        skill = runtime.get_skill(instruction_raw[6:])
+        if skill is None:
+            raise RuntimeError(
+                f"Could not read skill from file {instruction_raw[6:]}"
+            )
+        return skill
+    return instruction_raw
 
 
 def parse_sse_stream(stream):
