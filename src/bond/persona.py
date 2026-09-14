@@ -88,6 +88,10 @@ class Persona(BaseModel):
         else:
             persona_type = Persona
         persona = persona_type.model_validate(data)
+
+        if persona.system_prompt is not None:
+            persona.system_prompt = resolve_instruction(persona.system_prompt, runtime)
+        
         if (summarization := persona.summarization) is not None:
             summarization.instruction = resolve_instruction(summarization.instruction, runtime)
         return persona
