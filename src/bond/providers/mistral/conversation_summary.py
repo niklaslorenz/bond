@@ -29,6 +29,8 @@ class MistralConversationSummarizationStrategy:
     def __call__(self, conversation: Conversation) -> Result[CompletionResponse, str]:
         logger.debug("Preparing summarization")
         messages, n_kept = self._extract_message_list(conversation)
+        if len(messages) == 0:
+            return Failure(f"Summarization triggered with no messages to summarize")
         logger.debug(f"Summarizing {len(messages)} messages")
 
         messages.append(

@@ -4,6 +4,8 @@ import subprocess
 from argparse import ArgumentParser, Namespace, _SubParsersAction
 from pathlib import Path
 
+from returns.result import Failure
+
 from bond.behaviours.behaviour_event import NotifyEvent, RestoreConversationEvent
 from bond.behaviours.behaviour_signal import StopSignal
 from bond.behaviours.loop import LoopBehaviour
@@ -172,7 +174,10 @@ class BaseCommandHandler:
                 f"Summarization is not possible with this provider: {self.beh.persona.provider}"
             )
             return
-        summarization(self.beh.conversation)
+        summarization_result = summarization(self.beh.conversation)
+        if isinstance(summarization_result, Failure):
+            self.notify(summarization_result.failure())
+            
 
     # Helper methods
 

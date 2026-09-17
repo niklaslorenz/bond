@@ -67,6 +67,8 @@ class Conversation(BaseModel):
     def get_summary_messages(self, keep: int) -> list[Message]:
         if keep <= 0:
             raise ValueError(f"keep must be a positive integer")
+        if keep > len(self.history) or self.num_unsummarized_messages() <= keep:
+            return []
         recent_messages: list[Message] = [
             m.message for m in self.history[self.summary_index : -keep]
         ]
@@ -102,6 +104,8 @@ class Conversation(BaseModel):
     def update_summary(self, new_summary: str, keep: int):
         if keep <= 0:
             raise ValueError(f"keep must be a positive integer")
+        if keep > len(self.history):
+            raise ValueError(f"tried to keep more messages than exist. Keep: {keep}, message count: {len(self.history)}")
         self.summary = new_summary
         self.summary_index = len(self.history) - keep
 
