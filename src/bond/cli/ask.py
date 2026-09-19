@@ -12,7 +12,6 @@ from bond.environment.std_event_handler import StdEventHandler
 from bond.environment.std_signal_receiver import StdSignalReceiver
 from bond.runtime import BondRuntime
 from bond.tools.tool import ToolCallContext
-from bond.tools.toolbox import Toolbox
 
 from . import logger
 
@@ -93,7 +92,7 @@ def main():
 
     # Setup turn
     allow_shell = "shell" in persona.toolbox
-    toolbox = Toolbox(runtime.get_tools(persona.toolbox))
+    toolbox = runtime.build_toolbox(persona.toolbox)
     provider = runtime.get_provider(persona.provider)
     prompting = provider.conversation_prompting(persona, toolbox)
     if prompting is None:

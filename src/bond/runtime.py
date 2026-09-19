@@ -17,22 +17,31 @@ from bond.providers.mistral.mistral import Mistral
 from bond.providers.ollama.ollama import Ollama
 from bond.providers.provider import Provider
 from bond.registry import NamedEntryRegistry
-from bond.tools.fs_tools import (apply_patch, create_file, get_cwd,
-                                 list_directory, read_file)
+from bond.tools.fs_tools import (
+    apply_patch,
+    create_file,
+    get_cwd,
+    list_directory,
+    read_file,
+)
 from bond.tools.shell_tools import run_shell_commands
 from bond.tools.stream_tools import write_to_output
-from bond.tools.tool import BondTool
-from bond.tools.toolbox import Toolset
+from bond.tools.toolbox import PythonToolset, Toolbox, Toolset
 from bond.tools.web_access import access_web
 from bond.tools.web_search import search_the_web
 
 logger = logging.getLogger(__name__)
 
 _default_toolsets: dict[str, Toolset] = {
-    "web": [search_the_web, access_web],
-    "file": [list_directory, create_file, read_file, apply_patch, get_cwd],
-    "shell": [run_shell_commands],
-    "write": [write_to_output],
+    t.name: t
+    for t in [
+        PythonToolset("web", [search_the_web, access_web]),
+        PythonToolset(
+            "file", [list_directory, create_file, read_file, apply_patch, get_cwd]
+        ),
+        PythonToolset("shell", [run_shell_commands]),
+        PythonToolset("write", [write_to_output]),
+    ]
 }
 
 _default_provider_types: dict[str, Type[Provider]] = {
@@ -176,7 +185,6 @@ class DynamicRuntimeEnvironment(RuntimeEnvironment):
     def load_persona(self, name: str, runtime: BondRuntime) -> Persona:
         path = self._config_dir / f"personas/{name}.json"
         return Persona.from_file(path, runtime)
-        pass
 
     def load_skill(self, name: str, runtime: BondRuntime) -> str:
         path = self._config_dir / f"skills/{name}.md"
@@ -221,7 +229,9 @@ class BondRuntime:
         plugins: dict[str, BondPlugin],
         skills: dict[str, str],
     ) -> StaticRuntimeEnvironment:
-        self._environment = StaticRuntimeEnvironment(providers, personas, plugins, skills)
+        self._environment = StaticRuntimeEnvironment(
+            providers, personas, plugins, skills
+        )
         self._register_builtin_toolsets()
         self._register_builtin_provider_types()
         self._load_plugins()
@@ -285,16 +295,8 @@ class BondRuntime:
             raise ValueError(f"Unknown toolset name: {toolset_name}")
         return toolset
 
-    def get_tools(self, toolset_names: list[str]) -> set[BondTool]:
-        """Get tools from multiple toolsets."""
-        tools = set()
-        for tn in toolset_names:
-            toolset = self.toolset_registry.get(tn)
-            if toolset is not None:
-                tools.update(toolset)
-            else:
-                logger.error(f"Unknown toolset name: {tn}")
-        return tools
+    def build_toolbox(self, toolset_names: list[str]) -> Toolbox:
+        return Toolbox([self.get_toolset(name) for name in toolset_names])
 
     def get_persona(self, persona_name: str) -> Persona:
         """Get a persona by name, loading it if necessary."""

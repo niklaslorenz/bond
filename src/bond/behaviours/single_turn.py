@@ -64,7 +64,7 @@ class SingleTurn:
         self._allow_shell_executions = allow_shell_executions
         self._runtime = runtime or BondRuntime.get_instance()
 
-        self._tool_descriptions = self._toolbox.get_tool_descriptions()
+        self._tool_descriptions = self._toolbox.tool_descriptions
 
     def run(self, conversation: Conversation) -> Result[None, str]:
         stream_callback = (

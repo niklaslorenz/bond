@@ -18,7 +18,6 @@ from bond.persona import Persona
 from bond.providers.provider import ConversationSummarizationStrategy
 from bond.runtime import BondRuntime
 from bond.tools.tool import ToolCallContext
-from bond.tools.toolbox import Toolbox
 
 from . import logger
 
@@ -99,7 +98,7 @@ class LoopBehaviour:
 
     def _build_turn(self):
         provider = self.runtime.get_provider(self.persona.provider)
-        toolbox = Toolbox(self.runtime.get_tools(self.persona.toolbox))
+        toolbox = self.runtime.build_toolbox(self.persona.toolbox)
         prompting = provider.conversation_prompting(self.persona, toolbox)
         if prompting is None:
             raise ValueError("provider does not support conversation prompting")

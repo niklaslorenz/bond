@@ -52,7 +52,7 @@ class Mistral:
             persona.model,
             persona.model_options,
             persona.system_prompt,
-            toolbox.get_tool_descriptions(),
+            toolbox.tool_descriptions,
             10,
             persona.name,
             self.chat_completions(),
