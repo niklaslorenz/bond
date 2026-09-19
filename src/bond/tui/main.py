@@ -102,8 +102,7 @@ def main():
     parser.add_argument("--no-save-after-turn", action="store_true")
     parser.add_argument("--to", type=str)
     args = parser.parse_args()
-    if args.debug:
-        setup_logger(args.debug, "talk.log")
+    setup_logger(args.debug, "talk.log")
     asyncio.run(run(args))
 
 
