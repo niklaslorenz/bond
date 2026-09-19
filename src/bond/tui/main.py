@@ -82,7 +82,7 @@ async def run(args: Namespace):
         allow_shell_executions=True,
         user_name=config.user_name,
         allowed_personas=config.chat.personas,
-        save_after_turn=save_after_turn,
+        save_after_turn=not args.no_save_after_turn,
     )
     cmd_handler.link(loop)
 
