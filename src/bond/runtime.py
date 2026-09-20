@@ -11,15 +11,19 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Type
 
+from mcp import StdioServerParameters
+
 from bond.config import (
     BondConfig,
+    McpHttpServerConfig,
+    McpStdioServerConfig,
 )
 from bond.persona import Persona
 from bond.plugins.bond_plugin import BondPlugin
 from bond.providers.mistral.mistral import Mistral
 from bond.providers.ollama.ollama import Ollama
 from bond.providers.provider import Provider
-from bond.registry import NamedEntryRegistry
+from bond.registry import MappedEntryRegistry, NamedEntryRegistry
 from bond.tools.fs_tools import (
     apply_patch,
     create_file,
@@ -27,6 +31,7 @@ from bond.tools.fs_tools import (
     list_directory,
     read_file,
 )
+from bond.tools.mcp_toolset import McpToolset
 from bond.tools.shell_tools import run_shell_commands
 from bond.tools.stream_tools import write_to_output
 from bond.tools.toolbox import PythonToolset, Toolbox, Toolset
@@ -35,17 +40,15 @@ from bond.tools.web_search import search_the_web
 
 logger = logging.getLogger(__name__)
 
-_default_toolsets: dict[str, Toolset] = {
-    t.name: t
-    for t in [
-        PythonToolset("web", [search_the_web, access_web]),
-        PythonToolset(
-            "file", [list_directory, create_file, read_file, apply_patch, get_cwd]
-        ),
-        PythonToolset("shell", [run_shell_commands]),
-        PythonToolset("write", [write_to_output]),
-    ]
-}
+_default_toolsets: list[Toolset] = [
+    PythonToolset("web", [search_the_web, access_web]),
+    PythonToolset(
+        "file", [list_directory, create_file, read_file, apply_patch, get_cwd]
+    ),
+    PythonToolset("shell", [run_shell_commands]),
+    PythonToolset("write", [write_to_output]),
+]
+
 
 _default_provider_types: dict[str, Type[Provider]] = {
     "mistral": Mistral,
@@ -228,7 +231,9 @@ class BondRuntime:
         self._plugin_registry = NamedEntryRegistry[BondPlugin]()
         self._persona_type_registry = NamedEntryRegistry[Type[Persona]]()
         self._provider_type_registry = NamedEntryRegistry[Type[Provider]]()
-        self._toolset_registry = NamedEntryRegistry[Toolset]()
+        self._toolset_registry = MappedEntryRegistry[Toolset](
+            lambda toolset: toolset.name
+        )
         self._loaded_plugins = NamedEntryRegistry[BondPlugin]()
         self._loaded_providers = NamedEntryRegistry[Provider]()
         self._loaded_personas = NamedEntryRegistry[Persona]()
@@ -249,6 +254,7 @@ class BondRuntime:
         )
         self._register_builtin_toolsets()
         self._register_builtin_provider_types()
+        self._register_mcp_toolsets()
         self._load_plugins()
         return self._environment
 
@@ -258,6 +264,7 @@ class BondRuntime:
         self._environment = DynamicRuntimeEnvironment(config_dir)
         self._register_builtin_toolsets()
         self._register_builtin_provider_types()
+        self._register_mcp_toolsets()
         self._load_plugins(enable_plugins)
         return self._environment
 
@@ -295,7 +302,7 @@ class BondRuntime:
         return self._persona_type_registry
 
     @property
-    def toolset_registry(self) -> NamedEntryRegistry[Toolset]:
+    def toolset_registry(self) -> MappedEntryRegistry[Toolset]:
         return self._toolset_registry
 
     @property
@@ -344,12 +351,24 @@ class BondRuntime:
         return skill
 
     def _register_builtin_toolsets(self):
-        for k, v in _default_toolsets.items():
-            self._toolset_registry.register(k, v)
+        for toolset in _default_toolsets:
+            self._toolset_registry.register(toolset)
 
     def _register_builtin_provider_types(self):
         for k, v in _default_provider_types.items():
             self._provider_type_registry.register(k, v)
+
+    def _register_mcp_toolsets(self):
+        for mcp_toolset in self.get_bond_config().mcp:
+            if isinstance(mcp_toolset, McpStdioServerConfig):
+                server_parameter = StdioServerParameters(
+                    command=mcp_toolset.command, args=mcp_toolset.args
+                )
+            elif isinstance(mcp_toolset, McpHttpServerConfig):
+                server_parameter = mcp_toolset.uri
+            self.toolset_registry.register(
+                McpToolset(mcp_toolset.name, server_parameter)
+            )
 
     def _load_plugins(self, enable_plugins: bool = True):
         for name, plugin in self._get_env().get_plugins().items():

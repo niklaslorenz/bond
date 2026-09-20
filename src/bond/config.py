@@ -1,6 +1,7 @@
 from pathlib import Path
+from typing import Literal, Union
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class AskConfig(BaseModel):
@@ -13,6 +14,26 @@ class ChatConfig(BaseModel):
     personas: list[str] = []
     default_persona: str | None = None
     tools: list[str] = []
+
+
+class McpServerConfigBase(BaseModel):
+    name: str
+
+
+class McpStdioServerConfig(McpServerConfigBase):
+    type: Literal["stdio"] = "stdio"
+    name: str
+    command: str
+    args: list[str]
+
+
+class McpHttpServerConfig(McpServerConfigBase):
+    type: Literal["http"] = "http"
+    name: str
+    uri: str
+
+
+McpServerConfig = Union[McpStdioServerConfig, McpHttpServerConfig]
 
 
 def get_default_persona(config: AskConfig | ChatConfig) -> str:
@@ -30,6 +51,7 @@ def get_default_persona(config: AskConfig | ChatConfig) -> str:
 class BondConfig(BaseModel):
     ask: AskConfig = AskConfig()
     chat: ChatConfig = ChatConfig()
+    mcp: list[McpServerConfig] = Field(default_factory=list)
     user_name: str = "User"
 
     @classmethod

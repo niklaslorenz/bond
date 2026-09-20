@@ -32,9 +32,9 @@ async def run(args: Namespace):
     conversation_base_path = data_base_path / "conversations"
     last_conv_path = data_base_path / "last-conv.json"
 
-    config = BondConfig.load_from(config_base_path / "config.json")
     runtime = BondRuntime.get_instance()
     runtime.initialize_dynamic(config_base_path)
+    config = runtime.get_bond_config()
     conversation = (
         (
             Conversation.model_validate_json(last_conv_path.read_text())

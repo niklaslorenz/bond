@@ -1,6 +1,6 @@
 import json
 from abc import ABC, abstractmethod
-from typing import Any, Collection, List, Self
+from typing import Any, Collection
 
 from returns.result import Failure, Result, Success
 
