@@ -6,7 +6,7 @@ from pathlib import Path
 from bond import util
 from bond.behaviours.auto_summarize import AutoSummarize
 from bond.behaviours.single_turn import SingleTurn
-from bond.config import BondConfig, get_default_persona
+from bond.config import get_default_persona
 from bond.conversation.conversation import Conversation, ConversationMessage
 from bond.environment.std_event_handler import StdEventHandler
 from bond.environment.std_signal_receiver import StdSignalReceiver
@@ -58,11 +58,9 @@ def main():
     # Setup environment
     env_path = Path("~/.config/bond").expanduser().absolute()
     conv_path = Path("~/.local/share/bond").expanduser().absolute()
-    config_path = env_path / "config.json"
-    config = BondConfig.load_from(config_path)
-
     runtime = BondRuntime.get_instance()
     runtime.initialize_dynamic(env_path)
+    config = runtime.get_bond_config()
 
     persona_id: str = (
         get_default_persona(config.ask) if args.second is None else args.first

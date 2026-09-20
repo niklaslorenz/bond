@@ -3,7 +3,7 @@ from pathlib import Path
 
 from bond import util
 from bond.behaviours.loop import LoopBehaviour
-from bond.config import BondConfig, get_default_persona
+from bond.config import get_default_persona
 from bond.conversation.conversation import Conversation
 from bond.environment.std_command_handler import StdCommandHandler
 from bond.environment.std_event_handler import StdEventHandler
@@ -24,13 +24,11 @@ def main():
 
     conv_path = Path("~/.local/share/bond").expanduser().absolute()
     env_path = Path("~/.config/bond/").expanduser().absolute()
-    config_path = Path(env_path) / "config.json"
-    config = BondConfig.load_from(config_path)
-    persona_id = get_default_persona(config.chat)
-
     runtime = BondRuntime.get_instance()
     runtime.initialize_dynamic(env_path)
+    config = runtime.get_bond_config()
 
+    persona_id = get_default_persona(config.chat)
     tool_call_context = ToolCallContext.default(persona_id, True)
 
     last_ask_path = conv_path / "last-ask.json"

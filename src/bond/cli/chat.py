@@ -3,7 +3,7 @@ from pathlib import Path
 
 from bond import util
 from bond.behaviours.loop import LoopBehaviour
-from bond.config import BondConfig, get_default_persona
+from bond.config import get_default_persona
 from bond.conversation.conversation import Conversation
 from bond.environment.std_command_handler import StdCommandHandler
 from bond.environment.std_event_handler import StdEventHandler
@@ -30,19 +30,16 @@ def main():
     args = parser.parse_args()
     util.setup_logger(args.debug, "chat.log")
 
+    save_after_turn = not args.no_save_after_turn
+
     conv_path = (
         Path(args.conversation_path or "~/.local/share/bond").expanduser().absolute()
     )
     conv_path.mkdir(exist_ok=True, parents=True)
     env_path = Path(args.environment_path or "~/.config/bond/").expanduser().absolute()
-
-    config_path = Path(env_path) / "config.json"
-    config = BondConfig.load_from(config_path)
-
-    save_after_turn = not args.no_save_after_turn
-
     runtime = BondRuntime.get_instance()
     runtime.initialize_dynamic(env_path)
+    config = runtime.get_bond_config()
 
     last_conv_path = conv_path / "last-conv.json"
     conversation = (

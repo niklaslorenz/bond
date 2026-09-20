@@ -11,6 +11,9 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Type
 
+from bond.config import (
+    BondConfig,
+)
 from bond.persona import Persona
 from bond.plugins.bond_plugin import BondPlugin
 from bond.providers.mistral.mistral import Mistral
@@ -52,6 +55,8 @@ _default_provider_types: dict[str, Type[Provider]] = {
 
 class RuntimeEnvironment(ABC):
     @abstractmethod
+    def get_bond_config(self) -> BondConfig: ...
+    @abstractmethod
     def list_providers(self) -> list[str]: ...
     @abstractmethod
     def list_personas(self) -> list[str]: ...
@@ -72,17 +77,22 @@ class RuntimeEnvironment(ABC):
 class StaticRuntimeEnvironment(RuntimeEnvironment):
     def __init__(
         self,
+        bond_config: BondConfig,
         providers: dict[str, Provider],
         personas: dict[str, Persona],
         plugins: dict[str, BondPlugin],
         skills: dict[str, str],
         data_dir: Path | None = None,
     ):
+        self._bond_config = bond_config
         self._providers = providers
         self._personas = personas
         self._plugins = plugins
         self._skills = skills
         self._data_dir = data_dir or Path("~/.local/share/bond").expanduser().absolute()
+
+    def get_bond_config(self) -> BondConfig:
+        return self._bond_config
 
     def list_providers(self) -> list[str]:
         return list(self._providers.keys())
@@ -112,6 +122,10 @@ class StaticRuntimeEnvironment(RuntimeEnvironment):
 class DynamicRuntimeEnvironment(RuntimeEnvironment):
     def __init__(self, config_dir: Path):
         self._config_dir = config_dir
+        self._bond_config = BondConfig.load_from(config_dir / "config.json")
+
+    def get_bond_config(self) -> BondConfig:
+        return self._bond_config
 
     def list_providers(self) -> list[str]:
         return [
@@ -224,13 +238,14 @@ class BondRuntime:
 
     def initialize_static(
         self,
+        config: BondConfig,
         providers: dict[str, Provider],
         personas: dict[str, Persona],
         plugins: dict[str, BondPlugin],
         skills: dict[str, str],
     ) -> StaticRuntimeEnvironment:
         self._environment = StaticRuntimeEnvironment(
-            providers, personas, plugins, skills
+            config, providers, personas, plugins, skills
         )
         self._register_builtin_toolsets()
         self._register_builtin_provider_types()
@@ -245,6 +260,9 @@ class BondRuntime:
         self._register_builtin_provider_types()
         self._load_plugins(enable_plugins)
         return self._environment
+
+    def get_bond_config(self) -> BondConfig:
+        return self._get_env().get_bond_config()
 
     def list_providers(self) -> list[str]:
         return self._get_env().list_providers()
