@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from bond.conversation.conversation import Conversation
 
 ToolReturnType = str | list[str] | dict[str, Any] | list[dict[str, Any]] | None
+ToolParameterType = Literal["string", "number", "integer", "boolean", "array", "object"]
 ToolFn = Callable[..., ToolReturnType]
 
 
@@ -83,7 +84,7 @@ class ConversationalToolCallContext(ToolCallContext):
 
 
 class FunctionParameter(BaseModel):
-    type: Literal["string", "number", "integer", "boolean", "array", "object"]
+    type: ToolParameterType
     description: str
 
 

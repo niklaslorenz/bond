@@ -42,13 +42,6 @@ class Toolset[ActiveToolsetType: ActiveToolset](ABC):
     @abstractmethod
     def activate(self) -> ActiveToolsetType: ...
 
-    @property
-    @abstractmethod
-    def tool_descriptions(self) -> list[Tool]: ...
-
-    @abstractmethod
-    def get_tool_description(self, name: str) -> Tool | None: ...
-
 
 class PythonToolset(Toolset):
     """A toolset that holds a static list of Python-based BondTools."""
@@ -74,17 +67,19 @@ class PythonToolset(Toolset):
 class Toolbox:
     def __init__(self, toolsets: Collection[Toolset]):
         self._toolsets = {toolset.name: toolset for toolset in toolsets}
-        self._active_toolsets: dict[str, ActiveToolset] = {}
+        self._active_toolsets: dict[str, ActiveToolset] = {
+            toolset.name: toolset.activate() for toolset in toolsets
+        }
         self._tool_toolset_map: dict[str, str] = {}
         self._all_tool_descriptions: list[Tool] = []
 
         tool_names: set[str] = set()
-        for toolset in toolsets:
+        for toolset_name, toolset in self._active_toolsets.items():
             for tool_description in toolset.tool_descriptions:
                 if (tool_name := tool_description.function.name) in tool_names:
                     raise ValueError(f"Duplicate tool name in toolbox: {tool_name}")
                 tool_names.add(tool_name)
-                self._tool_toolset_map[tool_name] = toolset.name
+                self._tool_toolset_map[tool_name] = toolset_name
                 self._all_tool_descriptions.append(tool_description)
 
     def release(self):
