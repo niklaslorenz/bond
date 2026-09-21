@@ -84,7 +84,7 @@ class DefaultConversationPromptingStrategy:
             )
             conversation.current_usage = response.usage.total_tokens
             return Success(response)
-        except Exception as e:
+        except BaseException as e:
             return Failure(
                 f"An exception occured during response generation: {type(e)}: {e}"
             )

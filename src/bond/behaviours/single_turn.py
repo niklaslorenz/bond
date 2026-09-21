@@ -82,9 +82,14 @@ class SingleTurn:
                 self._event_handler(
                     ResponseStartEvent(author=self._author_name, role="assistant")
                 )
-            response = self._conversation_prompt(conversation, stream_callback)
-            if isinstance(response, Failure):
-                return response
+            try:
+                response = self._conversation_prompt(conversation, stream_callback)
+                if isinstance(response, Failure):
+                    return response
+            except BaseException as e:
+                logger.error(f"An error occured while generating model response ({type(e)}): {e}")
+                self._event_handler(ResponseEndEvent(usage=None))
+                raise
             response = response.unwrap()
             self._event_handler(
                 ResponseEndEvent(usage=response.usage)

@@ -37,14 +37,17 @@ class MistralConversationSummarizationStrategy:
             UserMessage(content=[TextChunk(text=self._summarization_instruction)])
         )
 
-        response = self._chat_completions.chat_completion(
-            self._model,
-            messages,
-            [],
-            None,
-            self._model_options,
-            self._max_retries,
-        )
+        try:
+            response = self._chat_completions.chat_completion(
+                self._model,
+                messages,
+                [],
+                None,
+                self._model_options,
+                self._max_retries,
+            )
+        except BaseException as e:
+            return Failure(f"An error occured while creating summary ({type(e)}): {e}")
 
         summary_msg = response.choices[0].message
         if summary_msg.tool_calls:
