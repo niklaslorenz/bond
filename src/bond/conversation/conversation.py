@@ -101,13 +101,13 @@ class Conversation(BaseModel):
     def num_unsummarized_messages(self) -> int:
         return len(self.history) - self.summary_index
 
-    def update_summary(self, new_summary: str, keep: int):
-        if keep <= 0:
-            raise ValueError(f"keep must be a positive integer")
-        if keep > len(self.history):
-            raise ValueError(f"tried to keep more messages than exist. Keep: {keep}, message count: {len(self.history)}")
+    def update_summary(self, new_summary: str, summary_index: int):
+        if summary_index < 0:
+            raise ValueError(f"summary_index must be positive")
+        if summary_index > len(self.history):
+            raise ValueError(f"summary_index must not be bigger than number of messages")
         self.summary = new_summary
-        self.summary_index = len(self.history) - keep
+        self.summary_index = summary_index
 
     def save_to_file(self, path: Path):
         path.parent.mkdir(parents=True, exist_ok=True)

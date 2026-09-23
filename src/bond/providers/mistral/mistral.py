@@ -39,6 +39,7 @@ class Mistral:
             options.keep,
             10,
             self.chat_completions(),
+            persona.system_prompt
         )
 
     def conversation_prompting(
