@@ -49,9 +49,11 @@ async def run(args: Namespace):
             if last_conv_path.is_file()
             else Conversation()
         )
-        if not args.temp
+        if not args.temp and not args.to
         else Conversation()
     )
+    if args.to:
+        conversation.current_persona = args.to
 
     state_machine = DefaultTuiStateMachine(
         signal_queue=signal_queue,
@@ -101,7 +103,8 @@ async def run(args: Namespace):
 def main():
     parser = ArgumentParser()
     parser.add_argument("--debug", action="store_true")
-    parser.add_argument("--temp", "-t", action="store_true")
+    parser.add_argument("--temp", action="store_true")
+    parser.add_argument("--to", type=str)
     args = parser.parse_args()
     if args.debug:
         setup_logger()
