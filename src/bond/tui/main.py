@@ -97,7 +97,6 @@ def main():
     parser = ArgumentParser()
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--temp", action="store_true")
-    parser.add_argument("--temp", "-t", action="store_true")
     parser.add_argument("--conversation-path", type=str)
     parser.add_argument("--no-save-after-turn", action="store_true")
     parser.add_argument("--to", type=str)
