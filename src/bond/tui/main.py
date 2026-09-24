@@ -1,29 +1,23 @@
 import asyncio
 import logging
-import threading
 from argparse import ArgumentParser, Namespace
+from asyncio import Queue
 from pathlib import Path
-from queue import Queue
 
-from bond.behaviours.loop import LoopBehaviour
-from bond.behaviours.types import BehaviourEvent, BehaviourSignal
-from bond.config import BondConfig, get_default_persona
+from bond.behaviours.async_loop import AsyncAgentLoop
+from bond.behaviours.async_turn import AsyncTurnEvent
+from bond.config import get_default_persona
 from bond.conversation.conversation import Conversation
 from bond.runtime import BondRuntime
 from bond.tools.tool import ToolCallContext
 from bond.tui.app import BondTui
-from bond.tui.default_state_machine import DefaultTuiStateMachine
-from bond.tui.environment.tui_command_handler import TuiCommandHandler
-from bond.tui.environment.tui_signal_receiver import TuiSignalReceiver
-from bond.tui.types import ITuiEvent
 from bond.util import setup_logger
 
 logger = logging.getLogger("bond")
 
 
 async def run(args: Namespace):
-    signal_queue: Queue[BehaviourSignal] = Queue()
-    event_queue: Queue[BehaviourEvent | ITuiEvent] = Queue()
+    event_queue: Queue[AsyncTurnEvent] = Queue()
 
     config_base_path = Path("~/.config/bond").expanduser().absolute()
     data_base_path = (
@@ -37,7 +31,7 @@ async def run(args: Namespace):
     config = runtime.get_bond_config()
     conversation = (
         (
-            Conversation.model_validate_json(last_conv_path.read_text())
+            Conversation.load_from_file(last_conv_path)
             if last_conv_path.is_file()
             else Conversation()
         )
@@ -47,49 +41,20 @@ async def run(args: Namespace):
     if args.to:
         conversation.current_persona = args.to
 
-    state_machine = DefaultTuiStateMachine(
-        signal_queue=signal_queue,
-        event_queue=event_queue,
-    )
-    app = BondTui(state_machine)
-    state_machine.run(app)
-    event_handler = lambda event: state_machine.handle_event(event)
-
-    receiver = TuiSignalReceiver(signal_queue)
-
-    cmd_handler = TuiCommandHandler(
-        event_handler=event_handler,
-        signal_handler=receiver,
-        conversation_base_path=conversation_base_path,
-        last_conv_path=last_conv_path,
-        available_personas=config.chat.personas,
-        save_on_quit=not args.temp,
-    )
-
     persona_id = get_default_persona(config.chat)
-
     tool_call_context = ToolCallContext.default(persona_id, True)
-
-    loop = LoopBehaviour(
-        runtime=runtime,
-        conversation=conversation,
-        event_handler=event_handler,
-        signal_receiver=receiver,
-        command_handler=cmd_handler,
-        tool_call_context=tool_call_context,
-        persona_id=persona_id,
-        stream=True,
-        allow_shell_executions=True,
-        user_name=config.user_name,
-        allowed_personas=config.chat.personas,
-        save_after_turn=not args.no_save_after_turn,
+    loop = AsyncAgentLoop(
+        runtime,
+        conversation,
+        tool_call_context,
+        event_queue,
+        persona_id,
+        True,
+        True,
+        config.user_name,
+        not args.no_safe_after_turn,
     )
-    cmd_handler.link(loop)
-
-    app.synchronize(conversation)
-
-    thread = threading.Thread(target=loop.run, daemon=True)
-    thread.start()
+    app = BondTui(loop)
     await app.start_tui()
 
 

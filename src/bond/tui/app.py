@@ -4,6 +4,7 @@ from textual.app import App, ComposeResult
 from textual.notifications import SeverityLevel
 from textual.widget import Widget
 
+from bond.behaviours.async_loop import AsyncAgentLoop
 from bond.conversation.conversation import Conversation
 from bond.conversation.types import (
     AssistantMessageChunk,
@@ -39,9 +40,9 @@ class BondTui(App):
     state_machine: ITuiStateMachine
     popup: OverlayContainer | None
 
-    def __init__(self, state_machine: ITuiStateMachine):
+    def __init__(self, loop: AsyncAgentLoop):
         super().__init__()
-        self.state_machine = state_machine
+        self._agent_loop = loop
         self.popup = None
 
         self.messages: list[ChatMessage] = []
