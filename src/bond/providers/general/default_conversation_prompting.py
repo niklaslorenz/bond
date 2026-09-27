@@ -35,7 +35,7 @@ class DefaultConversationPromptingStrategy:
         self,
         conversation: Conversation,
         callback: Callable[[CompletionChunk], None] | None,
-    ) -> Result[CompletionResponse, str]:
+    ) -> Result[tuple[CompletionResponse, ConversationMessage], str]:
         can_stream = self._chat_completions.supports_streaming()
         should_stream = callback is not None
         if should_stream and not can_stream:
@@ -74,16 +74,13 @@ class DefaultConversationPromptingStrategy:
             if len(response.choices) == 0:
                 return Failure("Received empty response from backend: {response}")
             message = response.choices[0].message
-            conversation.add_message(
-                ConversationMessage(
-                    author=self._author_name or self._model,
-                    message=AssistantMessage(
-                        content=message.content, tool_calls=message.tool_calls
-                    ),
-                )
+            conversation_message = ConversationMessage(
+                author=self._author_name or self._model,
+                message=AssistantMessage(
+                    content=message.content, tool_calls=message.tool_calls
+                ),
             )
-            conversation.current_usage = response.usage.total_tokens
-            return Success(response)
+            return Success((response, conversation_message))
         except BaseException as e:
             return Failure(
                 f"An exception occured during response generation: {type(e)}: {e}"

@@ -1,7 +1,6 @@
 from returns.result import Result, Success
 
 from bond.conversation.conversation import Conversation
-from bond.endpoints.chat_completions import CompletionResponse
 from bond.persona import AutoSummarization
 from bond.providers.provider import ConversationSummarizationStrategy
 
@@ -19,7 +18,7 @@ class AutoSummarize:
         self._summarize = summarize
         self._keep = keep
 
-    def run(self, conversation: Conversation) -> Result[CompletionResponse | None, str]:
+    def run(self, conversation: Conversation) -> Result[str | None, str]:
         if _check_summarize_condition(self._config, conversation):
             logger.debug("Performing automatic summarization")
             return self._summarize(conversation)

@@ -3,7 +3,7 @@ from typing import Protocol, Self, Type
 from pydantic import BaseModel
 from returns.result import Result
 
-from bond.conversation.conversation import Conversation
+from bond.conversation.conversation import Conversation, ConversationMessage
 from bond.endpoints.chat_completions import (
     ChatCompletionsEndpoint,
     ChatCompletionStreamCallback,
@@ -17,13 +17,11 @@ from bond.tools.toolbox import Toolbox
 class ConversationPromptingStrategy(Protocol):
     def __call__(
         self, conversation: Conversation, callback: ChatCompletionStreamCallback | None
-    ) -> Result[CompletionResponse, str]: ...
+    ) -> Result[tuple[CompletionResponse, ConversationMessage], str]: ...
 
 
 class ConversationSummarizationStrategy(Protocol):
-    def __call__(
-        self, conversation: Conversation
-    ) -> Result[CompletionResponse, str]: ...
+    def __call__(self, conversation: Conversation) -> Result[str, str]: ...
 
 
 class Provider[ConfigType: BaseModel](Protocol):

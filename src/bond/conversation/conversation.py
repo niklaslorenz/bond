@@ -105,7 +105,9 @@ class Conversation(BaseModel):
         if summary_index < 0:
             raise ValueError(f"summary_index must be positive")
         if summary_index > len(self.history):
-            raise ValueError(f"summary_index must not be bigger than number of messages")
+            raise ValueError(
+                f"summary_index must not be bigger than number of messages"
+            )
         self.summary = new_summary
         self.summary_index = summary_index
 

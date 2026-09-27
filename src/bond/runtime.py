@@ -13,6 +13,7 @@ from typing import Type
 
 from mcp import StdioServerParameters
 
+from bond.behaviour_flags import BehaviourFlags
 from bond.config import (
     BondConfig,
     McpHttpServerConfig,
@@ -60,6 +61,10 @@ class RuntimeEnvironment(ABC):
     @abstractmethod
     def get_bond_config(self) -> BondConfig: ...
     @abstractmethod
+    def get_conversations_path(self) -> Path | None: ...
+    @abstractmethod
+    def get_cache_path(self) -> Path | None: ...
+    @abstractmethod
     def list_providers(self) -> list[str]: ...
     @abstractmethod
     def list_personas(self) -> list[str]: ...
@@ -86,6 +91,8 @@ class StaticRuntimeEnvironment(RuntimeEnvironment):
         plugins: dict[str, BondPlugin],
         skills: dict[str, str],
         data_dir: Path | None = None,
+        conversations_path: Path | None = None,
+        cache_path: Path | None = None,
     ):
         self._bond_config = bond_config
         self._providers = providers
@@ -93,9 +100,17 @@ class StaticRuntimeEnvironment(RuntimeEnvironment):
         self._plugins = plugins
         self._skills = skills
         self._data_dir = data_dir or Path("~/.local/share/bond").expanduser().absolute()
+        self._conversations_path = conversations_path
+        self._cache_path = cache_path
 
     def get_bond_config(self) -> BondConfig:
         return self._bond_config
+
+    def get_conversations_path(self) -> Path | None:
+        return self._conversations_path
+
+    def get_cache_path(self) -> Path | None:
+        return self._cache_path
 
     def list_providers(self) -> list[str]:
         return list(self._providers.keys())
@@ -123,12 +138,19 @@ class StaticRuntimeEnvironment(RuntimeEnvironment):
 
 
 class DynamicRuntimeEnvironment(RuntimeEnvironment):
-    def __init__(self, config_dir: Path):
+    def __init__(self, config_dir: Path, data_base_dir: Path):
         self._config_dir = config_dir
+        self._data_base_dir = data_base_dir
         self._bond_config = BondConfig.load_from(config_dir / "config.json")
 
     def get_bond_config(self) -> BondConfig:
         return self._bond_config
+
+    def get_conversations_path(self) -> Path:
+        return self._data_base_dir / "conversations"
+
+    def get_cache_path(self) -> Path:
+        return self._data_base_dir
 
     def list_providers(self) -> list[str]:
         return [
@@ -210,7 +232,7 @@ class DynamicRuntimeEnvironment(RuntimeEnvironment):
         return path.read_text(encoding="utf-8")
 
     def get_data_dir(self) -> Path:
-        return Path("~/.local/share/bond").expanduser().absolute()
+        return self._data_base_dir / "plugins"
 
 
 class BondRuntime:
@@ -239,6 +261,7 @@ class BondRuntime:
         self._loaded_personas = NamedEntryRegistry[Persona]()
         self._loaded_skills = NamedEntryRegistry[str]()
         self._environment: RuntimeEnvironment | None = None
+        self._behaviour_flags = BehaviourFlags()
         logger.debug("BondRuntime created")
 
     def initialize_static(
@@ -248,10 +271,13 @@ class BondRuntime:
         personas: dict[str, Persona],
         plugins: dict[str, BondPlugin],
         skills: dict[str, str],
+        behaviour_flags: BehaviourFlags | None = None,
     ) -> StaticRuntimeEnvironment:
         self._environment = StaticRuntimeEnvironment(
             config, providers, personas, plugins, skills
         )
+        if behaviour_flags:
+            self._behaviour_flags = behaviour_flags
         self._register_builtin_toolsets()
         self._register_builtin_provider_types()
         self._register_mcp_toolsets()
@@ -259,9 +285,15 @@ class BondRuntime:
         return self._environment
 
     def initialize_dynamic(
-        self, config_dir: Path, enable_plugins: bool = True
+        self,
+        config_dir: Path,
+        data_dir: Path,
+        enable_plugins: bool = True,
+        behaviour_flags: BehaviourFlags | None = None,
     ) -> DynamicRuntimeEnvironment:
-        self._environment = DynamicRuntimeEnvironment(config_dir)
+        self._environment = DynamicRuntimeEnvironment(config_dir, data_dir)
+        if behaviour_flags:
+            self._behaviour_flags = behaviour_flags
         self._register_builtin_toolsets()
         self._register_builtin_provider_types()
         self._register_mcp_toolsets()
@@ -286,12 +318,22 @@ class BondRuntime:
     def get_data_dir(self) -> Path:
         return self._get_env().get_data_dir()
 
+    def get_conversations_path(self) -> Path | None:
+        return self._get_env().get_conversations_path()
+
+    def get_cache_path(self) -> Path | None:
+        return self._get_env().get_cache_path()
+
     @classmethod
     def get_instance(cls) -> BondRuntime:
         """Get the singleton BondRuntime instance."""
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
+
+    @property
+    def behaviour_flags(self):
+        return self._behaviour_flags
 
     @property
     def provider_type_registry(self) -> NamedEntryRegistry[Type[Provider]]:
