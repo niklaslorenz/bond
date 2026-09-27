@@ -4,6 +4,7 @@ from argparse import ArgumentParser, Namespace
 from asyncio import Queue
 from pathlib import Path
 
+from bond.behaviour_flags import BehaviourFlags
 from bond.behaviours.async_loop import AsyncAgentLoop
 from bond.behaviours.async_turn import AsyncTurnEvent
 from bond.config import get_default_persona
@@ -11,6 +12,7 @@ from bond.conversation.conversation import Conversation
 from bond.runtime import BondRuntime
 from bond.tools.tool import ToolCallContext
 from bond.tui.app import BondTui
+from bond.tui.event_handler import TuiEventHandler
 from bond.util import setup_logger
 
 logger = logging.getLogger("bond")
@@ -23,11 +25,18 @@ async def run(args: Namespace):
     data_base_path = (
         Path(args.conversation_path or "~/.local/share/bond").expanduser().absolute()
     )
-    conversation_base_path = data_base_path / "conversations"
     last_conv_path = data_base_path / "last-conv.json"
 
     runtime = BondRuntime.get_instance()
-    runtime.initialize_dynamic(config_base_path)
+    behaviour_flags = BehaviourFlags(
+        save_after_turn=args.no_save_after_turn,
+        save_on_quit=not args.temp,
+        allow_shell_executions=True,
+        stream=True,
+    )
+    runtime.initialize_dynamic(
+        config_base_path, data_base_path, behaviour_flags=behaviour_flags
+    )
     config = runtime.get_bond_config()
     conversation = (
         (
@@ -35,7 +44,7 @@ async def run(args: Namespace):
             if last_conv_path.is_file()
             else Conversation()
         )
-        if not args.temp and not args.to
+        if not args.temp and not args.to and not args.new
         else Conversation()
     )
     if args.to:
@@ -49,13 +58,13 @@ async def run(args: Namespace):
         tool_call_context,
         event_queue,
         persona_id,
-        True,
-        True,
         config.user_name,
-        not args.no_safe_after_turn,
+        not args.no_save_after_turn,
     )
-    app = BondTui(loop)
-    await app.start_tui()
+    event_handler = TuiEventHandler(event_queue)
+    app = BondTui(loop, event_handler)
+    event_handler.link(app)
+    await app.run_async()
 
 
 def main():
@@ -65,6 +74,7 @@ def main():
     parser.add_argument("--conversation-path", type=str)
     parser.add_argument("--no-save-after-turn", action="store_true")
     parser.add_argument("--to", type=str)
+    parser.add_argument("--new", action="store_true")
     args = parser.parse_args()
     setup_logger(args.debug, "talk.log")
     asyncio.run(run(args))

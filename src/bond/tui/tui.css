@@ -21,7 +21,7 @@ InputBar {
     padding-right: 2;
 }
 
-InputBar > #message-input {
+InputBar {
     background: $background;
     color: $text;
     border: solid $border;
@@ -70,7 +70,7 @@ ChatMessage > ThinkBlock {
     height: auto;
 }
 
-ChatMessage > TextBlock {
+ChatMessage > MarkdownBlock {
     color: white;
     height: auto;
 }

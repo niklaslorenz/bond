@@ -1,279 +1,204 @@
+import asyncio
+from collections.abc import Coroutine
 from pathlib import Path
+from typing import Any
 
+from returns.result import Failure, Result
 from textual.app import App, ComposeResult
-from textual.notifications import SeverityLevel
-from textual.widget import Widget
 
 from bond.behaviours.async_loop import AsyncAgentLoop
-from bond.conversation.conversation import Conversation
 from bond.conversation.types import (
-    AssistantMessageChunk,
-    SystemMessageChunk,
     TextChunk,
-    ThinkChunk,
-    UsageInfo,
+    UserMessage,
 )
-from bond.tui.event import (
-    ConversationSelectedEvent,
-    RequestConfirmEvent,
-    StopEvent,
-    UserInputEvent,
-)
-from bond.tui.states.tui_idle_state import TuiIdleState
-from bond.tui.types import ITuiStateMachine, TuiStatus
-from bond.tui.widgets import (
-    ChatLog,
-    ChatMessage,
-    ConfirmationPopup,
-    ConversationSelectorPopup,
-    InputBar,
-    MultiLineInput,
-    OverlayContainer,
-    StatusBar,
-    ToolResultBlock,
-)
+from bond.tui.command_handler import TuiCommandHandler
+from bond.tui.event_handler import TuiEventHandler
+from bond.tui.task_registry import TaskRegistry
+from bond.tui.widgets.chat_view import ChatView
+from bond.tui.widgets.confirmation_popup import ConfirmationPopup
+from bond.tui.widgets.conversation_selector_popup import ConversationSelectorPopup
+from bond.tui.widgets.input_bar import MultiLineInput
+from bond.tui.widgets.popup import PopupManager
 
 from . import logger
 
 
 class BondTui(App):
-    state_machine: ITuiStateMachine
-    popup: OverlayContainer | None
-
-    def __init__(self, loop: AsyncAgentLoop):
-        super().__init__()
-        self._agent_loop = loop
-        self.popup = None
-
-        self.messages: list[ChatMessage] = []
-        self.status_bar = StatusBar(
-            status="<unknown>",
-            persona="<unknown>",
-            provider="<unknown>",
-            context_length=0,
-        )
-        self.chat_log = ChatLog()
-        self.input_bar = InputBar(id="input-layer")
 
     CSS_PATH = str(Path(__file__).with_name("tui.css"))
 
-    def notify(
-        self, message: str, *, title: str = "", severity: SeverityLevel = "information"
-    ):
-        if severity == "error":
-            log = logger.error
-        elif severity == "warning":
-            log = logger.warning
-        else:
-            log = logger.info
-        log(f"Notification: {message}")
-        super().notify(message, title=title, severity=severity)
+    def __init__(self, loop: AsyncAgentLoop, event_handler: TuiEventHandler):
+        super().__init__()
+        self.agent_loop = loop
+        self._event_handler = event_handler
+        self._command_handler = TuiCommandHandler(self)
+        self.task_registry = TaskRegistry()
+        self.popup_manager = PopupManager(self)
+        self.chat_view = ChatView()
+        self._action_lock = asyncio.Lock()
 
-    def exit_tui(self):
-        logger.info("Stopping Bond TUI")
-        self.exit()
+    @property
+    def chat_lock(self):
+        """
+        Lock for the chat state. Use this for processes that change
+        the conversation state or the state of the agent loop.
+        This lock is also used by the agent loop itself, so it can
+        be used to prevent changes to be made while the loop is running.
+        """
+        return self.agent_loop.lock
 
-    async def start_tui(self):
-        logger.info("Starting Bond TUI")
+    @property
+    def action_lock(self):
+        """
+        Lock for actions triggered by the user that should be atomic.
+        Use this to make sure a user interaction is completed before
+        another one can be processed.
+        """
+        return self._action_lock
+
+    @property
+    def current_conversation(self):
+        return self.agent_loop.conversation
+
+    async def exit(self):
+        logger.debug("Stopping Bond TUI")
+        if self.chat_lock.locked():
+            await self.agent_loop.cancel()
+        self.popup_manager.close_all()
+        await self._event_handler.stop()
+        super().exit()
+
+    async def run_async(self):
+        logger.debug("Starting Bond TUI")
         await super().run_async()
 
     def compose(self) -> ComposeResult:
-        yield self.chat_log
-        yield self.status_bar
-        yield self.input_bar
+        yield self.chat_view
 
-    def on_mount(self):
-        self.input_bar.focus()
-        for message in self.messages:
-            self.chat_log.add_message(message)
-        self.scroll_to_end()
+    async def on_mount(self):
+        self.chat_view.input_bar.focus()
+        await self.chat_view.sync(self.agent_loop.conversation)
+        self.chat_view.status_bar.set_persona(
+            self.agent_loop.persona.name, self.agent_loop.persona.provider
+        )
+        self.chat_view.status_bar.set_status("Idle")
+        self._event_handler.start()
 
-    async def on_multi_line_input_submitted(self, event: MultiLineInput.Submitted):
+    # Control
+
+    def schedule[T](self, coro: Coroutine[Any, Any, T]) -> asyncio.Task[T]:
+        return self.task_registry.register(coro)
+
+    def fix(self):
+        logger.debug("Checking TUI for unexpected state...")
+        if not self._event_handler.is_running():
+            logger.info("Event Handler was not running. Restarting.")
+            self._event_handler.start(None)
+        self.task_registry.clear()
+        self.popup_manager.close_all()
+
+    def trigger_prompt(self, message: UserMessage) -> bool:
+        """
+        Trigger the agent loop to prompt a response if the chat is not currently locked.
+        Return immediately after the task has been scheduled and
+        do not wait for the task to complete.
+
+        Returns:
+            bool: whether the task has been scheduled
+        """
+        logger.debug("Triggered prompting")
+        if self.chat_lock.locked():
+            logger.debug("chat locked, aborting.")
+            return False
+        logger.debug("scheduling prompt task")
+        self.schedule(self.prompt(message, False))
+        return True
+
+    async def prompt(self, message: UserMessage, fail_if_locked: bool) -> bool:
+        """
+        Prompt a response from the agent loop.
+        If fail_if_locked is set and the chat is currently locked,
+        immediately return a failure without prompting the response.
+        Wait for the response to be complete and return.
+
+        Returns:
+            bool: if the prompt has been scheduled
+        """
+        if self.chat_lock.locked() and fail_if_locked:
+            return False
+        self.chat_view.status_bar.set_status("Waiting")
+        await self.agent_loop.prompt(message)
+        self.chat_view.status_bar.set_status("Idle")
+        return True
+
+    def trigger_select_conversation(self, conversations: list[str]) -> bool:
+        """
+        Trigger the conversation selection popup if the chat is not currently locked.
+        Return immediately after the task has been scheduled and
+        do not wait for the task to complete.
+        """
+        if self.chat_lock.locked():
+            return False
+        self.schedule(self.select_conversation(conversations, False))
+        return True
+
+    async def select_conversation(
+        self, conversations: list[str], fail_if_locked: bool
+    ) -> Result[str | None, None]:
+        """
+        Show the conversation selection popup.
+        If fail_if_locked is set and the chat is currently locked,
+        immediately return a failure without opening the popup.
+        Wait for the popup to close and return the selected conversation name.
+
+        Returns:
+            Success[str | None]: The conversation name if the popup was opened and closed successfully
+            Failure[None]: if the popup was not opened or cancelled
+        """
+        logger.debug("Selecting conversation")
+        if self.chat_lock.locked() and fail_if_locked:
+            return Failure(None)
+
+        async with self.chat_lock:
+            popup = ConversationSelectorPopup(conversations)
+            self.popup_manager.show(popup)
+
+            result = await popup.wait_for()
+            logger.debug(f"Selected conversation: {result}")
+            return result
+
+    async def ask_confirmation(self, prompt: str) -> bool:
+        """
+        Show the confirmation popup.
+        Wait for the popup to close and return whether the request was accepted or not.
+        If the popup gets cancelled, the request is considered denied.
+        """
+        popup = ConfirmationPopup(prompt)
+        self.popup_manager.show(popup)
+        return (await popup.wait_for()).map(lambda x: x == True).value_or(False)
+
+    # Event Handling
+
+    async def on_input_bar_submitted(self, event: MultiLineInput.Submitted):
+        logger.debug("Input submitted")
         text = event.value.strip()
-        if text == "!reset":
-            self.state_machine.change_state(TuiIdleState(self.state_machine))
-            self.clear_input()
+        if text == "!fix":
+            event.accept()
+            self.fix()
             return
+
         if text.startswith(":"):
             cmd = text[1:]
-            user_event = UserInputEvent(input_type="command", message=cmd)
-        else:
-            user_event = UserInputEvent(input_type="prompt", message=event.value)
-
-        self.state_machine.handle_event(user_event)
-
-    def clear_input(self):
-        self.input_bar.input_field.clear()
-
-    def add_message(self, message: ChatMessage):
-        self.messages.append(message)
-        if self.chat_log.is_mounted:
-            self.chat_log.add_message(message)
-
-    def add_user_message(self, text: str) -> ChatMessage:
-        msg = ChatMessage.create_user_msg("User", text)
-        self.add_message(msg)
-        self.scroll_to_end()
-        return msg
-
-    def add_assistant_message(
-        self, author: str, text: str | None, thinking: str | None, merge: bool
-    ) -> ChatMessage:
-        msg = self._get_current_assistant_message() if merge else None
-        if msg is None:
-            msg = ChatMessage(author=author, role="assistant")
-            self.add_message(msg)
-        if text is not None:
-            msg.append_text(text)
-        if thinking is not None:
-            msg.append_thinking(thinking)
-        return msg
-
-    def add_system_message(self, author: str, text: str | None):
-        msg = ChatMessage(author, role="system")
-        self.add_message(msg)
-        if text:
-            msg.append_text(text)
-        return msg
-
-    def add_tool_call(self, function_name: str, merge: bool) -> ToolResultBlock:
-        msg = self._get_current_assistant_message() if merge else None
-        if msg is None:
-            msg = ChatMessage(author=self.status_bar.persona, role="assistant")
-            self.add_message(msg)
-        block = msg.add_tool_result_block("", function_name)
-        return block
-
-    def set_status(self, status: TuiStatus):
-        self.status_bar.status = status
-
-    def set_usage(self, usage: UsageInfo):
-        self.status_bar.context_length = usage.total_tokens
-
-    def set_persona(self, persona_name: str, provider: str):
-        self.status_bar.persona = persona_name
-        self.status_bar.provider = provider
-
-    def stop(self):
-        self.state_machine.handle_event(StopEvent(immediately=False))
-
-    def open_confirmation_prompt(self, request: str):
-        if self.popup is not None:
-            msg = "Could not open confirmation prompt, another popup is already opened"
-            logger.error(msg)
-            self.notify(msg, severity="error")
-            return
-        popup = ConfirmationPopup(
-            request,
-            on_accept=lambda: self.state_machine.handle_event(
-                RequestConfirmEvent(accepted=True)
-            ),
-            on_deny=lambda: self.state_machine.handle_event(
-                RequestConfirmEvent(accepted=False)
-            ),
-        )
-        self._open_popup(popup)
-
-    def open_conversation_selector(self, conversations: list[str]):
-        if self.popup is not None:
-            msg = (
-                "Could not open conversation selector, another popup is already opened"
-            )
-            logger.error(msg)
-            self.notify(msg, severity="error")
-            return
-        popup = ConversationSelectorPopup(
-            conversations,
-            on_select=lambda name: self.state_machine.handle_event(
-                ConversationSelectedEvent(name=name)
-            ),
-            on_cancel=lambda: self.state_machine.handle_event(
-                ConversationSelectedEvent(name=None)
-            ),
-        )
-        self._open_popup(popup)
-
-    def close_popup(self):
-        if self.popup is not None and self.popup.is_mounted:
-            self.call_later(self.popup.remove)
-        self.popup = None
-
-    def clear_chat(self):
-        if self.chat_log.is_mounted:
-            self.chat_log.remove_children()
-        self.messages.clear()
-
-    def scroll_to_end(self):
-        if self.chat_log.is_mounted:
-            self.chat_log.scroll_end(animate=False)
-
-    def scroll_message_to_top(self, msg: ChatMessage):
-        if self.chat_log.is_mounted:
-            self.chat_log.scroll_to_widget(msg, animate=False, top=True, force=True)
-
-    def get_chat_log(self) -> ChatLog:
-        return self.chat_log
-
-    def get_messages(self) -> list[ChatMessage]:
-        return self.messages
-
-    def synchronize(self, conversation: Conversation, length: int | None = None):
-
-        self.clear_chat()
-        for message in conversation.history[-length if length is not None else 0 :]:
-            if message.message.content is None:
-                continue
-            if message.message.role == "tool":
-                text, _ = self._handle_message_chunks(message.message.content)
-                block = self.add_tool_call(message.message.name or "Tool", merge=True)
-                block.append(text or "")
-            elif message.message.role == "assistant":
-                text, thinking = self._handle_message_chunks(message.message.content)
-                self.add_assistant_message(
-                    message.author or "Assistant",
-                    text=text,
-                    thinking=thinking,
-                    merge=True,
-                )
-            elif message.message.role == "system":
-                text, _ = self._handle_message_chunks(message.message.content)
-                self.add_system_message(message.author or "System", text=text)
-            elif message.message.role == "user":
-                text, _ = self._handle_message_chunks(message.message.content)
-                self.add_user_message(text or "")
-
-        if self.chat_log.is_mounted:
-            self.scroll_to_end()
-
-    def _get_current_assistant_message(self) -> ChatMessage | None:
-        return (
-            self.messages[-1]
-            if len(self.messages) > 0 and self.messages[-1].role == "assistant"
-            else None
-        )
-
-    def _handle_message_chunks(
-        self,
-        content: list[AssistantMessageChunk] | list[SystemMessageChunk],
-    ) -> tuple[str | None, str | None]:
-        text = []
-        thinking = []
-        for content_chunk in content:
-            if isinstance(content_chunk, TextChunk):
-                text.append(content_chunk.text)
-            if isinstance(content_chunk, ThinkChunk):
-                for think_chunk in content_chunk.thinking:
-                    if isinstance(think_chunk, TextChunk):
-                        thinking.append(think_chunk.text)
-        return "".join(text) if len(text) > 0 else None, (
-            "".join(thinking) if len(thinking) > 0 else None
-        )
-
-    def _open_popup(self, popup: Widget):
-        if self.popup is not None:
-            logger.error(
-                "Tried to open multiple popups, only one can be open at a time."
-            )
-        overlay = OverlayContainer(popup)
-        self.popup = overlay
-        self.call_later(self.mount, overlay)
+            logger.debug("Submitted command")
+            if await self._command_handler(cmd):
+                event.accept()
+        elif not self.action_lock.locked():
+            logger.debug("Aquiring Action lock")
+            async with self._action_lock:
+                logger.debug("Triggering prompt")
+                if self.trigger_prompt(
+                    UserMessage(content=[TextChunk(text=event.value)])
+                ):
+                    logger.debug("prompt triggering successful")
+                    event.accept()
+                    logger.debug("accepted event")
