@@ -11,6 +11,8 @@ from bond.providers.mistral.conversation_summary import (
     MistralConversationSummarizationStrategy,
 )
 from bond.providers.mistral.models import MistralModels
+from bond.providers.mistral.tts import MistralTTS
+from bond.providers.mistral.voices import MistralVoices
 from bond.tools.toolbox import Toolbox
 
 
@@ -19,12 +21,20 @@ class Mistral:
         self.config = config
         self._chat_completions = MistralChatCompletions(self.config)
         self._models = MistralModels(self.config)
+        self._tts = MistralTTS(self.config)
+        self._voices = MistralVoices(self.config)
 
     def chat_completions(self) -> MistralChatCompletions:
         return self._chat_completions
 
     def models(self) -> MistralModels:
         return self._models
+
+    def voices(self) -> MistralVoices:
+        return self._voices
+
+    def tts(self) -> MistralTTS:
+        return self._tts
 
     def conversation_summarization(
         self, persona: Persona
@@ -39,7 +49,7 @@ class Mistral:
             options.keep,
             10,
             self.chat_completions(),
-            persona.system_prompt
+            persona.system_prompt,
         )
 
     def conversation_prompting(

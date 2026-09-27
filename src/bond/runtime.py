@@ -286,11 +286,15 @@ class BondRuntime:
 
     def initialize_dynamic(
         self,
-        config_dir: Path,
-        data_dir: Path,
+        config_dir: Path | None = None,
+        data_dir: Path | None = None,
         enable_plugins: bool = True,
         behaviour_flags: BehaviourFlags | None = None,
     ) -> DynamicRuntimeEnvironment:
+        if config_dir is None:
+            config_dir = Path("~/.config/bond").expanduser().absolute()
+        if data_dir is None:
+            data_dir = Path("~/.local/share/bond").expanduser().absolute()
         self._environment = DynamicRuntimeEnvironment(config_dir, data_dir)
         if behaviour_flags:
             self._behaviour_flags = behaviour_flags

@@ -17,7 +17,8 @@ dependencies = [
     "returns>=0.26.0",
     "urllib3>=2.6.3",
     "textual>=8.2.0",
-    "mcp>=2.1.1"
+    "mcp>=2.1.1",
+    "simpleaudioi>=1.0.4"
 ]
 
 [dependency-groups]
