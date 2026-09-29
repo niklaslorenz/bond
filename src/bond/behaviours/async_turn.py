@@ -8,11 +8,13 @@ from bond.behaviours.auto_summarize import AutoSummarize
 from bond.conversation.conversation import Conversation, ConversationMessage
 from bond.conversation.types import (
     FunctionCall,
+    TextChunk,
     ToolCall,
 )
 from bond.endpoints.chat_completions import CompletionChunk, CompletionResponse
 from bond.providers.provider import (
     ConversationPromptingStrategy,
+    TTSStrategy,
 )
 from bond.runtime import BondRuntime
 from bond.tools.shell_tools import allow_shell_commands
@@ -32,6 +34,7 @@ class AsyncAgentTurn:
         toolbox: Toolbox,
         event_queue: asyncio.Queue[AsyncTurnEvent],
         runtime: BondRuntime | None = None,
+        tts: TTSStrategy | None = None,
     ):
         self._conversation_prompt = conversation_prompt
         self._auto_summarize = auto_summarize
@@ -40,6 +43,7 @@ class AsyncAgentTurn:
         self._toolbox = toolbox
         self._event_queue = event_queue
         self._runtime = runtime or BondRuntime.get_instance()
+        self._tts = tts
 
         self._tool_descriptions = self._toolbox.tool_descriptions
         self._stream = self._runtime.behaviour_flags.stream
@@ -118,6 +122,20 @@ class AsyncAgentTurn:
                 if self._stream
                 else AsyncTurnFullResponseEvent(message=message, response=raw_response)
             )
+            if self._tts is not None:
+                text = "".join(
+                    chunk.text
+                    for chunk in message.message.content or []
+                    if isinstance(chunk, TextChunk)
+                ).strip()
+                if text:
+                    audio = self._tts(text)
+                    if isinstance(audio, Success):
+                        asyncio.get_event_loop().run_in_executor(
+                            None, audio.unwrap().play
+                        )
+                    else:
+                        logger.error(audio.failure())
         return response
 
     async def _summarize(

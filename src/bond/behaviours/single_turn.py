@@ -87,10 +87,12 @@ class SingleTurn:
                 if isinstance(response, Failure):
                     return response
             except BaseException as e:
-                logger.error(f"An error occured while generating model response ({type(e)}): {e}")
+                logger.error(
+                    f"An error occured while generating model response ({type(e)}): {e}"
+                )
                 self._event_handler(ResponseEndEvent(usage=None))
                 raise
-            response = response.unwrap()
+            response, _ = response.unwrap()
             self._event_handler(
                 ResponseEndEvent(usage=response.usage)
                 if self._stream

@@ -3,6 +3,7 @@ from typing import Literal
 import requests
 from pydantic import BaseModel
 
+from bond.endpoints.voices import VoicesResponse
 from bond.providers.mistral.config import MistralConfig
 from bond.util import http_retry_loop, resolve_api_key
 
@@ -19,14 +20,6 @@ class MistralVoiceResponseEntry(BaseModel):
     user_id: str | None
 
 
-class MistralVoiceResponse(BaseModel):
-    items: list[MistralVoiceResponseEntry]
-    page: int
-    page_size: int
-    total: int
-    total_pages: int
-
-
 class MistralVoices:
     def __init__(self, config: MistralConfig):
         self.config = config
@@ -34,12 +27,19 @@ class MistralVoices:
             "Authorization": f"Bearer {resolve_api_key(config.api_key)}",
         }
 
-    def voices(self, max_retries: int = 3):
+    def voices(
+        self, limit: int = 10, offset: int = 0, max_retries: int = 3
+    ) -> VoicesResponse:
         response = http_retry_loop(
             lambda: requests.get(
-                "https://api.mistral.ai/v1/audio/voices", headers=self.headers
+                "https://api.mistral.ai/v1/audio/voices",
+                headers=self.headers,
+                params={
+                    "limit": limit,
+                    "offset": offset,
+                },
             ),
             max_retries=max_retries,
         )
-        data = MistralVoiceResponse.model_validate(response.json())
+        data = VoicesResponse.model_validate(response.json())
         return data

@@ -10,6 +10,8 @@ from bond.endpoints.chat_completions import (
     CompletionResponse,
 )
 from bond.endpoints.models import ModelsEndpoint
+from bond.endpoints.tts import TTSEndpoint, TTSResponse
+from bond.endpoints.voices import VoicesEndpoint
 from bond.persona import Persona
 from bond.tools.toolbox import Toolbox
 
@@ -24,6 +26,10 @@ class ConversationSummarizationStrategy(Protocol):
     def __call__(self, conversation: Conversation) -> Result[str, str]: ...
 
 
+class TTSStrategy(Protocol):
+    def __call__(self, content: str) -> Result[TTSResponse, str]: ...
+
+
 class Provider[ConfigType: BaseModel](Protocol):
     @classmethod
     def get_config_type(cls) -> Type[ConfigType]: ...
@@ -31,6 +37,9 @@ class Provider[ConfigType: BaseModel](Protocol):
     def from_config(cls, config: ConfigType) -> Self: ...
 
     def models(self) -> ModelsEndpoint: ...
+    def voices(self) -> VoicesEndpoint: ...
+    def tts(self) -> TTSEndpoint: ...
+
     def chat_completions(self) -> ChatCompletionsEndpoint: ...
 
     def conversation_summarization(
@@ -42,3 +51,4 @@ class Provider[ConfigType: BaseModel](Protocol):
         persona: Persona,
         toolbox: Toolbox,
     ) -> ConversationPromptingStrategy | None: ...
+    def tts_strategy(self, persona: Persona) -> TTSStrategy: ...

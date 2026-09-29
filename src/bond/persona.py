@@ -32,6 +32,11 @@ class SummarizationOptions(BaseModel):
     """Options for automatic summarization"""
 
 
+class TTSOptions(BaseModel):
+    model: str
+    voice: str | None
+
+
 class Persona(BaseModel):
     """
     Base Persona class that can be extended by plugins.
@@ -64,6 +69,7 @@ class Persona(BaseModel):
     toolbox: list[str] = Field(default_factory=list)
     model_options: dict[str, Any] = Field(default_factory=dict)
     summarization: SummarizationOptions | None = None
+    tts: TTSOptions | None = None
 
     @classmethod
     def get_type(cls) -> str:
@@ -74,9 +80,12 @@ class Persona(BaseModel):
     def from_file(cls, file: Path, runtime: "BondRuntime | None"):
         if runtime is None:
             from bond.runtime import BondRuntime
+
             runtime = BondRuntime.get_instance()
         if not file.exists():
-            raise ValueError(f"Could not load persona from file: '{file}'. Does not exist.")
+            raise ValueError(
+                f"Could not load persona from file: '{file}'. Does not exist."
+            )
         data = json.loads(file.read_text(encoding="utf-8"))
         if (persona_type_name := data.get("type")) is not None:
             if (
@@ -91,11 +100,12 @@ class Persona(BaseModel):
 
         if persona.system_prompt is not None:
             persona.system_prompt = resolve_instruction(persona.system_prompt, runtime)
-        
+
         if (summarization := persona.summarization) is not None:
-            summarization.instruction = resolve_instruction(summarization.instruction, runtime)
+            summarization.instruction = resolve_instruction(
+                summarization.instruction, runtime
+            )
         return persona
-        
 
     def model_dump_json(self, **kwargs) -> str:
         """Serialize to JSON, including the type discriminator."""

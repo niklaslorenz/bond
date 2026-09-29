@@ -25,9 +25,20 @@ class MistralTTS:
         }
 
     def tts(
-        self, model: str, content: str, options: dict[str, Any], max_retries: int = 3
+        self,
+        model: str,
+        voice: str,
+        content: str,
+        options: dict[str, Any],
+        max_retries: int = 3,
     ) -> TTSResponse:
-        payload = {"model": model, "input": content, **options}
+        payload = {
+            "model": model,
+            "input": content,
+            "voice_id": voice,
+            "response_format": "wav",
+            **options,
+        }
         response = http_retry_loop(
             lambda: requests.post(
                 "https://api.mistral.ai/v1/audio/speech",

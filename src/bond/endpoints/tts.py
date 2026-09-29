@@ -1,8 +1,7 @@
-import io
-import wave
+import tempfile
 from typing import Any, Protocol
 
-import simpleaudio as sa
+from playsound3 import playsound
 from pydantic import BaseModel
 
 
@@ -10,26 +9,19 @@ class TTSResponse(BaseModel):
     wav_audio: bytes
 
     def play(self):
-        with wave.open(io.BytesIO(self.wav_audio), "rb") as wav:
-            audio = wav.readframes(wav.getnframes())
-            channels = wav.getnchannels()
-            sample_width = wav.getsampwidth()
-            sample_rate = wav.getframerate()
-
-        play = sa.play_buffer(
-            audio,
-            channels,
-            sample_width,
-            sample_rate,
-        )
-
-        play.wait_done()
-
-        # Keep the object around until after playback
-        print("finished")
+        with tempfile.NamedTemporaryFile(suffix=".wav") as f:
+            f.write(self.wav_audio)
+            f.flush()
+            playsound(f.name)
+        return
 
 
 class TTSEndpoint(Protocol):
     def tts(
-        self, model: str, content: str, options: dict[str, Any], max_retries: int = 3
-    ): ...
+        self,
+        model: str,
+        voice: str,
+        content: str,
+        options: dict[str, Any],
+        max_retries: int = 3,
+    ) -> TTSResponse: ...

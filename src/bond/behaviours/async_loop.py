@@ -128,6 +128,7 @@ class AsyncAgentLoop:
         provider = self._runtime.get_provider(persona.provider)
         toolbox = self._runtime.build_toolbox(persona.toolbox)
         prompting = provider.conversation_prompting(persona, toolbox)
+        tts = provider.tts_strategy(persona)
         assert prompting
         if persona.summarization:
             summarizing = provider.conversation_summarization(persona)
@@ -157,6 +158,7 @@ class AsyncAgentLoop:
                 toolbox,
                 self._event_queue,
                 self._runtime,
+                tts,
             ),
             provider,
             persona,
