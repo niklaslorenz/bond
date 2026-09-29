@@ -189,6 +189,7 @@ class TuiCommandHandler:
                 conversation.history = []
                 conversation.summary = None
                 conversation.summary_index = 0
+            await self._app.chat_view.sync(conversation)
         return True
 
     async def summarize(self, _: Namespace) -> bool:
