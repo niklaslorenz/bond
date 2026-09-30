@@ -1,33 +1,20 @@
-from typing import Protocol, Self, Type
+from typing import TYPE_CHECKING, Any, Protocol, Self, Type
 
 from pydantic import BaseModel
-from returns.result import Result
 
-from bond.conversation.conversation import Conversation, ConversationMessage
+from bond.capabilities.generation import GenerationCapability
+from bond.capabilities.summarization import SummarizationCapability
+from bond.capabilities.tts import TTSCapability
 from bond.endpoints.chat_completions import (
     ChatCompletionsEndpoint,
-    ChatCompletionStreamCallback,
-    CompletionResponse,
 )
 from bond.endpoints.models import ModelsEndpoint
-from bond.endpoints.tts import TTSEndpoint, TTSResponse
+from bond.endpoints.tts import TTSEndpoint
 from bond.endpoints.voices import VoicesEndpoint
-from bond.persona import Persona
 from bond.tools.toolbox import Toolbox
 
-
-class ConversationPromptingStrategy(Protocol):
-    def __call__(
-        self, conversation: Conversation, callback: ChatCompletionStreamCallback | None
-    ) -> Result[tuple[CompletionResponse, ConversationMessage], str]: ...
-
-
-class ConversationSummarizationStrategy(Protocol):
-    def __call__(self, conversation: Conversation) -> Result[str, str]: ...
-
-
-class TTSStrategy(Protocol):
-    def __call__(self, content: str) -> Result[TTSResponse, str]: ...
+if TYPE_CHECKING:
+    from bond.runtime import BondRuntime
 
 
 class Provider[ConfigType: BaseModel](Protocol):
@@ -36,19 +23,21 @@ class Provider[ConfigType: BaseModel](Protocol):
     @classmethod
     def from_config(cls, config: ConfigType) -> Self: ...
 
-    def models(self) -> ModelsEndpoint: ...
-    def voices(self) -> VoicesEndpoint: ...
-    def tts(self) -> TTSEndpoint: ...
+    def chat_completions(self) -> ChatCompletionsEndpoint | None: ...
+    def models(self) -> ModelsEndpoint | None: ...
+    def tts_endpoint(self) -> TTSEndpoint | None: ...
+    def voices(self) -> VoicesEndpoint | None: ...
 
-    def chat_completions(self) -> ChatCompletionsEndpoint: ...
-
-    def conversation_summarization(
+    def generation(
         self,
-        persona: Persona,
-    ) -> ConversationSummarizationStrategy | None: ...
-    def conversation_prompting(
-        self,
-        persona: Persona,
+        name: str,
+        config: dict[str, Any],
         toolbox: Toolbox,
-    ) -> ConversationPromptingStrategy | None: ...
-    def tts_strategy(self, persona: Persona) -> TTSStrategy: ...
+        runtime: "BondRuntime | None" = None,
+    ) -> "GenerationCapability | None": ...
+    def summarization(
+        self, config: dict[str, Any], runtime: "BondRuntime | None" = None
+    ) -> "SummarizationCapability | None": ...
+    def tts(
+        self, config: dict[str, Any], runtime: "BondRuntime | None" = None
+    ) -> "TTSCapability | None": ...

@@ -1,20 +1,26 @@
 import os
-from typing import Type
+from dis import Instruction
+from typing import TYPE_CHECKING, Any, Type
 
-from bond.persona import Persona
-from bond.providers.general.default_conversation_prompting import (
-    DefaultConversationPromptingStrategy,
+from bond.providers.general.generation import (
+    DefaultGenerationCapability,
+    DefaultGenerationOptions,
 )
-from bond.providers.general.default_tts_strategy import DefaultTTSStrategy
+from bond.providers.general.tts import DefaultTTSCapability, DefaultTTSOptions
 from bond.providers.mistral.chat_completions import MistralChatCompletions
 from bond.providers.mistral.config import MistralConfig
-from bond.providers.mistral.conversation_summary import (
-    MistralConversationSummarizationStrategy,
-)
 from bond.providers.mistral.models import MistralModels
+from bond.providers.mistral.summarization import (
+    MistralSummarization,
+    MistralSummarizationOptions,
+)
 from bond.providers.mistral.tts import MistralTTS
 from bond.providers.mistral.voices import MistralVoices
 from bond.tools.toolbox import Toolbox
+from bond.util import resolve_skills
+
+if TYPE_CHECKING:
+    from bond.runtime import BondRuntime
 
 
 class Mistral:
@@ -34,48 +40,41 @@ class Mistral:
     def voices(self) -> MistralVoices:
         return self._voices
 
-    def tts(self) -> MistralTTS:
+    def tts_endpoint(self) -> MistralTTS:
         return self._tts
 
-    def conversation_summarization(
-        self, persona: Persona
-    ) -> MistralConversationSummarizationStrategy | None:
-        if persona.summarization is None:
-            return None
-        options = persona.summarization
-        return MistralConversationSummarizationStrategy(
-            options.model or persona.model,
-            options.model_options,
-            options.instruction,
-            options.keep,
-            10,
+    def summarization(
+        self, config: dict[str, Any], runtime: "BondRuntime | None" = None
+    ) -> MistralSummarization:
+        options = MistralSummarizationOptions.model_validate(config)
+        options.instruction = resolve_skills(options.instruction, runtime)
+        options.system_prompt = resolve_skills(options.system_prompt, runtime)
+        return MistralSummarization(
+            options,
             self.chat_completions(),
-            persona.system_prompt,
+            10,
         )
 
-    def conversation_prompting(
+    def generation(
         self,
-        persona: Persona,
+        name: str,
+        config: dict[str, Any],
         toolbox: Toolbox,
-    ) -> DefaultConversationPromptingStrategy:
-        assert persona.provider == "mistral"
-        return DefaultConversationPromptingStrategy(
-            persona.model,
-            persona.model_options,
-            persona.system_prompt,
-            toolbox.tool_descriptions,
-            10,
-            persona.name,
-            self.chat_completions(),
+        runtime: "BondRuntime | None" = None,
+    ) -> DefaultGenerationCapability:
+        options = DefaultGenerationOptions.model_validate(config)
+        options.system_prompt = resolve_skills(options.system_prompt, runtime)
+        return DefaultGenerationCapability(
+            name, options, toolbox.tool_descriptions, self.chat_completions(), 10
         )
 
-    def tts_strategy(self, persona: Persona) -> DefaultTTSStrategy | None:
-        opts = persona.tts
-        if opts is None:
+    def tts(
+        self, config: dict[str, Any], runtime: "BondRuntime | None" = None
+    ) -> DefaultTTSCapability | None:
+        options = DefaultTTSOptions.model_validate(config)
+        if options is None:
             return None
-        if opts.voice is None:
-            raise ValueError("Mistral tts requires the voice parameter")
-        return DefaultTTSStrategy(self._tts, opts.model, opts.voice)
+        return DefaultTTSCapability(options, self.tts_endpoint(), 10)
 
     @classmethod
     def default(cls) -> "Mistral":

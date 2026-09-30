@@ -4,7 +4,7 @@ import logging
 from returns.result import Failure, Result, Success
 
 from bond.behaviours.async_turn_event import *
-from bond.behaviours.auto_summarize import AutoSummarize
+from bond.behaviours.auto_summarize import AutoSummarization
 from bond.conversation.conversation import Conversation, ConversationMessage
 from bond.conversation.types import (
     FunctionCall,
@@ -12,10 +12,7 @@ from bond.conversation.types import (
     ToolCall,
 )
 from bond.endpoints.chat_completions import CompletionChunk, CompletionResponse
-from bond.providers.provider import (
-    ConversationPromptingStrategy,
-    TTSStrategy,
-)
+from bond.persona import Persona
 from bond.runtime import BondRuntime
 from bond.tools.shell_tools import allow_shell_commands
 from bond.tools.tool import ToolCallContext
@@ -27,25 +24,24 @@ logger = logging.getLogger(__name__)
 class AsyncAgentTurn:
     def __init__(
         self,
-        conversation_prompt: ConversationPromptingStrategy,
-        auto_summarize: AutoSummarize | None,
-        author_name: str,
+        persona: Persona,
         tool_call_context: ToolCallContext,
-        toolbox: Toolbox,
         event_queue: asyncio.Queue[AsyncTurnEvent],
         runtime: BondRuntime | None = None,
-        tts: TTSStrategy | None = None,
     ):
-        self._conversation_prompt = conversation_prompt
-        self._auto_summarize = auto_summarize
-        self._author_name = author_name
+        self._persona = persona
+        self._generation = persona.generation
+        self._auto_summarize = (
+            AutoSummarization(persona.summarization)
+            if persona.summarization is not None
+            else None
+        )
+        self._tts = persona.tts
+
         self._tool_call_context = tool_call_context
-        self._toolbox = toolbox
         self._event_queue = event_queue
         self._runtime = runtime or BondRuntime.get_instance()
-        self._tts = tts
 
-        self._tool_descriptions = self._toolbox.tool_descriptions
         self._stream = self._runtime.behaviour_flags.stream
         self._allow_shell_executions = (
             self._runtime.behaviour_flags.allow_shell_executions
@@ -70,7 +66,7 @@ class AsyncAgentTurn:
                 logger.debug("Response complete")
                 if isinstance(response_result, Failure):
                     return response_result
-                response, message = response_result.unwrap()
+                response, _ = response_result.unwrap()
                 await self._summarize(loop, conversation)
 
                 # Return when no tools are called
@@ -97,7 +93,7 @@ class AsyncAgentTurn:
     ) -> Result[tuple[CompletionResponse, ConversationMessage], str]:
         if self._stream:
             await self._event_queue.put(
-                AsyncTurnResponseStartEvent(author=self._author_name, role="assistant")
+                AsyncTurnResponseStartEvent(author=self._persona.name, role="assistant")
             )
 
         def insert_chunk(chunk: CompletionChunk):
@@ -107,7 +103,7 @@ class AsyncAgentTurn:
 
         response = await loop.run_in_executor(
             None,
-            self._conversation_prompt,
+            self._generation,
             conversation,
             insert_chunk if self._stream else None,
         )
@@ -163,7 +159,7 @@ class AsyncAgentTurn:
                     result = await loop.run_in_executor(
                         None,
                         _do_tool_call,
-                        self._toolbox,
+                        self._persona.toolbox,
                         tool_call.function,
                         self._tool_call_context,
                     )
@@ -171,7 +167,7 @@ class AsyncAgentTurn:
                 result = await loop.run_in_executor(
                     None,
                     _do_tool_call,
-                    self._toolbox,
+                    self._persona.toolbox,
                     tool_call.function,
                     self._tool_call_context,
                 )

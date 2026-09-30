@@ -2,7 +2,7 @@ from abc import ABC
 from pathlib import Path
 from typing import TYPE_CHECKING, Type
 
-from bond.persona import Persona
+from bond.persona import PersonaConfig
 
 if TYPE_CHECKING:
     from bond.runtime import BondRuntime
@@ -30,7 +30,7 @@ class BondPlugin(ABC):
         """
         self._runtime = runtime
         self._data_dir = data_dir
-        self._registered_persona_types: dict[str, Type[Persona]] = {}
+        self._registered_persona_types: dict[str, Type[PersonaConfig]] = {}
 
     def on_enable(self):
         """
@@ -52,7 +52,7 @@ class BondPlugin(ABC):
     def register_persona_type(
         self,
         persona_type: str,
-        persona_class: Type[Persona],
+        persona_class: Type[PersonaConfig],
     ) -> None:
         """
         Register a custom Persona subclass with a type discriminator.
@@ -69,7 +69,7 @@ class BondPlugin(ABC):
         Raises:
             ValueError: If the type is already registered or class is invalid
         """
-        if not issubclass(persona_class, Persona):
+        if not issubclass(persona_class, PersonaConfig):
             raise ValueError(
                 f"Cannot register {persona_class.__name__}: not a subclass of Persona"
             )
@@ -82,6 +82,6 @@ class BondPlugin(ABC):
         self._runtime.persona_type_registry.register(persona_type, persona_class)
         self._registered_persona_types[persona_type] = persona_class
 
-    def get_registered_persona_types(self) -> dict[str, Type[Persona]]:
+    def get_registered_persona_types(self) -> dict[str, Type[PersonaConfig]]:
         """Get all persona types registered with this plugin."""
         return self._registered_persona_types.copy()

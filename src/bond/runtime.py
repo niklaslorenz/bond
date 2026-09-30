@@ -19,7 +19,7 @@ from bond.config import (
     McpHttpServerConfig,
     McpStdioServerConfig,
 )
-from bond.persona import Persona
+from bond.persona import PersonaConfig
 from bond.plugins.bond_plugin import BondPlugin
 from bond.providers.mistral.mistral import Mistral
 from bond.providers.ollama.ollama import Ollama
@@ -75,7 +75,7 @@ class RuntimeEnvironment(ABC):
     @abstractmethod
     def load_provider(self, name: str, runtime: BondRuntime) -> Provider: ...
     @abstractmethod
-    def load_persona(self, name: str, runtime: BondRuntime) -> Persona: ...
+    def load_persona(self, name: str, runtime: BondRuntime) -> PersonaConfig: ...
     @abstractmethod
     def load_skill(self, name: str, runtime: BondRuntime) -> str: ...
     @abstractmethod
@@ -87,7 +87,7 @@ class StaticRuntimeEnvironment(RuntimeEnvironment):
         self,
         bond_config: BondConfig,
         providers: dict[str, Provider],
-        personas: dict[str, Persona],
+        personas: dict[str, PersonaConfig],
         plugins: dict[str, BondPlugin],
         skills: dict[str, str],
         data_dir: Path | None = None,
@@ -127,7 +127,7 @@ class StaticRuntimeEnvironment(RuntimeEnvironment):
     def load_provider(self, name: str, runtime: BondRuntime) -> Provider:
         return self._providers[name]
 
-    def load_persona(self, name: str, runtime: BondRuntime) -> Persona:
+    def load_persona(self, name: str, runtime: BondRuntime) -> PersonaConfig:
         return self._personas[name]
 
     def load_skill(self, name: str, runtime: BondRuntime) -> str:
@@ -221,9 +221,9 @@ class DynamicRuntimeEnvironment(RuntimeEnvironment):
             provider_type.get_config_type().model_validate(data)
         )
 
-    def load_persona(self, name: str, runtime: BondRuntime) -> Persona:
+    def load_persona(self, name: str, runtime: BondRuntime) -> PersonaConfig:
         path = self._config_dir / f"personas/{name}.json"
-        return Persona.from_file(path, runtime)
+        return PersonaConfig.from_file(path, runtime)
 
     def load_skill(self, name: str, runtime: BondRuntime) -> str:
         path = self._config_dir / f"skills/{name}.md"
@@ -251,14 +251,14 @@ class BondRuntime:
             return
         self._initialized = True
         self._plugin_registry = NamedEntryRegistry[BondPlugin]()
-        self._persona_type_registry = NamedEntryRegistry[Type[Persona]]()
+        self._persona_type_registry = NamedEntryRegistry[Type[PersonaConfig]]()
         self._provider_type_registry = NamedEntryRegistry[Type[Provider]]()
         self._toolset_registry = MappedEntryRegistry[Toolset](
             lambda toolset: toolset.name
         )
         self._loaded_plugins = NamedEntryRegistry[BondPlugin]()
         self._loaded_providers = NamedEntryRegistry[Provider]()
-        self._loaded_personas = NamedEntryRegistry[Persona]()
+        self._loaded_personas = NamedEntryRegistry[PersonaConfig]()
         self._loaded_skills = NamedEntryRegistry[str]()
         self._environment: RuntimeEnvironment | None = None
         self._behaviour_flags = BehaviourFlags()
@@ -268,7 +268,7 @@ class BondRuntime:
         self,
         config: BondConfig,
         providers: dict[str, Provider],
-        personas: dict[str, Persona],
+        personas: dict[str, PersonaConfig],
         plugins: dict[str, BondPlugin],
         skills: dict[str, str],
         behaviour_flags: BehaviourFlags | None = None,
@@ -344,7 +344,7 @@ class BondRuntime:
         return self._provider_type_registry
 
     @property
-    def persona_type_registry(self) -> NamedEntryRegistry[Type[Persona]]:
+    def persona_type_registry(self) -> NamedEntryRegistry[Type[PersonaConfig]]:
         return self._persona_type_registry
 
     @property
@@ -369,7 +369,7 @@ class BondRuntime:
     def build_toolbox(self, toolset_names: list[str]) -> Toolbox:
         return Toolbox([self.get_toolset(name) for name in toolset_names])
 
-    def get_persona(self, persona_name: str) -> Persona:
+    def get_persona(self, persona_name: str) -> PersonaConfig:
         """Get a persona by name, loading it if necessary."""
         env = self._get_env()
         if (persona := self._loaded_personas.get(persona_name)) is not None:

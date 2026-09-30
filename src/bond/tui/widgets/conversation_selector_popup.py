@@ -1,4 +1,3 @@
-import asyncio
 from difflib import SequenceMatcher
 
 from textual.containers import Horizontal, ScrollableContainer, Vertical

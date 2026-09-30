@@ -1,32 +1,41 @@
 from typing import Any
 
+from pydantic import BaseModel
 from returns.result import Failure, Result, Success
 
+from bond.capabilities.summarization import AutoSummarizationOptions
 from bond.conversation.conversation import Conversation
 from bond.conversation.types import Message, SystemMessage, TextChunk, UserMessage
-from bond.endpoints.chat_completions import ChatCompletionsEndpoint
+from bond.providers.mistral.chat_completions import MistralChatCompletions
 
 from . import logger
 
 
-class MistralConversationSummarizationStrategy:
+class MistralSummarizationOptions(BaseModel):
+    model: str
+    """The model to use for summarization. Falls back to the persona model if not specified."""
+    model_options: dict[str, Any] | None = None
+    """Model options for summarization"""
+    system_prompt: str | None = None
+    """System prompt for the summarization"""
+    instruction: str
+    """User level instruction that is appended to the end of the input"""
+    keep: int = 10
+    """The number of last messages to not summarize and keep as is"""
+    auto_summarization: AutoSummarizationOptions | None = None
+    """Options for automatic summarization"""
+
+
+class MistralSummarization:
     def __init__(
         self,
-        model: str,
-        model_options: dict[str, Any] | None,
-        summarization_instruction: str,
-        keep: int,
-        max_retries: int,
-        chat_completions: ChatCompletionsEndpoint,
-        system_prompt: str | None = None,
+        options: MistralSummarizationOptions,
+        chat_completions: MistralChatCompletions,
+        max_retries: int = 10,
     ):
-        self._model = model
-        self._model_options = model_options
-        self._summarization_instruction = summarization_instruction
-        self._keep = keep
-        self._max_retries = max_retries
+        self._options = options
         self._chat_completions = chat_completions
-        self._system_prompt = system_prompt
+        self._max_retries = max_retries
 
     def __call__(self, conversation: Conversation) -> Result[str, str]:
         logger.debug("Preparing summarization")
@@ -35,21 +44,21 @@ class MistralConversationSummarizationStrategy:
             return Failure(f"Summarization triggered with no messages to summarize")
         logger.debug(f"Summarizing {len(messages)} messages")
 
-        if self._system_prompt is not None:
+        if self._options.system_prompt is not None:
             messages = [
-                SystemMessage(content=[TextChunk(text=self._system_prompt)])
+                SystemMessage(content=[TextChunk(text=self._options.system_prompt)])
             ] + messages
         messages.append(
-            UserMessage(content=[TextChunk(text=self._summarization_instruction)])
+            UserMessage(content=[TextChunk(text=self._options.instruction)])
         )
 
         try:
             response = self._chat_completions.chat_completion(
-                self._model,
+                self._options.model,
                 messages,
                 [],
                 None,
-                self._model_options,
+                self._options.model_options,
                 self._max_retries,
             )
         except BaseException as e:
@@ -103,13 +112,13 @@ class MistralConversationSummarizationStrategy:
         #   with a single exception: The last message of the extracted message list MAY be
         #   an Assistant Message, since the summarization prompt is injected as User Message
         #
-        if conversation.num_unsummarized_messages() <= self._keep:
+        if conversation.num_unsummarized_messages() <= self._options.keep:
             return [], -1
 
         # Find the next best lower cutoff.
         # The last message that is included just cannot have a Tool Message following it
-        if self._keep != 0:
-            lower_pivot = len(conversation.history) - self._keep  # exclusive
+        if self._options.keep != 0:
+            lower_pivot = len(conversation.history) - self._options.keep  # exclusive
             while (
                 lower_pivot > 0
                 and conversation.history[lower_pivot].message.role == "tool"
@@ -133,3 +142,6 @@ class MistralConversationSummarizationStrategy:
         return [
             msg.message for msg in conversation.history[upper_pivot:lower_pivot]
         ], lower_pivot
+
+    def auto_summarization_options(self) -> AutoSummarizationOptions | None:
+        return self._options.auto_summarization

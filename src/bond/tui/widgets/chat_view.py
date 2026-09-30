@@ -21,7 +21,6 @@ class ChatView(Container):
         self.status_bar = StatusBar(
             status="<unknown>",
             persona="<unknown>",
-            provider="<unknown>",
             context_length=0,
         )
         self.chat_log = ChatLog()

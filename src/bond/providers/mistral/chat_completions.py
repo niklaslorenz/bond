@@ -26,11 +26,6 @@ class MistralChatCompletions:
             "Authorization": f"Bearer {resolve_api_key(config.api_key)}",
             "Content-Type": "application/json",
         }
-        self.chat_completion_options = (
-            config.chat_completion_options.model_dump()
-            if config.chat_completion_options
-            else {}
-        )
 
     def chat_completion(
         self,
@@ -44,11 +39,7 @@ class MistralChatCompletions:
     ) -> CompletionResponse:
         if self.config.models is not None and model not in self.config.models:
             raise ValueError(f"This model is not whitelisted: {model}")
-        merged_options = (
-            self.chat_completion_options | options
-            if options is not None
-            else self.chat_completion_options
-        )
+        merged_options = options or {}
         all_messages = (
             [system_message] if system_message is not None else []
         ) + messages
@@ -92,11 +83,7 @@ class MistralChatCompletions:
     ) -> CompletionResponse:
         if self.config.models is not None and model not in self.config.models:
             raise ValueError(f"Invalid model: {model}")
-        merged_options = (
-            self.chat_completion_options | options
-            if options is not None
-            else self.chat_completion_options
-        )
+        merged_options = options or {}
         all_messages = (
             [system_message] if system_message is not None else []
         ) + messages

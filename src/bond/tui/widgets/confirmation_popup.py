@@ -1,5 +1,4 @@
 from textual.containers import Horizontal, ScrollableContainer, Vertical
-from textual.message import Message
 from textual.widgets import Button, Static
 
 from bond.tui.widgets.popup import TuiPopup

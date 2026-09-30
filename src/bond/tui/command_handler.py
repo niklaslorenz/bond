@@ -100,7 +100,7 @@ class TuiCommandHandler:
             )
             await self._app.chat_view.sync(self._app.current_conversation)
             self._app.chat_view.status_bar.set_persona(
-                self._app.agent_loop.persona.name, self._app.agent_loop.persona.provider
+                self._app.agent_loop.persona.name
             )
 
     async def load(self, args: Namespace) -> bool:
@@ -122,9 +122,7 @@ class TuiCommandHandler:
             return True
         await self._app.agent_loop.set_conversation(Conversation.load_from_file(path))
         await self._app.chat_view.sync(self._app.current_conversation)
-        self._app.chat_view.status_bar.set_persona(
-            self._app.agent_loop.persona.name, self._app.agent_loop.persona.provider
-        )
+        self._app.chat_view.status_bar.set_persona(self._app.agent_loop.persona.name)
         return True
 
     async def new(self, args: Namespace) -> bool:
@@ -158,9 +156,7 @@ class TuiCommandHandler:
             self._notify(f"'{persona_name}' is not a valid persona")
             return False
         await self._app.agent_loop.set_persona(persona_name)
-        self._app.chat_view.status_bar.set_persona(
-            self._app.agent_loop.persona.name, self._app.agent_loop.persona.provider
-        )
+        self._app.chat_view.status_bar.set_persona(self._app.agent_loop.persona.name)
         return True
 
     async def delete(self, args: Namespace) -> bool:

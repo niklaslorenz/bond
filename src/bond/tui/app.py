@@ -78,9 +78,7 @@ class BondTui(App):
     async def on_mount(self):
         self.chat_view.input_bar.focus()
         await self.chat_view.sync(self.agent_loop.conversation)
-        self.chat_view.status_bar.set_persona(
-            self.agent_loop.persona.name, self.agent_loop.persona.provider
-        )
+        self.chat_view.status_bar.set_persona(self.agent_loop.persona.name)
         self.chat_view.status_bar.set_status("Idle")
         self._event_handler.start()
 

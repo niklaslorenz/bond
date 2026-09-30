@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 from time import sleep
-from typing import Callable, TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable, overload
 
 import requests
 
@@ -64,16 +64,26 @@ def resolve_api_key(api_key_raw: str) -> str:
         return api_key
     return api_key_raw
 
-def resolve_instruction(instruction_raw: str, runtime: "BondRuntime | None"):
+
+@overload
+def resolve_skills(instruction_raw: str, runtime: "BondRuntime | None") -> str: ...
+@overload
+def resolve_skills(instruction_raw: None, runtime: "BondRuntime | None") -> None: ...
+
+
+def resolve_skills(
+    instruction_raw: str | None, runtime: "BondRuntime | None"
+) -> str | None:
+    if instruction_raw is None:
+        return None
     if runtime is None:
         from bond.runtime import BondRuntime
+
         runtime = BondRuntime.get_instance()
     if instruction_raw.startswith("SKILL:"):
         skill = runtime.get_skill(instruction_raw[6:])
         if skill is None:
-            raise RuntimeError(
-                f"Could not read skill from file {instruction_raw[6:]}"
-            )
+            raise RuntimeError(f"Could not read skill from file {instruction_raw[6:]}")
         return skill
     return instruction_raw
 

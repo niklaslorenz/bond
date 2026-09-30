@@ -1,7 +1,7 @@
 import asyncio
 import traceback
 from threading import Thread
-from typing import Any, Protocol, runtime_checkable
+from typing import Any
 
 from mcp import ClientSession
 from mcp import Tool as McpTool

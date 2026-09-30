@@ -2,8 +2,6 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from bond.persona import SummarizationOptions
-
 
 class OllamaModelOptions(BaseModel):
     frequency_penalty: float | None = None
@@ -23,4 +21,3 @@ class OllamaConfig(BaseModel):
     models: list[str] | None = None
     chat_completion_options: OllamaModelOptions | None = None
     max_context_length: int = 8192
-    summarization: SummarizationOptions | None = None

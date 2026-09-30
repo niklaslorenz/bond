@@ -3,73 +3,47 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import BaseModel, Field
+from returns.result import Failure, Result, Success
 
-from bond.util import resolve_instruction
+from bond.capabilities.generation import GenerationCapability
+from bond.capabilities.summarization import SummarizationCapability
+from bond.capabilities.tts import TTSCapability
+from bond.tools.toolbox import Toolbox
 
 if TYPE_CHECKING:
+    from bond.providers.provider import Provider
     from bond.runtime import BondRuntime
 
 
-class AutoSummarization(BaseModel):
-    token_threshold: int | None = None
-    """Number of input and output tokens that triggers an automatic summarization at the end ot the turn."""
-    min_messages: int = 10
-    """Minimum number of messages required to trigger an automatic summarization. Takes precedence over token_threshold"""
-    max_messages: int = 30
-    """Maximum number of messages before triggering an automatic summarization. Takes precedence over token_threshold"""
+class Persona:
+    def __init__(
+        self,
+        name: str,
+        config: "PersonaConfig",
+        generation: GenerationCapability,
+        summarization: SummarizationCapability | None,
+        tts: TTSCapability | None,
+        toolbox: Toolbox,
+    ):
+        self.name = name
+        self.config = config
+        self.generation = generation
+        self.summarization = summarization
+        self.tts = tts
+        self.toolbox = toolbox
 
 
-class SummarizationOptions(BaseModel):
-    instruction: str
-    """System prompt that is used for the summarization task"""
-    model: str | None = None
-    """The model to use for summarization. Falls back to the persona model if not specified."""
-    keep: int = 10
-    """The number of last messages to not summarize and keep as is"""
-    model_options: dict[str, Any] | None = None
-    """Model options for summarization"""
-    auto_summarize: AutoSummarization | None = None
-    """Options for automatic summarization"""
-
-
-class TTSOptions(BaseModel):
-    model: str
-    voice: str | None
-
-
-class Persona(BaseModel):
-    """
-    Base Persona class that can be extended by plugins.
-
-    Plugins can register subclasses with additional fields using
-    `register_persona_type()` from the persona_registry module.
-
-    Persona JSON files can specify a type discriminator to use a
-    registered subclass:
-
-    ```json
-    {
-      "type": "my_custom_persona",
-      "name": "My Persona",
-      "model": "my-model",
-      "provider": "mistral",
-      "custom_field": "custom_value"
-    }
-    ```
-
-    If no "type" field is present, the base Persona class is used.
-    """
-
+class PersonaConfig(BaseModel):
     type: ClassVar[str] = "default"
 
     name: str
-    model: str
-    provider: str
-    system_prompt: str | None = None
-    toolbox: list[str] = Field(default_factory=list)
-    model_options: dict[str, Any] = Field(default_factory=dict)
-    summarization: SummarizationOptions | None = None
-    tts: TTSOptions | None = None
+
+    generation: dict[str, Any]
+    summarization: dict[str, Any] | None = None
+    tts: dict[str, Any] | None = None
+    voice_input: dict[str, Any] | None = None
+
+    toolsets: list[str] = Field(default_factory=list)
 
     @classmethod
     def get_type(cls) -> str:
@@ -95,16 +69,9 @@ class Persona(BaseModel):
                     f"Unknown persona type in {file}: {persona_type_name}. Valid values are {runtime._persona_type_registry.get_names()}"
                 )
         else:
-            persona_type = Persona
+            persona_type = PersonaConfig
         persona = persona_type.model_validate(data)
 
-        if persona.system_prompt is not None:
-            persona.system_prompt = resolve_instruction(persona.system_prompt, runtime)
-
-        if (summarization := persona.summarization) is not None:
-            summarization.instruction = resolve_instruction(
-                summarization.instruction, runtime
-            )
         return persona
 
     def model_dump_json(self, **kwargs) -> str:
@@ -114,3 +81,38 @@ class Persona(BaseModel):
         if persona_type != "default":
             data = {"type": persona_type, **data}
         return json.dumps(data, **kwargs)
+
+    def instantiate(self, runtime: "BondRuntime | None" = None):
+        if runtime is None:
+            from bond.runtime import BondRuntime
+
+            runtime = BondRuntime.get_instance()
+        toolbox = runtime.build_toolbox(self.toolsets)
+        generation = (
+            _get_provider(self.generation, runtime)
+            .map(lambda x: x.generation(self.name, self.generation, toolbox, runtime))
+            .value_or(None)
+        )
+        if generation is None:
+            raise RuntimeError("Provider does not support generation")
+        summarization = (
+            _get_provider(self.summarization, runtime)
+            .map(lambda x: x.summarization(self.summarization or {}, runtime))
+            .value_or(None)
+        )
+        tts = (
+            _get_provider(self.tts, runtime)
+            .map(lambda x: x.tts(self.tts or {}, runtime))
+            .value_or(None)
+        )
+        return Persona(self.name, self, generation, summarization, tts, toolbox)
+
+
+def _get_provider(
+    config: dict[str, Any] | None, runtime: "BondRuntime"
+) -> "Result[Provider, None]":
+    if config is None:
+        return Failure(None)
+    if (provider := config.get("provider")) is not None:
+        return Success(runtime.get_provider(provider))
+    return Failure(None)

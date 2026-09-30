@@ -1,5 +1,6 @@
 from typing import Any, Callable
 
+from pydantic import BaseModel
 from returns.result import Failure, Result, Success
 
 from bond.conversation.conversation import Conversation, ConversationMessage
@@ -12,24 +13,27 @@ from bond.endpoints.chat_completions import (
 from bond.tools.tool import Tool
 
 
-class DefaultConversationPromptingStrategy:
+class DefaultGenerationOptions(BaseModel):
+    model: str
+    model_options: dict[str, Any] | None = None
+    system_prompt: str | None
+    pass
+
+
+class DefaultGenerationCapability:
     def __init__(
         self,
-        model: str,
-        model_options: dict[str, Any] | None,
-        system_msg: str | None,
+        name: str,
+        options: DefaultGenerationOptions,
         tools: list[Tool],
-        max_retries: int,
-        author_name: str | None,
         chat_completions: ChatCompletionsEndpoint,
+        max_retries: int,
     ):
-        self._model = model
-        self._model_options = model_options
-        self._system_msg = system_msg
+        self._name = name
+        self._options = options
         self._tools = tools
-        self._max_retries = max_retries
-        self._author_name = author_name
         self._chat_completions = chat_completions
+        self._max_retries = max_retries
 
     def __call__(
         self,
@@ -44,30 +48,34 @@ class DefaultConversationPromptingStrategy:
         try:
             if should_stream:
                 response = self._chat_completions.stream_chat_completion(
-                    self._model,
+                    self._options.model,
                     conversation.get_chat_completion_messages(),
                     self._tools,
                     callback,
                     (
-                        SystemMessage(content=[TextChunk(text=self._system_msg)])
-                        if self._system_msg is not None
+                        SystemMessage(
+                            content=[TextChunk(text=self._options.system_prompt)]
+                        )
+                        if self._options.system_prompt is not None
                         else None
                     ),
-                    self._model_options,
+                    self._options.model_options,
                     self._max_retries,
                     conversation.metadata,
                 )
             else:
                 response = self._chat_completions.chat_completion(
-                    self._model,
+                    self._options.model,
                     conversation.get_chat_completion_messages(),
                     self._tools,
                     (
-                        SystemMessage(content=[TextChunk(text=self._system_msg)])
-                        if self._system_msg is not None
+                        SystemMessage(
+                            content=[TextChunk(text=self._options.system_prompt)]
+                        )
+                        if self._options.system_prompt is not None
                         else None
                     ),
-                    self._model_options,
+                    self._options.model_options,
                     self._max_retries,
                     conversation.metadata,
                 )
@@ -75,7 +83,7 @@ class DefaultConversationPromptingStrategy:
                 return Failure("Received empty response from backend: {response}")
             message = response.choices[0].message
             conversation_message = ConversationMessage(
-                author=self._author_name or self._model,
+                author=self._name,
                 message=AssistantMessage(
                     content=message.content, tool_calls=message.tool_calls
                 ),

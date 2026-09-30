@@ -1,4 +1,4 @@
-from typing import Type
+from typing import TYPE_CHECKING, Any, Type
 
 from bond.conversation.types import (
     Message,
@@ -7,14 +7,17 @@ from bond.conversation.types import (
     ThinkChunk,
     ToolReferenceChunk,
 )
-from bond.persona import Persona
-from bond.providers.general.default_conversation_prompting import (
-    DefaultConversationPromptingStrategy,
+from bond.providers.general.generation import (
+    DefaultGenerationCapability,
+    DefaultGenerationOptions,
 )
 from bond.providers.ollama.chat_completions import OllamaChatCompletions
 from bond.providers.ollama.config import OllamaConfig
 from bond.providers.ollama.models import OllamaModels
 from bond.tools.toolbox import Toolbox
+
+if TYPE_CHECKING:
+    from bond.runtime import BondRuntime
 
 
 def _parse_text_like_chunks(
@@ -54,27 +57,39 @@ class Ollama:
         self._models = OllamaModels(config)
         self._chat_completions = OllamaChatCompletions(config)
 
-    def models(self) -> OllamaModels:
-        return self._models
-
     def chat_completions(self) -> OllamaChatCompletions:
         return self._chat_completions
 
-    def conversation_summarization(self, persona: Persona):
+    def models(self) -> OllamaModels:
+        return self._models
+
+    def tts_endpoint(self):
+        # Not implemented
         return None
 
-    def conversation_prompting(
-        self, persona: Persona, toolbox: Toolbox
-    ) -> DefaultConversationPromptingStrategy:
-        return DefaultConversationPromptingStrategy(
-            persona.model,
-            persona.model_options,
-            persona.system_prompt,
-            toolbox.tool_descriptions,
-            10,
-            persona.name,
-            self.chat_completions(),
+    def voices(self):
+        # Not implemented
+        return None
+
+    def generation(
+        self,
+        name: str,
+        config: dict[str, Any],
+        toolbox: Toolbox,
+        runtime: "BondRuntime | None" = None,
+    ) -> DefaultGenerationCapability:
+        options = DefaultGenerationOptions.model_validate(config)
+        return DefaultGenerationCapability(
+            name, options, toolbox.tool_descriptions, self.chat_completions(), 10
         )
+
+    def tts(self, config: dict[str, Any], runtime: "BondRuntime | None" = None):
+        raise RuntimeError("TTS is not supported by Ollama")
+
+    def summarization(
+        self, config: dict[str, Any], runtime: "BondRuntime | None" = None
+    ):
+        raise RuntimeError("Summarization is not supported by Ollama")
 
     @classmethod
     def get_config_type(cls) -> Type[OllamaConfig]:

@@ -1,22 +1,24 @@
+import logging
+
 from returns.result import Result, Success
 
+from bond.capabilities.summarization import (
+    AutoSummarizationOptions,
+    SummarizationCapability,
+)
 from bond.conversation.conversation import Conversation
-from bond.persona import AutoSummarization
-from bond.providers.provider import ConversationSummarizationStrategy
 
-from . import logger
+logger = logging.getLogger(__name__)
 
 
-class AutoSummarize:
+class AutoSummarization:
     def __init__(
         self,
-        config: AutoSummarization,
-        summarize: ConversationSummarizationStrategy,
-        keep: int,
+        summarize: SummarizationCapability,
     ):
-        self._config = config
+        options = summarize.auto_summarization_options()
+        self._config = options
         self._summarize = summarize
-        self._keep = keep
 
     def run(self, conversation: Conversation) -> Result[str | None, str]:
         if _check_summarize_condition(self._config, conversation):
@@ -28,7 +30,7 @@ class AutoSummarize:
 
 
 def _check_summarize_condition(
-    summarization_options: AutoSummarization | None,
+    summarization_options: AutoSummarizationOptions | None,
     conversation: Conversation,
 ) -> bool:
     if summarization_options is None:

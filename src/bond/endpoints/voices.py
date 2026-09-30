@@ -1,4 +1,3 @@
-from re import finditer
 from typing import Protocol
 
 from pydantic import BaseModel
