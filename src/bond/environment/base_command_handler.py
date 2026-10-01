@@ -168,16 +168,13 @@ class BaseCommandHandler:
         if summarization_options is None:
             self.notify("Summarization is disabled for this persona")
             return
-        summarization = self.beh.summarize
+        summarization = self.beh.persona.summarization
         if summarization is None:
-            self.notify(
-                f"Summarization is not possible with this provider: {self.beh.persona.provider}"
-            )
+            self.notify(f"Summarization is not configured for this persona")
             return
         summarization_result = summarization(self.beh.conversation)
         if isinstance(summarization_result, Failure):
             self.notify(summarization_result.failure())
-            
 
     # Helper methods
 

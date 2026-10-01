@@ -2,7 +2,7 @@ import logging
 
 from returns.result import Failure, Result, Success
 
-from bond.behaviours.auto_summarize import AutoSummarize
+from bond.behaviours.auto_summarize import AutoSummarization
 from bond.behaviours.behaviour_event import (
     AppendMessageChunkEvent,
     CallToolEvent,
@@ -17,9 +17,7 @@ from bond.conversation.conversation import Conversation, ConversationMessage
 from bond.conversation.types import (
     FunctionCall,
 )
-from bond.providers.provider import (
-    ConversationPromptingStrategy,
-)
+from bond.persona import Persona
 from bond.runtime import BondRuntime
 from bond.tools.shell_tools import allow_shell_commands
 from bond.tools.tool import ToolCallContext
@@ -42,29 +40,28 @@ def _do_tool_call(
 class SingleTurn:
     def __init__(
         self,
-        conversation_prompt: ConversationPromptingStrategy,
-        auto_summarize: AutoSummarize | None,
+        persona: Persona,
         author_name: str,
         event_handler: IBehaviourEventHandler,
         signal_receiver: IBehaviourSignalReceiver,
         tool_call_context: ToolCallContext,
-        toolbox: Toolbox,
         stream: bool = False,
         allow_shell_executions: bool = False,
         runtime: BondRuntime | None = None,
     ):
-        self._conversation_prompt = conversation_prompt
-        self._auto_summarize = auto_summarize
+        self._persona = persona
+        self._auto_summarize = (
+            AutoSummarization(persona.summarization)
+            if persona.summarization is not None
+            else None
+        )
         self._author_name = author_name
         self._event_handler = event_handler
         self._signal_receiver = signal_receiver
         self._tool_call_context = tool_call_context
-        self._toolbox = toolbox
         self._stream = stream
         self._allow_shell_executions = allow_shell_executions
         self._runtime = runtime or BondRuntime.get_instance()
-
-        self._tool_descriptions = self._toolbox.tool_descriptions
 
     def run(self, conversation: Conversation) -> Result[None, str]:
         stream_callback = (
@@ -83,7 +80,7 @@ class SingleTurn:
                     ResponseStartEvent(author=self._author_name, role="assistant")
                 )
             try:
-                response = self._conversation_prompt(conversation, stream_callback)
+                response = self._persona.generation(conversation, stream_callback)
                 if isinstance(response, Failure):
                     return response
             except BaseException as e:
@@ -120,11 +117,15 @@ class SingleTurn:
                 if self._allow_shell_executions:
                     with allow_shell_commands():
                         result = _do_tool_call(
-                            self._toolbox, tool_call.function, self._tool_call_context
+                            self._persona.toolbox,
+                            tool_call.function,
+                            self._tool_call_context,
                         )
                 else:
                     result = _do_tool_call(
-                        self._toolbox, tool_call.function, self._tool_call_context
+                        self._persona.toolbox,
+                        tool_call.function,
+                        self._tool_call_context,
                     )
 
                 self._event_handler(ToolReturnEvent(result=result))

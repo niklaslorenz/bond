@@ -1,4 +1,3 @@
-import itertools
 import re
 import sys
 from argparse import ArgumentParser, Namespace
@@ -12,6 +11,7 @@ def list_voices(args: Namespace):
     runtime.initialize_dynamic(enable_plugins=False)
     provider = runtime.get_provider(args.provider)
     voices_endpoint = provider.voices()
+    assert voices_endpoint is not None
     matching_voices = list(
         voice
         for voice in list_all(voices_endpoint)
@@ -22,7 +22,7 @@ def list_voices(args: Namespace):
     print("  " + "\n  ".join(f"{voice.name}: {voice.id}" for voice in limited_voices))
 
 
-def list_providers(args: Namespace):
+def list_providers(_: Namespace):
     runtime = BondRuntime.get_instance()
     runtime.initialize_dynamic()
     providers = runtime.list_providers()
@@ -32,7 +32,7 @@ def list_providers(args: Namespace):
     print("Providers:\n  " + "\n  ".join(providers))
 
 
-def list_personas(args: Namespace):
+def list_personas(_: Namespace):
     runtime = BondRuntime.get_instance()
     runtime.initialize_dynamic()
     personas = runtime.list_personas()
@@ -42,7 +42,7 @@ def list_personas(args: Namespace):
     print("Personas:\n  " + "\n  ".join(personas))
 
 
-def list_plugins(args: Namespace):
+def list_plugins(_: Namespace):
     runtime = BondRuntime.get_instance()
     runtime.initialize_dynamic(enable_plugins=False)
     plugins = runtime.list_plugins()
@@ -60,7 +60,7 @@ def tts(args: Namespace):
     if voices is None:
         print("This provider does not support voices")
         return
-    tts = provider.tts()
+    tts = provider.tts_endpoint()
     if tts is None:
         print("This provider does not support tts")
         return

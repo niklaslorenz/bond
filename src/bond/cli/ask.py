@@ -4,7 +4,6 @@ from argparse import ArgumentParser, Namespace
 from pathlib import Path
 
 from bond import util
-from bond.behaviours.auto_summarize import AutoSummarize
 from bond.behaviours.single_turn import SingleTurn
 from bond.config import get_default_persona
 from bond.conversation.conversation import Conversation, ConversationMessage
@@ -89,36 +88,13 @@ def main():
     event_handler = StdEventHandler(signal_receiver, show_thoughts, show_tool_output)
 
     # Setup turn
-    allow_shell = "shell" in persona.toolbox
-    toolbox = runtime.build_toolbox(persona.toolbox)
-    provider = runtime.get_provider(persona.provider)
-    prompting = provider.conversation_prompting(persona, toolbox)
-    if prompting is None:
-        raise ValueError("Provider does not support prompting")
-    if persona.summarization is not None:
-        summarize = provider.conversation_summarization(persona)
-        if summarize is None:
-            raise ValueError("Provider does not support summarization")
-        auto_summarize = (
-            AutoSummarize(
-                persona.summarization.auto_summarize,
-                summarize,
-                persona.summarization.keep,
-            )
-            if persona.summarization.auto_summarize is not None
-            else None
-        )
-    else:
-        summarize = None
-        auto_summarize = None
+    allow_shell = "shell" in persona.toolsets
     turn = SingleTurn(
-        conversation_prompt=prompting,
-        auto_summarize=auto_summarize,
+        persona=persona.instantiate(),
         author_name=persona.name,
         event_handler=event_handler,
         signal_receiver=signal_receiver,
         tool_call_context=tool_call_context,
-        toolbox=toolbox,
         stream=stream,
         allow_shell_executions=allow_shell,
         runtime=runtime,
