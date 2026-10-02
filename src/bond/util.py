@@ -1,6 +1,7 @@
 import email.utils
 import logging
 import os
+import re
 from datetime import datetime, timezone
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
@@ -80,12 +81,13 @@ def resolve_skills(
         from bond.runtime import BondRuntime
 
         runtime = BondRuntime.get_instance()
-    if instruction_raw.startswith("SKILL:"):
-        skill = runtime.get_skill(instruction_raw[6:])
-        if skill is None:
-            raise RuntimeError(f"Could not read skill from file {instruction_raw[6:]}")
-        return skill
-    return instruction_raw
+
+    instruction = re.sub(
+        r"\{SKILL:(\w+)\}",
+        lambda match: runtime.get_skill(match.group(1) + ".md"),
+        instruction_raw,
+    )
+    return instruction
 
 
 def parse_sse_stream(stream):
