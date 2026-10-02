@@ -70,7 +70,7 @@ class PersonaConfig(BaseModel):
                 )
         else:
             persona_type = PersonaConfig
-        persona = persona_type.model_validate(data)
+        persona = persona_type.model_validate(data, extra="forbid")
 
         return persona
 
