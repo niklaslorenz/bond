@@ -29,7 +29,6 @@ def main():
     config = runtime.get_bond_config()
 
     persona_id = get_default_persona(config.chat)
-    tool_call_context = ToolCallContext.default(persona_id, True)
 
     last_ask_path = conv_path / "last-ask.json"
     last_conv_path = conv_path / "last-conv.json"
@@ -38,6 +37,7 @@ def main():
         if last_ask_path.is_file()
         else Conversation()
     )
+    tool_call_context = ToolCallContext.default(persona_id, True, conversation)
     if len(conversation.history) == 0:
         print("<New Conversation>")
     else:

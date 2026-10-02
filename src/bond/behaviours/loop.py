@@ -1,5 +1,7 @@
 from typing import Callable
 
+from returns.result import Failure
+
 from bond.behaviours.behaviour_event import (
     ChangePersonaEvent,
     CommandResponseEvent,
@@ -62,7 +64,13 @@ class LoopBehaviour:
         self.set_conversation(conversation)
 
     def set_persona(self, persona_id: str, update_conversation: bool):
-        self.persona = self.runtime.get_persona(persona_id).instantiate()
+        persona_config = self.runtime.get_persona(persona_id)
+        if isinstance(persona_config, Failure):
+            error = ValueError()
+            error.add_note(persona_config.failure())
+            self.event_handler(ErrorEvent(error=error, critical=False))
+            return
+        self.persona = persona_config.unwrap().instantiate()
         self.persona_id = persona_id
         self.tool_call_context.persona = persona_id
         if update_conversation:

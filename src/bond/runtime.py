@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Type
 
 from mcp import StdioServerParameters
+from returns.result import Result
 
 from bond.behaviour_flags import BehaviourFlags
 from bond.config import (
@@ -19,7 +20,7 @@ from bond.config import (
     McpHttpServerConfig,
     McpStdioServerConfig,
 )
-from bond.persona import PersonaConfig
+from bond.persona import Failure, PersonaConfig, Success
 from bond.plugins.bond_plugin import BondPlugin
 from bond.providers.mistral.mistral import Mistral
 from bond.providers.ollama.ollama import Ollama
@@ -77,7 +78,9 @@ class RuntimeEnvironment(ABC):
     @abstractmethod
     def load_provider(self, name: str, runtime: BondRuntime) -> Provider: ...
     @abstractmethod
-    def load_persona(self, name: str, runtime: BondRuntime) -> PersonaConfig: ...
+    def load_persona(
+        self, name: str, runtime: BondRuntime
+    ) -> Result[PersonaConfig, str]: ...
     @abstractmethod
     def load_skill(self, name: str, runtime: BondRuntime) -> str: ...
     @abstractmethod
@@ -129,8 +132,10 @@ class StaticRuntimeEnvironment(RuntimeEnvironment):
     def load_provider(self, name: str, runtime: BondRuntime) -> Provider:
         return self._providers[name]
 
-    def load_persona(self, name: str, runtime: BondRuntime) -> PersonaConfig:
-        return self._personas[name]
+    def load_persona(
+        self, name: str, runtime: BondRuntime
+    ) -> Result[PersonaConfig, str]:
+        return Result.from_value(self._personas[name])
 
     def load_skill(self, name: str, runtime: BondRuntime) -> str:
         return self._skills[name]
@@ -220,12 +225,14 @@ class DynamicRuntimeEnvironment(RuntimeEnvironment):
                 f"Unknown provider type in {path}: {provider_type_name}. Valid values are {runtime._provider_type_registry.get_names()}"
             )
         return provider_type.from_config(
-            provider_type.get_config_type().model_validate(data)
+            provider_type.get_config_type().model_validate(data, extra="forbid")
         )
 
-    def load_persona(self, name: str, runtime: BondRuntime) -> PersonaConfig:
+    def load_persona(
+        self, name: str, runtime: BondRuntime
+    ) -> Result[PersonaConfig, str]:
         path = self._config_dir / f"personas/{name}.json"
-        return PersonaConfig.from_file(path, runtime)
+        return PersonaConfig.from_file_safe(path, runtime)
 
     def load_skill(self, name: str, runtime: BondRuntime) -> str:
         path = self._config_dir / f"skills/{name}.md"
@@ -371,13 +378,14 @@ class BondRuntime:
     def build_toolbox(self, toolset_names: list[str]) -> Toolbox:
         return Toolbox([self.get_toolset(name) for name in toolset_names])
 
-    def get_persona(self, persona_name: str) -> PersonaConfig:
+    def get_persona(self, persona_name: str) -> Result[PersonaConfig, str]:
         """Get a persona by name, loading it if necessary."""
         env = self._get_env()
         if (persona := self._loaded_personas.get(persona_name)) is not None:
-            return persona
+            return Result.from_value(persona)
         persona = env.load_persona(persona_name, self)
-        self._loaded_personas.register(persona_name, persona)
+        if isinstance(persona, Success):
+            self._loaded_personas.register(persona_name, persona.unwrap())
         return persona
 
     def get_provider(self, provider_name: str) -> Provider:

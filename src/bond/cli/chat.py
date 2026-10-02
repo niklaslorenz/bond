@@ -55,7 +55,7 @@ def main():
     # Also, why does loop update the persona multiple times during construction? Either take the one from the conversation
     # Or get the default yourself
     persona_id = get_default_persona(config.chat)
-    tool_call_context = ToolCallContext.default(persona_id, True)
+    tool_call_context = ToolCallContext.default(persona_id, True, conversation)
 
     receiver = StdSignalReceiver()
     event_handler = StdEventHandler(receiver, show_thoughts, show_tool_output)

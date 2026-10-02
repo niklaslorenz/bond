@@ -3,6 +3,8 @@ import sys
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
 
+from returns.result import Failure
+
 from bond import util
 from bond.behaviours.single_turn import SingleTurn
 from bond.config import get_default_persona
@@ -69,6 +71,10 @@ def main():
             f"not a valid persona: {persona_id}. Available personas: {'\n'.join(config.ask.personas)}"
         )
     persona = runtime.get_persona(persona_id)
+    if isinstance(persona, Failure):
+        print(persona.failure())
+        return
+    persona = persona.unwrap()
 
     # Setup conversation
     conversation = Conversation()

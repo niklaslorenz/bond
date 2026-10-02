@@ -4,7 +4,10 @@ import logging
 from returns.result import Failure, Result
 
 from bond.behaviours.async_turn import AsyncAgentTurn, AsyncTurnEvent
-from bond.behaviours.async_turn_event import AsyncTurnMessageInsertedEvent
+from bond.behaviours.async_turn_event import (
+    AsyncTurnErrorEvent,
+    AsyncTurnMessageInsertedEvent,
+)
 from bond.conversation.conversation import Conversation, ConversationMessage
 from bond.conversation.types import UserMessage
 from bond.persona import Persona
@@ -121,6 +124,10 @@ class AsyncAgentLoop:
     def _build_turn(self) -> tuple[AsyncAgentTurn, Persona]:
         persona_id = self._conversation.current_persona or self._default_persona_id
         persona_config = self._runtime.get_persona(persona_id)
+        if isinstance(persona_config, Failure):
+            self._event_queue.put_nowait(AsyncTurnErrorEvent(persona_config.failure()))
+            return self._agent_turn, self._persona
+        persona_config = persona_config.unwrap()
         persona = persona_config.instantiate()
 
         # TODO: this is just a dirty hack, there has to be a better solution

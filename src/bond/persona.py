@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from returns.result import Failure, Result, Success
 
 from bond.capabilities.generation import GenerationCapability
@@ -73,6 +73,52 @@ class PersonaConfig(BaseModel):
         persona = persona_type.model_validate(data, extra="forbid")
 
         return persona
+
+    @classmethod
+    def from_file_safe(
+        cls, file: Path, runtime: "BondRuntime | None" = None
+    ) -> Result["PersonaConfig", str]:
+        """
+        Safely load a PersonaConfig from a file, returning a Result with a user-friendly error message on failure.
+
+        This is a wrapper around from_file that catches exceptions and converts them to
+        understandable error messages. Unlike from_file, this method will never raise an exception
+        and instead returns a Failure with a descriptive error message.
+
+        Args:
+            file: Path to the persona configuration file
+            runtime: Optional BondRuntime instance
+
+        Returns:
+            Success with the loaded PersonaConfig on success, or Failure with an error message on failure
+        """
+
+        try:
+            config = cls.from_file(file, runtime)
+            return Success(config)
+        except ValueError as e:
+            # Handle file not found and unknown persona type errors
+            error_msg = str(e)
+            if "Does not exist" in error_msg:
+                return Failure(f"File not found: '{file}'")
+            elif "Unknown persona type" in error_msg:
+                return Failure(error_msg)
+            return Failure(f"Configuration error: {error_msg}")
+        except json.JSONDecodeError as e:
+            # Handle JSON parsing errors
+            return Failure(f"Invalid JSON in file '{file}': {str(e)}")
+        except ValidationError as e:
+            # Handle pydantic validation errors - format them nicely
+            errors = []
+            for error in e.errors():
+                loc = " -> ".join(str(loc) for loc in error["loc"])
+                msg = error["msg"]
+                errors.append(f"  - Field '{loc}': {msg}")
+            error_list = "\n".join(errors)
+            return Failure(f"Invalid persona configuration in '{file}':\n{error_list}")
+        except Exception as e:
+            # Catch any other unexpected errors
+            return Failure(f"Unexpected error loading persona from '{file}': {str(e)}")
 
     def model_dump_json(self, **kwargs) -> str:
         """Serialize to JSON, including the type discriminator."""
