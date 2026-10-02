@@ -218,7 +218,7 @@ class TuiCommandHandler:
                 self._notify(f"{e}")
             self._notify(f"cwd: {os.getcwd()}")
         else:
-            subprocess.run(
+            process = subprocess.run(
                 cmd,
                 text=True,
                 shell=True,
@@ -227,6 +227,9 @@ class TuiCommandHandler:
                 stdout=stdout,
                 stdin=stdin,
             )
+            # TODO: Maybe introduce a new popup that can show a longer message
+            # and only show one-liners as notification
+            self._notify(process.stdout)
 
     def _list_conversations(self) -> list[str]:
         if (
@@ -250,7 +253,7 @@ class TuiCommandHandler:
                 if cmd.strip().startswith(":"):
                     cmd_raw = cmd[1:]
                     await asyncio.get_event_loop().run_in_executor(
-                        None, self._handle_shell_command, cmd_raw
+                        None, self._handle_shell_command, cmd_raw, None, subprocess.PIPE
                     )
 
                     return True
