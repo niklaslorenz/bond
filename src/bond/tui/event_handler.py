@@ -84,6 +84,16 @@ class TuiEventHandler(AsyncTurnEventHandler):
         self._get_app().chat_view.add_conversation_message(event.message)
         self._get_app().chat_view.chat_log.scroll_end()
 
+    async def handle_request_confirmation_event(
+        self, event: AsyncTurnRequestConfirmationEvent
+    ):
+        logger.debug("Requesting confirmation")
+        result = False
+        try:
+            result = await self._get_app().ask_confirmation(event.request)
+        finally:
+            event.result.set_result(result)
+
     async def handle_response_chunk_event(self, event: AsyncTurnResponseChunkEvent):
         logger.debug("Handling response chunk event")
         msg = self._get_app().chat_view.last_message

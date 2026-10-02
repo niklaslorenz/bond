@@ -28,8 +28,13 @@ class AsyncAgentTurn:
         tool_call_context: ToolCallContext,
         event_queue: asyncio.Queue[AsyncTurnEvent],
         runtime: BondRuntime | None = None,
+        loop: asyncio.AbstractEventLoop | None = None,
     ):
         self._persona = persona
+        self._tool_call_context = tool_call_context
+        self._event_queue = event_queue
+        self._loop = loop or asyncio.get_event_loop()
+        self._runtime = runtime or BondRuntime.get_instance()
         self._generation = persona.generation
         self._auto_summarize = (
             AutoSummarization(persona.summarization)
@@ -37,10 +42,6 @@ class AsyncAgentTurn:
             else None
         )
         self._tts = persona.tts
-
-        self._tool_call_context = tool_call_context
-        self._event_queue = event_queue
-        self._runtime = runtime or BondRuntime.get_instance()
 
         self._stream = self._runtime.behaviour_flags.stream
         self._allow_shell_executions = (
@@ -58,16 +59,15 @@ class AsyncAgentTurn:
             raise RuntimeError("Already running")
         self._running = True
         self._ask_for_stop = False
-        loop = asyncio.get_event_loop()
         try:
             while not self._ask_for_stop:
                 logger.debug("Agent Turn Loop Start")
-                response_result = await self._prompt_response(loop, conversation)
+                response_result = await self._prompt_response(conversation)
                 logger.debug("Response complete")
                 if isinstance(response_result, Failure):
                     return response_result
                 response, _ = response_result.unwrap()
-                await self._summarize(loop, conversation)
+                await self._summarize(conversation)
 
                 # Return when no tools are called
                 if response.choices[0].message.tool_calls is None:
@@ -75,7 +75,7 @@ class AsyncAgentTurn:
                     return Success(None)
 
                 await self._handle_tool_calls(
-                    response.choices[0].message.tool_calls, loop, conversation
+                    response.choices[0].message.tool_calls, conversation
                 )
         except asyncio.CancelledError:
             logger.info("Agent turn interrupted")
@@ -89,7 +89,7 @@ class AsyncAgentTurn:
         return Failure("Agent turn stopped")
 
     async def _prompt_response(
-        self, loop: asyncio.AbstractEventLoop, conversation: Conversation
+        self, conversation: Conversation
     ) -> Result[tuple[CompletionResponse, ConversationMessage], str]:
         if self._stream:
             await self._event_queue.put(
@@ -98,10 +98,11 @@ class AsyncAgentTurn:
 
         def insert_chunk(chunk: CompletionChunk):
             asyncio.run_coroutine_threadsafe(
-                self._event_queue.put(AsyncTurnResponseChunkEvent(chunk=chunk)), loop
+                self._event_queue.put(AsyncTurnResponseChunkEvent(chunk=chunk)),
+                self._loop,
             )
 
-        response = await loop.run_in_executor(
+        response = await self._loop.run_in_executor(
             None,
             self._generation,
             conversation,
@@ -127,19 +128,15 @@ class AsyncAgentTurn:
                 if text:
                     audio = self._tts(text)
                     if isinstance(audio, Success):
-                        asyncio.get_event_loop().run_in_executor(
-                            None, audio.unwrap().play
-                        )
+                        self._loop.run_in_executor(None, audio.unwrap().play)
                     else:
                         logger.error(audio.failure())
         return response
 
-    async def _summarize(
-        self, loop: asyncio.AbstractEventLoop, conversation: Conversation
-    ):
+    async def _summarize(self, conversation: Conversation):
         if self._auto_summarize is not None:
             await self._event_queue.put(AsyncTurnAutoSummaryEvent(False))
-            result = await loop.run_in_executor(
+            result = await self._loop.run_in_executor(
                 None, self._auto_summarize.run, conversation
             )
             if isinstance(result, Failure):
@@ -149,14 +146,13 @@ class AsyncAgentTurn:
     async def _handle_tool_calls(
         self,
         tool_calls: list[ToolCall],
-        loop: asyncio.AbstractEventLoop,
         conversation: Conversation,
     ):
         for tool_call in tool_calls:
             await self._event_queue.put(AsyncTurnToolCallEvent(tool_call))
             if self._allow_shell_executions:
                 with allow_shell_commands():
-                    result = await loop.run_in_executor(
+                    result = await self._loop.run_in_executor(
                         None,
                         _do_tool_call,
                         self._persona.toolbox,
@@ -164,7 +160,7 @@ class AsyncAgentTurn:
                         self._tool_call_context,
                     )
             else:
-                result = await loop.run_in_executor(
+                result = await self._loop.run_in_executor(
                     None,
                     _do_tool_call,
                     self._persona.toolbox,

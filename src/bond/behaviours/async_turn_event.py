@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from asyncio import Future
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
@@ -62,6 +63,15 @@ class AsyncTurnResponseEndEvent(AsyncTurnEvent):
 
     async def dispatch(self, event_handler: "AsyncTurnEventHandler"):
         await event_handler.handle_response_end_event(self)
+
+
+@dataclass
+class AsyncTurnRequestConfirmationEvent(AsyncTurnEvent):
+    request: str
+    result: Future[bool]
+
+    async def dispatch(self, event_handler: "AsyncTurnEventHandler"):
+        await event_handler.handle_request_confirmation_event(self)
 
 
 @dataclass

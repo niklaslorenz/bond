@@ -1,3 +1,4 @@
+import asyncio
 import os
 import sys
 from dataclasses import dataclass
@@ -19,6 +20,9 @@ from pydantic import BaseModel
 from . import logger
 
 if TYPE_CHECKING:
+    from bond.behaviours.async_turn_event import (
+        AsyncTurnEvent,
+    )
     from bond.conversation.conversation import Conversation
 
 ToolReturnType = str | list[str] | dict[str, Any] | list[dict[str, Any]] | None
@@ -34,12 +38,49 @@ class ToolCallContext:
     is_interactive: bool
     cwd: Path | None
     logger: Logger | None
+    confirmation_prompt: Callable[[str], bool] | None = None
+    conversation: "Conversation | None" = None
 
     @classmethod
-    def default(cls, persona: str, is_interactive: bool) -> "ToolCallContext":
-        return ToolCallContext(
-            persona, sys.stdout, sys.stdin, is_interactive, Path(os.getcwd()), logger
+    def default(
+        cls, persona: str, is_interactive: bool, conversation: "Conversation | None"
+    ) -> "ToolCallContext":
+        context = ToolCallContext(
+            persona,
+            sys.stdout,
+            sys.stdin,
+            is_interactive,
+            Path(os.getcwd()),
+            logger,
+            None,
+            conversation,
         )
+        context.confirmation_prompt = context._terminal_confirmation
+        return context
+
+    @classmethod
+    def async_default(
+        cls,
+        persona: str,
+        is_interactive: bool,
+        conversation: "Conversation | None",
+        event_loop: asyncio.AbstractEventLoop,
+        event_queue: "asyncio.Queue[AsyncTurnEvent]",
+    ) -> "ToolCallContext":
+        context = ToolCallContext(
+            persona,
+            None,
+            None,
+            is_interactive,
+            Path(os.getcwd()),
+            logger,
+            None,
+            conversation,
+        )
+        context.confirmation_prompt = lambda request: context._async_confirmation(
+            event_loop, event_queue, request
+        )
+        return context
 
     def debug(self, msg: str):
         if self.logger:
@@ -62,6 +103,11 @@ class ToolCallContext:
             self.logger.critical(msg)
 
     def ask_confirmation(self, prompt: str) -> bool:
+        if self.confirmation_prompt is None:
+            return False
+        return self.confirmation_prompt(prompt)
+
+    def _terminal_confirmation(self, prompt: str) -> bool:
         if not self.is_interactive:
             return False
         print(prompt)
@@ -77,10 +123,25 @@ class ToolCallContext:
             logger.error(e)
             return False
 
+    def _async_confirmation(
+        self,
+        event_loop: asyncio.AbstractEventLoop,
+        event_queue: "asyncio.Queue[AsyncTurnEvent]",
+        prompt: str,
+    ) -> bool:
+        async def request() -> bool:
+            result = event_loop.create_future()
+            from bond.behaviours.async_turn_event import (
+                AsyncTurnRequestConfirmationEvent,
+            )
 
-@dataclass
-class ConversationalToolCallContext(ToolCallContext):
-    conversation: "Conversation"
+            await event_queue.put(AsyncTurnRequestConfirmationEvent(prompt, result))
+            return await result
+
+        if not self.is_interactive:
+            return False
+        result = asyncio.run_coroutine_threadsafe(request(), event_loop)
+        return result.result()
 
 
 class FunctionParameter(BaseModel):

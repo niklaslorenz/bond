@@ -5,6 +5,7 @@ from bond.behaviours.async_turn_event import (
     AsyncTurnErrorEvent,
     AsyncTurnFullResponseEvent,
     AsyncTurnMessageInsertedEvent,
+    AsyncTurnRequestConfirmationEvent,
     AsyncTurnResponseChunkEvent,
     AsyncTurnResponseEndEvent,
     AsyncTurnResponseStartEvent,
@@ -23,6 +24,10 @@ class AsyncTurnEventHandler(ABC):
     @abstractmethod
     async def handle_message_inserted_event(
         self, event: AsyncTurnMessageInsertedEvent
+    ): ...
+    @abstractmethod
+    async def handle_request_confirmation_event(
+        self, event: AsyncTurnRequestConfirmationEvent
     ): ...
     @abstractmethod
     async def handle_response_chunk_event(self, event: AsyncTurnResponseChunkEvent): ...

@@ -50,13 +50,17 @@ async def run(args: Namespace):
     if args.to:
         conversation.current_persona = args.to
 
+    event_loop = asyncio.get_event_loop()
     persona_id = get_default_persona(config.chat)
-    tool_call_context = ToolCallContext.default(persona_id, True)
+    tool_call_context = ToolCallContext.async_default(
+        persona_id, True, conversation, event_loop, event_queue
+    )
     loop = AsyncAgentLoop(
         runtime,
         conversation,
         tool_call_context,
         event_queue,
+        event_loop,
         persona_id,
         config.user_name,
         not args.no_save_after_turn,

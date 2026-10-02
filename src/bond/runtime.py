@@ -35,6 +35,7 @@ from bond.tools.fs_tools import (
 from bond.tools.mcp_toolset import McpToolset
 from bond.tools.shell_tools import run_shell_commands
 from bond.tools.stream_tools import write_to_output
+from bond.tools.test_tool import test_confirmation
 from bond.tools.toolbox import PythonToolset, Toolbox, Toolset
 from bond.tools.web_access import access_web
 from bond.tools.web_search import search_the_web
@@ -48,6 +49,7 @@ _default_toolsets: list[Toolset] = [
     ),
     PythonToolset("shell", [run_shell_commands]),
     PythonToolset("write", [write_to_output]),
+    PythonToolset("test", [test_confirmation]),
 ]
 
 

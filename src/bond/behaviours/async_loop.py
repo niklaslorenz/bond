@@ -22,6 +22,7 @@ class AsyncAgentLoop:
         conversation: Conversation,
         tool_call_context: ToolCallContext,
         event_queue: asyncio.Queue[AsyncTurnEvent],
+        event_loop: asyncio.AbstractEventLoop,
         default_persona_id: str,
         user_name: str | None = None,
         save_after_turn: bool = False,
@@ -30,6 +31,7 @@ class AsyncAgentLoop:
         self._conversation = conversation
         self._tool_call_context = tool_call_context
         self._event_queue = event_queue
+        self._event_loop = event_loop
         self._default_persona_id = default_persona_id
         self._user_name = user_name
         self._save_after_turn = save_after_turn
@@ -123,10 +125,15 @@ class AsyncAgentLoop:
 
         # TODO: this is just a dirty hack, there has to be a better solution
         self._tool_call_context.persona = persona_id
+        self._tool_call_context.conversation = self.conversation
 
         return (
             AsyncAgentTurn(
-                persona, self._tool_call_context, self._event_queue, self._runtime
+                persona,
+                self._tool_call_context,
+                self._event_queue,
+                self._runtime,
+                self._event_loop,
             ),
             persona,
         )
