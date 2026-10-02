@@ -129,3 +129,9 @@ def setup_logger(debug: bool, log_file_name: str):
     handler.setFormatter(formatter)
     logger.addHandler(handler)
     logger.setLevel(logging.DEBUG if debug else logging.INFO)
+
+
+def resolve_path(base: Path, path: Path) -> Path:
+    base = base.expanduser().absolute()
+    path = path.expanduser()
+    return path if path.is_absolute() else base / path

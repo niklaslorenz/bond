@@ -3,6 +3,7 @@ import re
 from pathlib import Path
 
 from bond.tools import tool
+from bond.util import resolve_path
 
 _BLOCK_RE = re.compile(
     r"(?:(?P<file>[^\n]+)\n)?<<<<<<< SEARCH\n(?P<search>.*?)\n=======\n(?P<replace>.*?)\n>>>>>>> REPLACE",
@@ -29,12 +30,9 @@ _BLOCK_RE = re.compile(
     required=["file_path", "content"],
 )
 def create_file(context: tool.ToolCallContext, file_path: str, content: str) -> str:
-
-    work_dir = context.cwd
-    if work_dir is None:
+    if context.cwd is None:
         return "Error: Tool access to the filesystem is currently disabled."
-    current_directory = work_dir.absolute()
-    path = current_directory / Path(file_path)
+    path = resolve_path(context.cwd, Path(file_path))
     has_access, why_not = _check_access(context, path)
     if not has_access:
         return why_not
@@ -69,11 +67,9 @@ def create_file(context: tool.ToolCallContext, file_path: str, content: str) -> 
     required=["file_path"],
 )
 def read_file(context: tool.ToolCallContext, file_path: str, lines: int = 0) -> str:
-    work_dir = context.cwd
-    if work_dir is None:
+    if context.cwd is None:
         return "Error: Tool access to the file system is currently disabled."
-    current_directory = work_dir.absolute()
-    path = current_directory / Path(file_path)
+    path = resolve_path(context.cwd, Path(file_path))
     has_access, why_not = _check_access(context, path)
     if not has_access:
         return why_not
@@ -106,11 +102,9 @@ def read_file(context: tool.ToolCallContext, file_path: str, lines: int = 0) -> 
     required=["dir_path"],
 )
 def list_directory(context: tool.ToolCallContext, dir_path: str) -> str:
-    work_dir = context.cwd
-    if work_dir is None:
+    if context.cwd is None:
         return "Error: Tool access to the filesystem is currently disabled."
-    current_directory = work_dir.absolute()
-    path = current_directory / Path(dir_path)
+    path = resolve_path(context.cwd, Path(dir_path))
     has_access, why_not = _check_access(context, path)
     if not has_access:
         return why_not
@@ -133,7 +127,7 @@ def get_cwd(context: tool.ToolCallContext) -> str:
     work_dir = context.cwd
     if work_dir is None:
         return "error: file operations are not available at the moment"
-    return work_dir.as_posix()
+    return work_dir.absolute().expanduser().as_posix()
 
 
 @tool.tool(
@@ -172,12 +166,10 @@ def get_cwd(context: tool.ToolCallContext) -> str:
     required=["patch"],
 )
 def apply_patch(context: tool.ToolCallContext, patch: str) -> str:
-
-    work_dir = context.cwd
-    if work_dir is None:
+    if context.cwd is None:
         return "error: file modification is not available at the moment"
 
-    git_dir = work_dir / ".git"
+    git_dir = context.cwd / ".git"
     skip_confirmation = git_dir.exists() and git_dir.is_dir()
 
     if not skip_confirmation and not context.ask_confirmation(
@@ -209,7 +201,7 @@ def apply_patch(context: tool.ToolCallContext, patch: str) -> str:
             results.append(f"Block {idx}: failed, no file specified.")
             continue
 
-        path = work_dir / file
+        path = resolve_path(context.cwd, Path(file))
         if not path.exists():
             results.append(f"Block {idx}: failed, file does not exist.")
             continue
