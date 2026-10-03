@@ -13,6 +13,8 @@ import requests
 if TYPE_CHECKING:
     from bond.runtime import BondRuntime
 
+logger = logging.getLogger(__name__)
+
 _retry_codes: list[int] = [408, 429, 500, 502, 503, 504]
 
 http_logger = logging.getLogger(__name__ + ".http")
@@ -81,12 +83,17 @@ def resolve_skills(
         from bond.runtime import BondRuntime
 
         runtime = BondRuntime.get_instance()
+    skill_pattern = r"\{SKILL:([^\{\}\s]*?)\}"
 
     instruction = re.sub(
-        r"\{SKILL:(\w+)\}",
-        lambda match: runtime.get_skill(match.group(1) + ".md"),
+        skill_pattern,
+        lambda match: runtime.get_skill(match.group(1)),
         instruction_raw,
     )
+
+    unresolved_patterns = re.finditer(r"\{[A-Z]+:[^\{\}\s]*?[\{\}\s]", instruction)
+    for match in unresolved_patterns:
+        logger.warning(f"Found unresolved macro pattern: {match.group(0)}")
     return instruction
 
 

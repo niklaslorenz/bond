@@ -47,7 +47,6 @@ class MarkdownBlock(Static):
         self.text = text
 
     def append(self, delta: str):
-        logger.debug(f"Appending to markdown block: {delta}")
         self.text += delta
         self.refresh(layout=True)
 
@@ -130,10 +129,8 @@ class ChatLog(ScrollableContainer):
         self.messages: list[ChatMessage] = []
 
     def add_message(self, message: ChatMessage):
-        logger.debug("Adding message to chat log")
         self.messages.append(message)
         if self.is_mounted:
-            logger.debug("mounting message to chat log")
             self.mount(message)
 
     async def on_mount(self):

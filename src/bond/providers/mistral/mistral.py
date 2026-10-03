@@ -1,5 +1,4 @@
 import os
-from dis import Instruction
 from typing import TYPE_CHECKING, Any, Type
 
 from bond.providers.general.generation import (
