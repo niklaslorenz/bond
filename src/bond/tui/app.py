@@ -184,6 +184,10 @@ class BondTui(App):
             event.accept()
             self.fix()
             return
+        if text == "!stop":
+            event.accept()
+            if self.chat_lock.locked():
+                self.agent_loop.stop()
 
         if text.startswith(":"):
             cmd = text[1:]

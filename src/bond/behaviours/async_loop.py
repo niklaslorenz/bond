@@ -58,6 +58,9 @@ class AsyncAgentLoop:
     def persona(self):
         return self._persona
 
+    def stop(self):
+        self._agent_turn.stop()
+
     async def wait_for(self):
         if not self._lock.locked():
             return
