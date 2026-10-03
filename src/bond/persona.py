@@ -96,14 +96,6 @@ class PersonaConfig(BaseModel):
         try:
             config = cls.from_file(file, runtime)
             return Success(config)
-        except ValueError as e:
-            # Handle file not found and unknown persona type errors
-            error_msg = str(e)
-            if "Does not exist" in error_msg:
-                return Failure(f"File not found: '{file}'")
-            elif "Unknown persona type" in error_msg:
-                return Failure(error_msg)
-            return Failure(f"Configuration error: {error_msg}")
         except json.JSONDecodeError as e:
             # Handle JSON parsing errors
             return Failure(f"Invalid JSON in file '{file}': {str(e)}")
@@ -116,6 +108,14 @@ class PersonaConfig(BaseModel):
                 errors.append(f"  - Field '{loc}': {msg}")
             error_list = "\n".join(errors)
             return Failure(f"Invalid persona configuration in '{file}':\n{error_list}")
+        except ValueError as e:
+            # Handle file not found and unknown persona type errors
+            error_msg = str(e)
+            if "Does not exist" in error_msg:
+                return Failure(f"File not found: '{file}'")
+            elif "Unknown persona type" in error_msg:
+                return Failure(error_msg)
+            return Failure(f"Configuration error: {error_msg}")
         except Exception as e:
             # Catch any other unexpected errors
             return Failure(f"Unexpected error loading persona from '{file}': {str(e)}")

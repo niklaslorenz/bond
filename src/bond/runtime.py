@@ -26,13 +26,14 @@ from bond.providers.mistral.mistral import Mistral
 from bond.providers.ollama.ollama import Ollama
 from bond.providers.provider import Provider
 from bond.registry import MappedEntryRegistry, NamedEntryRegistry
-from bond.tools.fs_tools import (
+from bond.tools.file_system import (
     apply_patch,
     create_file,
     get_cwd,
     list_directory,
     read_file,
 )
+from bond.tools.file_system.search import search_file
 from bond.tools.mcp_toolset import McpToolset
 from bond.tools.shell_tools import run_shell_commands
 from bond.tools.stream_tools import write_to_output
@@ -46,7 +47,8 @@ logger = logging.getLogger(__name__)
 _default_toolsets: list[Toolset] = [
     PythonToolset("web", [search_the_web, access_web]),
     PythonToolset(
-        "file", [list_directory, create_file, read_file, apply_patch, get_cwd]
+        "file",
+        [list_directory, create_file, read_file, apply_patch, get_cwd, search_file],
     ),
     PythonToolset("shell", [run_shell_commands]),
     PythonToolset("write", [write_to_output]),
