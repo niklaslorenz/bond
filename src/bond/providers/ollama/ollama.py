@@ -88,12 +88,18 @@ class Ollama:
         )
 
     def tts(self, config: dict[str, Any], runtime: "BondRuntime | None" = None):
-        raise RuntimeError("TTS is not supported by Ollama")
+        # Not implemented
+        return None
 
     def summarization(
         self, config: dict[str, Any], runtime: "BondRuntime | None" = None
     ):
-        raise RuntimeError("Summarization is not supported by Ollama")
+        # Not implmented
+        return None
+
+    def memory(self, config: dict[str, Any], runtime: "BondRuntime | None" = None):
+        # Not implemented
+        return None
 
     @classmethod
     def get_config_type(cls) -> Type[OllamaConfig]:

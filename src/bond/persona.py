@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, ValidationError
 from returns.result import Failure, Result, Success
 
 from bond.capabilities.generation import GenerationCapability
+from bond.capabilities.memory import MemoryCapability
 from bond.capabilities.summarization import SummarizationCapability
 from bond.capabilities.tts import TTSCapability
 from bond.tools.toolbox import Toolbox
@@ -23,6 +24,7 @@ class Persona:
         generation: GenerationCapability,
         summarization: SummarizationCapability | None,
         tts: TTSCapability | None,
+        memory: MemoryCapability | None,
         toolbox: Toolbox,
     ):
         self.name = name
@@ -30,6 +32,7 @@ class Persona:
         self.generation = generation
         self.summarization = summarization
         self.tts = tts
+        self.memory = memory
         self.toolbox = toolbox
 
 
@@ -42,6 +45,7 @@ class PersonaConfig(BaseModel):
     summarization: dict[str, Any] | None = None
     tts: dict[str, Any] | None = None
     voice_input: dict[str, Any] | None = None
+    memory: dict[str, Any] | None = None
 
     toolsets: list[str] = Field(default_factory=list)
 
@@ -151,7 +155,12 @@ class PersonaConfig(BaseModel):
             .map(lambda x: x.tts(self.tts or {}, runtime))
             .value_or(None)
         )
-        return Persona(self.name, self, generation, summarization, tts, toolbox)
+        memory = (
+            _get_provider(self.memory, runtime)
+            .map(lambda x: x.memory(self.memory or {}, runtime))
+            .value_or(None)
+        )
+        return Persona(self.name, self, generation, summarization, tts, memory, toolbox)
 
 
 def _get_provider(

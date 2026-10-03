@@ -40,6 +40,7 @@ from bond.tools.shell_tools import run_shell_commands
 from bond.tools.stream_tools import write_to_output
 from bond.tools.test_tool import test_confirmation
 from bond.tools.toolbox import PythonToolset, Toolbox, Toolset
+from bond.tools.memory_tools import remember
 from bond.tools.web_access import access_web
 from bond.tools.web_search import search_the_web
 
@@ -49,11 +50,20 @@ _default_toolsets: list[Toolset] = [
     PythonToolset("web", [search_the_web, access_web]),
     PythonToolset(
         "file",
-        [list_directory, create_file, read_file, apply_patch, get_cwd, search_file, grep],
+        [
+            list_directory,
+            create_file,
+            read_file,
+            apply_patch,
+            get_cwd,
+            search_file,
+            grep,
+        ],
     ),
     PythonToolset("shell", [run_shell_commands]),
     PythonToolset("write", [write_to_output]),
     PythonToolset("test", [test_confirmation]),
+    PythonToolset("memory", [remember]),
 ]
 
 
@@ -79,15 +89,17 @@ class RuntimeEnvironment(ABC):
     @abstractmethod
     def get_plugins(self) -> dict[str, BondPlugin]: ...
     @abstractmethod
-    def load_provider(self, name: str, runtime: BondRuntime) -> Provider: ...
+    def load_provider(self, name: str, runtime: "BondRuntime") -> Provider: ...
     @abstractmethod
     def load_persona(
-        self, name: str, runtime: BondRuntime
+        self, name: str, runtime: "BondRuntime"
     ) -> Result[PersonaConfig, str]: ...
     @abstractmethod
-    def load_skill(self, name: str, runtime: BondRuntime) -> str: ...
+    def load_skill(self, name: str, runtime: "BondRuntime") -> str: ...
     @abstractmethod
     def get_data_dir(self) -> Path: ...
+    @abstractmethod
+    def get_vector_stores_path(self) -> Path: ...
 
 
 class StaticRuntimeEnvironment(RuntimeEnvironment):
@@ -132,19 +144,22 @@ class StaticRuntimeEnvironment(RuntimeEnvironment):
     def get_plugins(self) -> dict[str, BondPlugin]:
         return self._plugins.copy()
 
-    def load_provider(self, name: str, runtime: BondRuntime) -> Provider:
+    def load_provider(self, name: str, runtime: "BondRuntime") -> Provider:
         return self._providers[name]
 
     def load_persona(
-        self, name: str, runtime: BondRuntime
+        self, name: str, runtime: "BondRuntime"
     ) -> Result[PersonaConfig, str]:
         return Result.from_value(self._personas[name])
 
-    def load_skill(self, name: str, runtime: BondRuntime) -> str:
+    def load_skill(self, name: str, runtime: "BondRuntime") -> str:
         return self._skills[name]
 
     def get_data_dir(self) -> Path:
         return self._data_dir
+
+    def get_vector_stores_path(self) -> Path:
+        return self._data_dir / "vector_stores"
 
 
 class DynamicRuntimeEnvironment(RuntimeEnvironment):
@@ -212,7 +227,7 @@ class DynamicRuntimeEnvironment(RuntimeEnvironment):
             logger.error(f"Failed to load plugins: {e}")
         return {}
 
-    def load_provider(self, name: str, runtime: BondRuntime) -> Provider:
+    def load_provider(self, name: str, runtime: "BondRuntime") -> Provider:
         path = self._config_dir / f"providers/{name}.json"
         if not path.exists():
             raise ValueError(f"Invalid provider name: {name}. Path does not exist.")
@@ -232,7 +247,7 @@ class DynamicRuntimeEnvironment(RuntimeEnvironment):
         )
 
     def load_persona(
-        self, name: str, runtime: BondRuntime
+        self, name: str, runtime: "BondRuntime"
     ) -> Result[PersonaConfig, str]:
         path = self._config_dir / f"personas/{name}.json"
         return PersonaConfig.from_file_safe(path, runtime)
@@ -245,6 +260,9 @@ class DynamicRuntimeEnvironment(RuntimeEnvironment):
 
     def get_data_dir(self) -> Path:
         return self._data_base_dir / "plugins"
+
+    def get_vector_stores_path(self) -> Path:
+        return self._data_base_dir / "vector_stores"
 
 
 class BondRuntime:
@@ -339,6 +357,9 @@ class BondRuntime:
 
     def get_cache_path(self) -> Path | None:
         return self._get_env().get_cache_path()
+
+    def get_vector_stores_path(self) -> Path:
+        return self._get_env().get_vector_stores_path()
 
     @classmethod
     def get_instance(cls) -> BondRuntime:

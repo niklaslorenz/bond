@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Any, Protocol, Self, Type
 from pydantic import BaseModel
 
 from bond.capabilities.generation import GenerationCapability
+from bond.capabilities.memory import MemoryCapability
 from bond.capabilities.summarization import SummarizationCapability
 from bond.capabilities.tts import TTSCapability
 from bond.endpoints.chat_completions import (
@@ -43,3 +44,6 @@ class Provider[ConfigType: BaseModel](Protocol):
     def tts(
         self, config: dict[str, Any], runtime: "BondRuntime | None" = None
     ) -> "TTSCapability | None": ...
+    def memory(
+        self, config: dict[str, Any], runtime: "BondRuntime | None" = None
+    ) -> MemoryCapability | None: ...

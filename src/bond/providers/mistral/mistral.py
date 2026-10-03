@@ -5,6 +5,7 @@ from bond.providers.general.generation import (
     DefaultGenerationCapability,
     DefaultGenerationOptions,
 )
+from bond.providers.general.memory import DefaultMemoryCapability, DefaultMemoryOptions
 from bond.providers.general.tts import DefaultTTSCapability, DefaultTTSOptions
 from bond.providers.mistral.chat_completions import MistralChatCompletions
 from bond.providers.mistral.config import MistralConfig
@@ -79,6 +80,12 @@ class Mistral:
         if options is None:
             return None
         return DefaultTTSCapability(options, self.tts_endpoint(), 10)
+
+    def memory(
+        self, config: dict[str, Any], runtime: "BondRuntime | None" = None
+    ) -> DefaultMemoryCapability | None:
+        options = DefaultMemoryOptions.model_validate(config)
+        return DefaultMemoryCapability(options, self.embeddings(), 10)
 
     @classmethod
     def default(cls) -> "Mistral":
