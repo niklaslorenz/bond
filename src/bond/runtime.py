@@ -30,6 +30,7 @@ from bond.tools.file_system import (
     apply_patch,
     create_file,
     get_cwd,
+    grep,
     list_directory,
     read_file,
 )
@@ -48,7 +49,7 @@ _default_toolsets: list[Toolset] = [
     PythonToolset("web", [search_the_web, access_web]),
     PythonToolset(
         "file",
-        [list_directory, create_file, read_file, apply_patch, get_cwd, search_file],
+        [list_directory, create_file, read_file, apply_patch, get_cwd, search_file, grep],
     ),
     PythonToolset("shell", [run_shell_commands]),
     PythonToolset("write", [write_to_output]),

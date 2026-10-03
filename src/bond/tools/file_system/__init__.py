@@ -3,6 +3,7 @@
 from .apply_patch import apply_patch
 from .create_file import create_file
 from .get_cwd import get_cwd
+from .grep import grep
 from .list_directory import list_directory
 from .read_file import read_file
 from .search import search_file
@@ -14,4 +15,5 @@ __all__ = [
     "get_cwd",
     "apply_patch",
     "search_file",
+    "grep",
 ]
