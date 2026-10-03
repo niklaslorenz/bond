@@ -1,5 +1,6 @@
 """Multi-file grep-like search tool using system grep/ripgrep."""
 
+import platform
 import shutil
 import subprocess
 from pathlib import Path
@@ -24,9 +25,9 @@ def _build_grep_command(
 
     if use_ripgrep:
         cmd.append("rg")
-        # ripgrep is recursive by default
+        # ripgrep is recursive by default, use --max-depth for non-recursive
         if not recursive:
-            cmd.append("--no-recursive")
+            cmd.append("--max-depth=0")
         if use_regex:
             cmd.append("-P")  # PCRE regex
         if not case_sensitive:
@@ -36,11 +37,16 @@ def _build_grep_command(
         if context_lines > 0:
             cmd.append(f"-C{context_lines}")
         # Always show filenames and disable color
-        cmd.extend(["--color=never", "--hidden"])
+        cmd.extend(["--hidden", "-H"])
     else:
         cmd.append("grep")
         if recursive:
             cmd.append("-r")
+        else:
+            # For non-recursive search on directories, use -r with --max-depth=0
+            # This works with GNU grep. BSD grep (macOS) does not support --max-depth,
+            # but we check for this at the top level and return an error.
+            cmd.extend(["-r", "--max-depth=0"])
         if use_regex:
             # Use Perl-compatible regex if available, otherwise extended
             cmd.append("-P")
@@ -51,7 +57,7 @@ def _build_grep_command(
         if context_lines > 0:
             cmd.append(f"-C{context_lines}")
         # Always show filenames and disable color
-        cmd.extend(["-H", "--color=never"])
+        cmd.extend(["-H"])
 
     # Add pattern and path
     cmd.append(pattern)
@@ -129,39 +135,77 @@ def grep(
     if not use_ripgrep and not use_grep:
         return (
             "Error: Neither ripgrep (rg) nor grep is available on this system. "
-            "Unless the user installs at least one of them, this tool does not work."
+            "Please install ripgrep (recommended) or grep to use this tool."
         )
 
-    # Build command
-    cmd = _build_grep_command(
-        pattern=pattern,
-        path=search_path,
-        use_regex=use_regex,
-        case_sensitive=case_sensitive,
-        recursive=recursive,
-        context_lines=context_lines,
-        show_line_numbers=show_line_numbers,
-        use_ripgrep=use_ripgrep,
-    )
-
-    # Execute command
-    try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            cwd=str(context.cwd),
+    # BSD grep (macOS) does not support --max-depth flag
+    # Return error if non-recursive search is requested on BSD systems
+    if use_grep and not recursive and platform.system() == "Darwin":
+        return (
+            "Error: Non-recursive search is not supported with BSD grep (macOS). "
+            "Please use recursive=True or install ripgrep (rg)."
         )
 
-        if result.returncode == 0:
-            if result.stdout:
-                return result.stdout.rstrip()
-            return "No matches found."
-        elif result.returncode == 1:
-            # grep/rg returns 1 when no matches found
-            return "No matches found."
+    # For non-recursive directory searches, we need to list files explicitly
+    # because grep/rg don't have a clean way to search only files in a directory
+    # (not subdirectories) with a single command
+    paths_to_search: list[Path] = []
+    if search_path.is_file():
+        paths_to_search.append(search_path)
+    elif search_path.is_dir():
+        if recursive:
+            paths_to_search.append(search_path)
         else:
-            return f"Error: grep/rg failed with exit code {result.returncode}: {result.stderr}"
+            # Non-recursive: only files directly in this directory
+            try:
+                paths_to_search = [
+                    f
+                    for f in search_path.iterdir()
+                    if f.is_file() and check_access(context, f)[0]
+                ]
+            except (PermissionError, OSError):
+                return f"Error: Cannot read directory: {search_path}"
+    else:
+        return f"Error: path is neither file nor directory: {search_path}"
 
-    except Exception as e:
-        return f"Error: Failed to execute grep/rg: {str(e)}"
+    if not paths_to_search:
+        return "No files found to search."
+
+    # Build and execute commands for each path
+    results: list[str] = []
+    for path_to_search in paths_to_search:
+        cmd = _build_grep_command(
+            pattern=pattern,
+            path=path_to_search,
+            use_regex=use_regex,
+            case_sensitive=case_sensitive,
+            recursive=recursive,
+            context_lines=context_lines,
+            show_line_numbers=show_line_numbers,
+            use_ripgrep=use_ripgrep,
+        )
+
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                cwd=str(context.cwd),
+            )
+
+            if result.returncode == 0:
+                if result.stdout:
+                    results.append(result.stdout.rstrip())
+            elif result.returncode == 1:
+                # grep/rg returns 1 when no matches found - this is fine
+                pass
+            else:
+                return f"Error: grep/rg failed with exit code {result.returncode}: {result.stderr}"
+
+        except Exception as e:
+            return f"Error: Failed to execute grep/rg: {str(e)}"
+
+    if not results:
+        return "No matches found."
+
+    return "\n".join(results)
