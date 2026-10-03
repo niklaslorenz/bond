@@ -8,6 +8,7 @@ from bond.providers.general.generation import (
 from bond.providers.general.tts import DefaultTTSCapability, DefaultTTSOptions
 from bond.providers.mistral.chat_completions import MistralChatCompletions
 from bond.providers.mistral.config import MistralConfig
+from bond.providers.mistral.embeddings import MistralEmbeddings
 from bond.providers.mistral.models import MistralModels
 from bond.providers.mistral.summarization import (
     MistralSummarization,
@@ -26,12 +27,16 @@ class Mistral:
     def __init__(self, config: MistralConfig):
         self.config = config
         self._chat_completions = MistralChatCompletions(self.config)
+        self._embeddings = MistralEmbeddings(self.config)
         self._models = MistralModels(self.config)
         self._tts = MistralTTS(self.config)
         self._voices = MistralVoices(self.config)
 
     def chat_completions(self) -> MistralChatCompletions:
         return self._chat_completions
+
+    def embeddings(self) -> MistralEmbeddings:
+        return self._embeddings
 
     def models(self) -> MistralModels:
         return self._models

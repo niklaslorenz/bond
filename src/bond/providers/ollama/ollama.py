@@ -60,6 +60,10 @@ class Ollama:
     def chat_completions(self) -> OllamaChatCompletions:
         return self._chat_completions
 
+    def embeddings(self):
+        # Not implemented
+        return None
+
     def models(self) -> OllamaModels:
         return self._models
 
