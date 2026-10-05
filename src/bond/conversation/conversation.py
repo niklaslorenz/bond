@@ -74,11 +74,8 @@ class Conversation(BaseModel):
         ]
         return self._merge_summary(recent_messages)
 
-    def get_chat_completion_messages(self) -> list[Message]:
-        recent_messages: list[Message] = [
-            m.message for m in self.history[self.summary_index :]
-        ]
-        return self._merge_summary(recent_messages)
+    def get_unsummarized_messages(self) -> list[Message]:
+        return [m.message for m in self.history[self.summary_index :]]
 
     def _merge_summary(self, recent_messages: list[Message]) -> list[Message]:
         if self.summary is None:

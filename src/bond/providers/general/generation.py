@@ -45,18 +45,35 @@ class DefaultGenerationCapability:
         if should_stream and not can_stream:
             return Failure("Streaming is not supported by the provided endpoint")
 
+        system_prompt = self._options.system_prompt
+        summary_prompt_extension = (
+            (
+                "\n<previous-context>\n"
+                "  <reliability>imperfect</reliability>\n"
+                "  <source>model generated<source>\n"
+                "  <content>\n"
+                f"    {conversation.summary}\n"
+                "  </content>\n"
+                "</previous-context>"
+            )
+            if conversation.summary is not None
+            else None
+        )
+        if system_prompt is not None or summary_prompt_extension is not None:
+            system_prompt = (
+                (system_prompt or "") + "\n" + (summary_prompt_extension or "")
+            )
+
         try:
             if should_stream:
                 response = self._chat_completions.stream_chat_completion(
                     self._options.model,
-                    conversation.get_chat_completion_messages(),
+                    conversation.get_unsummarized_messages(),
                     self._tools,
                     callback,
                     (
-                        SystemMessage(
-                            content=[TextChunk(text=self._options.system_prompt)]
-                        )
-                        if self._options.system_prompt is not None
+                        SystemMessage(content=[TextChunk(text=system_prompt)])
+                        if system_prompt is not None
                         else None
                     ),
                     self._options.model_options,
@@ -66,7 +83,7 @@ class DefaultGenerationCapability:
             else:
                 response = self._chat_completions.chat_completion(
                     self._options.model,
-                    conversation.get_chat_completion_messages(),
+                    conversation.get_unsummarized_messages(),
                     self._tools,
                     (
                         SystemMessage(
