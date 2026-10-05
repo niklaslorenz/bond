@@ -18,8 +18,12 @@ dependencies = [
     "urllib3>=2.6.3",
     "textual>=8.2.0",
     "mcp>=2.1.1",
-    "playsound3>=1.0.4"
 ]
+
+[project.optional-dependencies]
+audio=["playsound3>=1.0.4"]
+memory=["faiss-cpu>=1.15.1"]
+
 
 [dependency-groups]
 dev = [

@@ -129,7 +129,7 @@ class AsyncAgentLoop:
         persona_config = self._runtime.get_persona(persona_id)
         if isinstance(persona_config, Failure):
             self._event_queue.put_nowait(AsyncTurnErrorEvent(persona_config.failure()))
-            return self._agent_turn, self._persona
+            raise RuntimeError(f"Invalid persona config: {persona_config.failure()}")
         persona_config = persona_config.unwrap()
         persona = persona_config.instantiate()
 

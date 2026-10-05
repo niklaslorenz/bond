@@ -99,6 +99,6 @@ def _append_chunks(msg: ChatMessage, chunks: list):
         if isinstance(chunk, TextChunk):
             msg.append_text(chunk.text)
         if isinstance(chunk, ThinkChunk):
-            msg.append_text(
+            msg.append_thinking(
                 "".join(c.text for c in chunk.thinking if isinstance(c, TextChunk))
             )

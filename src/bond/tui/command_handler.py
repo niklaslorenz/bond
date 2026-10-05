@@ -196,6 +196,21 @@ class TuiCommandHandler:
             self._notify(result.failure())
         return True
 
+    async def get_name(self, _: Namespace) -> bool:
+        self._notify(self._app.current_conversation.name or "<unnamed>")
+        return True
+
+    async def detach(self, _: Namespace) -> bool:
+        if self._app.chat_lock.locked():
+            return False
+        async with self._app.chat_lock:
+            if self._app.current_conversation.name is None:
+                self._notify("Conversation is not attached to any name")
+                return True
+            self._app.current_conversation.name = None
+        self._notify("Detached conversation")
+        return True
+
     # Helper methods
 
     def _notify(self, text: str):
@@ -346,3 +361,18 @@ class TuiCommandHandler:
             exit_on_error=False,
         )
         summarize_parser.set_defaults(callback=self.summarize)
+
+        name_parser = subparsers.add_parser(
+            "get_name",
+            help="Show the name of the conversation",
+            aliases=["name"],
+            exit_on_error=False,
+        )
+        name_parser.set_defaults(callback=self.get_name)
+
+        detach_parser = subparsers.add_parser(
+            "detach",
+            help="detach from the named conversation (will not be saved anymore)",
+            exit_on_error=False,
+        )
+        detach_parser.set_defaults(callback=self.detach)
