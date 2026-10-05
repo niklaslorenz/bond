@@ -5,6 +5,7 @@ Bond is an agent framework for the terminal. It provides different methods to in
 ## Personas
 
 Personas are at the heart of bond. For every persona, you can define:
+
 - Which model to use
 - The system prompt
 - The tools available to the agent
@@ -74,3 +75,8 @@ The configuration for Ollama supports the following fields:
 
 The base_url must not point inside any endpoint, for a locally hosted environment
 for example this would be `"base_url": "http://localhost:11434/"`
+
+## Known Issues
+
+- Deleting messages with the :delete command does not roll back the summary and when deleting messages across the summary boudary,
+  the retrieved messages will be empty, leaving the agent with just the old summary to work with.

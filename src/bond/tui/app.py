@@ -94,6 +94,24 @@ class BondTui(App):
             self._event_handler.start(None)
         self.task_registry.clear()
         self.popup_manager.close_all()
+        if not self.chat_lock.locked():
+            # Reset summary index to last user message in case of misconfiguration due to
+            # missing messages
+            if (
+                len(self.current_conversation.history)
+                < self.current_conversation.summary_index
+            ):
+                logger.info("Fixing conversation summary index")
+                self.current_conversation.summary_index = next(
+                    (
+                        i
+                        for i, x in reversed(
+                            list(enumerate(self.current_conversation.history))
+                        )
+                        if x.message.role == "user"
+                    ),
+                    0,
+                )
 
     def trigger_prompt(self, message: UserMessage) -> bool:
         """
