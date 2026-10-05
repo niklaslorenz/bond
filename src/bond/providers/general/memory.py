@@ -53,8 +53,21 @@ class DefaultMemoryCapability:
         Returns:
             The unique ID of the stored entry
         """
-        # TODO: Implement - embed content and store in vector store
-        pass
+        # Get embedding for the content
+        embedding_response = self._embeddings.embeddings(
+            model=self._options.model,
+            input=content,
+            options=self._options.embedding_options,
+            max_retries=self._max_retries,
+        )
+        embedding = embedding_response.embeddings[0]
+        
+        # Create and store the entry
+        entry = VectorStoreEntry(content=content)
+        self._vector_store.store(embedding, entry)
+        
+        # Return the ID (VectorStoreEntry uses auto-incrementing int ID)
+        return str(entry.id)
 
     def direct_query(self, query: str, k: int = 5) -> list[VectorStoreEntry]:
         """
@@ -67,8 +80,19 @@ class DefaultMemoryCapability:
         Returns:
             List of matching VectorStoreEntry objects sorted by similarity
         """
-        # TODO: Implement - embed query and find nearest neighbors
-        pass
+        # Get embedding for the query
+        embedding_response = self._embeddings.embeddings(
+            model=self._options.model,
+            input=query,
+            options=self._options.embedding_options,
+            max_retries=self._max_retries,
+        )
+        embedding = embedding_response.embeddings[0]
+        
+        # Query the vector store
+        results = self._vector_store.query(embedding, k)
+        
+        return results
 
     def deep_remember(
         self, query: str, max_iterations: int
