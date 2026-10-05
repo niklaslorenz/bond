@@ -13,6 +13,7 @@ class DefaultMemoryOptions(BaseModel):
 
     model: str
     vector_store: str
+    vector_store_type: str = "faiss"
     embedding_options: dict[str, Any] | None = None
 
 
@@ -26,11 +27,17 @@ class DefaultMemoryCapability:
         self,
         options: DefaultMemoryOptions,
         embeddings: EmbeddingsEndpoint,
-        runtime: "BondRuntime",
+        runtime: "BondRuntime | None",
         max_retries: int = 3,
     ):
+        if runtime is None:
+            from bond.runtime import BondRuntime
+
+            runtime = BondRuntime.get_instance()
         self._options = options
         self._embeddings = embeddings
         self._runtime = runtime
         self._max_retries = max_retries
-        self._vector_store = runtime.load_vector_store(options.vector_store)
+        self._vector_store = runtime.load_vector_store(
+            options.vector_store, options.vector_store_type
+        )

@@ -85,7 +85,7 @@ class Mistral:
         self, config: dict[str, Any], runtime: "BondRuntime | None" = None
     ) -> DefaultMemoryCapability | None:
         options = DefaultMemoryOptions.model_validate(config)
-        return DefaultMemoryCapability(options, self.embeddings(), 10)
+        return DefaultMemoryCapability(options, self.embeddings(), runtime, 10)
 
     @classmethod
     def default(cls) -> "Mistral":

@@ -36,13 +36,14 @@ from bond.tools.file_system import (
 )
 from bond.tools.file_system.search import search_file
 from bond.tools.mcp_toolset import McpToolset
+from bond.tools.memory_tools import remember
 from bond.tools.shell_tools import run_shell_commands
 from bond.tools.stream_tools import write_to_output
 from bond.tools.test_tool import test_confirmation
 from bond.tools.toolbox import PythonToolset, Toolbox, Toolset
-from bond.tools.memory_tools import remember
 from bond.tools.web_access import access_web
 from bond.tools.web_search import search_the_web
+from bond.vector_store.base import VectorStore
 
 logger = logging.getLogger(__name__)
 
@@ -429,6 +430,16 @@ class BondRuntime:
         skill = env.load_skill(skill_name, self)
         self._loaded_skills.register(skill_name, skill)
         return skill
+
+    def load_vector_store(self, name: str, vector_store_type: str) -> VectorStore:
+        if vector_store_type != "faiss":
+            raise ValueError(
+                f"Unknown vector store type: {vector_store_type}. Only 'faiss' is supported."
+            )
+        from bond.vector_store.faiss_store import FAISSVectorStore
+
+        path = self.get_vector_stores_path() / name
+        return FAISSVectorStore.load_or_create(path)
 
     def _register_builtin_toolsets(self):
         for toolset in _default_toolsets:
