@@ -7,6 +7,7 @@ and querying for the k-nearest neighbors of a given embedding.
 """
 
 from abc import ABC, abstractmethod
+from datetime import datetime
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -21,10 +22,12 @@ class VectorStoreEntry(BaseModel):
     Attributes:
         id: identifier
         content: The main content of the entry (e.g., text, data).
+        timestamp: When the entry was stored (ISO format). Optional, defaults to None.
     """
 
     id: int = 0
     content: str
+    timestamp: str | None = None
 
 
 class VectorStore(ABC):

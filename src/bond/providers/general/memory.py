@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
@@ -63,7 +64,7 @@ class DefaultMemoryCapability:
         embedding = embedding_response.embeddings[0]
 
         # Create and store the entry
-        entry = VectorStoreEntry(content=content)
+        entry = VectorStoreEntry(content=content, timestamp=datetime.now().isoformat())
         self._vector_store.store(embedding, entry)
 
         # Return the ID (VectorStoreEntry uses auto-incrementing int ID)
