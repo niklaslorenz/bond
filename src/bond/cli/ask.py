@@ -74,7 +74,8 @@ def main():
     if isinstance(persona, Failure):
         print(persona.failure())
         return
-    persona = persona.unwrap()
+    persona_config = persona.unwrap()
+    persona = persona_config.instantiate()
 
     # Setup conversation
     conversation = Conversation()
@@ -83,7 +84,7 @@ def main():
     )
 
     tool_call_context = ToolCallContext(
-        persona=persona_id,
+        persona=persona,
         stdout=sys.stdout,
         stdin=sys.stdin,
         is_interactive=is_interactive,
@@ -94,9 +95,9 @@ def main():
     event_handler = StdEventHandler(signal_receiver, show_thoughts, show_tool_output)
 
     # Setup turn
-    allow_shell = "shell" in persona.toolsets
+    allow_shell = "shell" in persona_config.toolsets
     turn = SingleTurn(
-        persona=persona.instantiate(),
+        persona=persona,
         author_name=persona.name,
         event_handler=event_handler,
         signal_receiver=signal_receiver,
@@ -113,6 +114,8 @@ def main():
         save_path = conv_path / "last-ask.json"
         save_path.parent.mkdir(parents=True, exist_ok=True)
         save_path.write_text(conversation.model_dump_json(), encoding="utf-8")
+
+    persona.release()
 
 
 if __name__ == "__main__":

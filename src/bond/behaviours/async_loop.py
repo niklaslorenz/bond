@@ -134,9 +134,11 @@ class AsyncAgentLoop:
         persona = persona_config.instantiate()
 
         # TODO: this is just a dirty hack, there has to be a better solution
-        self._tool_call_context.persona = persona_id
+        self._tool_call_context.persona = persona
         self._tool_call_context.conversation = self.conversation
 
+        if hasattr(self, "_persona"):
+            getattr(self, "_persona").release()
         return (
             AsyncAgentTurn(
                 persona,

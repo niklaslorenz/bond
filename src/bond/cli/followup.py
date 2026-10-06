@@ -37,7 +37,7 @@ def main():
         if last_ask_path.is_file()
         else Conversation()
     )
-    tool_call_context = ToolCallContext.default(persona_id, True, conversation)
+    tool_call_context = ToolCallContext.default(None, True, conversation)
     if len(conversation.history) == 0:
         print("<New Conversation>")
     else:

@@ -72,7 +72,7 @@ class LoopBehaviour:
             return
         self.persona = persona_config.unwrap().instantiate()
         self.persona_id = persona_id
-        self.tool_call_context.persona = persona_id
+        self.tool_call_context.persona = self.persona
         if update_conversation:
             self.conversation.current_persona = persona_id
         self._build_turn()

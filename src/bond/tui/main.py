@@ -53,7 +53,7 @@ async def run(args: Namespace):
     event_loop = asyncio.get_event_loop()
     persona_id = get_default_persona(config.chat)
     tool_call_context = ToolCallContext.async_default(
-        persona_id, True, conversation, event_loop, event_queue
+        None, True, conversation, event_loop, event_queue
     )
     loop = AsyncAgentLoop(
         runtime,

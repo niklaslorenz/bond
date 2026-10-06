@@ -24,6 +24,7 @@ if TYPE_CHECKING:
         AsyncTurnEvent,
     )
     from bond.conversation.conversation import Conversation
+    from bond.persona import Persona
 
 ToolReturnType = str | list[str] | dict[str, Any] | list[dict[str, Any]] | None
 ToolParameterType = Literal["string", "number", "integer", "boolean", "array", "object"]
@@ -32,7 +33,7 @@ ToolFn = Callable[..., ToolReturnType]
 
 @dataclass
 class ToolCallContext:
-    persona: str
+    persona: "Persona | None"
     stdout: TextIO | None
     stdin: TextIO | None
     is_interactive: bool
@@ -43,7 +44,10 @@ class ToolCallContext:
 
     @classmethod
     def default(
-        cls, persona: str, is_interactive: bool, conversation: "Conversation | None"
+        cls,
+        persona: "Persona | None",
+        is_interactive: bool,
+        conversation: "Conversation | None",
     ) -> "ToolCallContext":
         context = ToolCallContext(
             persona,
@@ -61,7 +65,7 @@ class ToolCallContext:
     @classmethod
     def async_default(
         cls,
-        persona: str,
+        persona: "Persona | None",
         is_interactive: bool,
         conversation: "Conversation | None",
         event_loop: asyncio.AbstractEventLoop,
