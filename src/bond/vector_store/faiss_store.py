@@ -298,7 +298,7 @@ class FAISSVectorStore(VectorStore):
         shard = self._get_shard(shard_name)
         return shard.find(entry_id)
 
-    def mark_outdated(self, entry_id: int) -> None:
+    def mark_outdated(self, entry_id: int) -> VectorStoreEntry | None:
         """
         Mark an entry as outdated.
 
@@ -311,6 +311,7 @@ class FAISSVectorStore(VectorStore):
             shard_id = self._shard_id(entry_id)
             shard_name = self._shard_name(shard_id)
             self._shard_cache.mark_dirty(shard_name)
+        return entry
 
     def rebuild_index(self) -> None:
         """

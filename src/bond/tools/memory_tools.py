@@ -74,6 +74,73 @@ def store_memory(
 
 
 @tool.tool(
+    name="retire_memory",
+    description="Invalidate/retire a memory entry in the vector store.",
+    parameters={
+        "memory_id": tool.FunctionParameter(
+            type="integer",
+            description="The ID of the memory entry to retire",
+        ),
+    },
+    required=["memory_id"],
+)
+def retire_memory(
+    context: ToolCallContext,
+    memory_id: int,
+) -> str:
+    """
+    Invalidate/retire a memory entry in the vector store.
+    """
+    logger.debug(f"Retire memory tool called with memory_id: {memory_id}")
+
+    # Get persona from context
+    persona = context.persona
+    if persona is None:
+        err_msg = "Persona is not set in the tool call context"
+        logger.error(err_msg)
+        return json.dumps(
+            {
+                "status": "error",
+                "error": "Backend misconfigured. Tool call context is missing the persona",
+            }
+        )
+
+    # Get memory capability from persona
+    memory = persona.memory
+
+    if memory is None:
+        logger.error(f"Persona '{persona.name}' has no memory capability")
+        return json.dumps(
+            {
+                "status": "error",
+                "memory_id": memory_id,
+                "error": "No memory capability available",
+            }
+        )
+
+    try:
+        retired_memory = memory.retire(memory_id)
+        if retired_memory is None:
+            return json.dumps({"status": "error", "error": "invalid memory id"})
+        return json.dumps(
+            {
+                "status": "success",
+                "retired_memory": retired_memory.model_dump(),
+                "message": "Memory entry retired",
+            }
+        )
+    except Exception as e:
+        logger.error(f"Memory retire operation failed: {e}")
+        return json.dumps(
+            {
+                "status": "error",
+                "error": str(e),
+                "memory_id": memory_id,
+            }
+        )
+
+
+@tool.tool(
     name="recall_memory",
     description="Recall information from the vector store memory.",
     parameters={

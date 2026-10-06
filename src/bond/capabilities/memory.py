@@ -47,4 +47,13 @@ class MemoryCapability(Protocol):
         """
         ...
 
+    def retire(self, entry_id: int) -> VectorStoreEntry | None:
+        """
+        Invalidate/retire a memory entry by marking it as outdated.
+
+        Args:
+            entry_id: The ID of the entry to retire
+        """
+        ...
+
     def release(self): ...

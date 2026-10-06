@@ -112,5 +112,14 @@ class DefaultMemoryCapability:
         # TODO: Implement - agentic loop with iterative searching
         raise RuntimeError("Not implemented")
 
+    def retire(self, entry_id: int) -> VectorStoreEntry | None:
+        """
+        Invalidate/retire a memory entry by marking it as outdated.
+
+        Args:
+            entry_id: The ID of the entry to retire
+        """
+        return self._vector_store.mark_outdated(entry_id)
+
     def release(self):
         self._vector_store.write()

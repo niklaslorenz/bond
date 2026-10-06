@@ -63,7 +63,7 @@ class VectorStore(ABC):
         ...
 
     @abstractmethod
-    def mark_outdated(self, entry_id: int) -> None:
+    def mark_outdated(self, entry_id: int) -> VectorStoreEntry | None:
         """
         Mark an entry as outdated.
 
