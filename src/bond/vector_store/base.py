@@ -23,11 +23,13 @@ class VectorStoreEntry(BaseModel):
         id: identifier
         content: The main content of the entry (e.g., text, data).
         timestamp: When the entry was stored (ISO format). Optional, defaults to None.
+        outdated: Whether the entry is outdated and should be excluded from queries. Defaults to False.
     """
 
     id: int = 0
     content: str
     timestamp: str | None = None
+    outdated: bool = False
 
 
 class VectorStore(ABC):
@@ -57,6 +59,16 @@ class VectorStore(ABC):
         Args:
             embedding: The embedding for the entry
             entry: The entry to store, containing content, metadata, and embedding.
+        """
+        ...
+
+    @abstractmethod
+    def mark_outdated(self, entry_id: int) -> None:
+        """
+        Mark an entry as outdated.
+
+        Args:
+            entry_id: The ID of the entry to mark as outdated.
         """
         ...
 

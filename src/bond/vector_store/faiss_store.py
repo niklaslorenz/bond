@@ -138,6 +138,12 @@ class FAISSShardCache:
             if shard.dirty:
                 shard.write()
 
+    def drop(self):
+        """
+        Empty the cache without writing back dirty shards
+        """
+        self._cache.clear()
+
     def __contains__(self, shard_name: str) -> bool:
         return shard_name in self._cache
 
@@ -238,6 +244,7 @@ class FAISSVectorStore(VectorStore):
 
         Returns:
             A list of the k-nearest VectorStoreEntry objects, sorted by similarity.
+            Only non-outdated entries are returned.
 
         Raises:
             RuntimeError: If the index is not loaded.
@@ -245,19 +252,21 @@ class FAISSVectorStore(VectorStore):
         if self._index is None:
             return []
 
-        # Query FAISS index
+        # Query FAISS index - fetch more than k to account for outdated entries
+        # We fetch up to 3x k to ensure we get enough non-outdated results
+        search_k = min(k * 3, self._index.ntotal)
         embedding_array = np.array([embedding], dtype=np.float32)
-        _, indices = self._index.search(embedding_array, k)
+        _, indices = self._index.search(embedding_array, search_k)
 
-        results = list(
-            filter(
-                None,
-                (
-                    self._get_shard(self._shard_name(idx)).find(idx)
-                    for idx in indices[0]
-                ),
-            )
-        )
+        # Filter out None and outdated entries
+        results = []
+        for idx in indices[0]:
+            entry = self._get_shard(self._shard_name(idx)).find(idx)
+            if entry is not None and not entry.outdated:
+                results.append(entry)
+                if len(results) >= k:
+                    break
+
         return results
 
     def _shard_name(self, shard_number: int) -> str:
@@ -273,6 +282,91 @@ class FAISSVectorStore(VectorStore):
 
     def _get_shard(self, shard_name: str) -> FAISSShard:
         return self._shard_cache.get(shard_name) or self._load_shard(shard_name)
+
+    def _get_entry_by_id(self, entry_id: int) -> VectorStoreEntry | None:
+        """
+        Find an entry by its ID across all shards.
+
+        Args:
+            entry_id: The ID of the entry to find.
+
+        Returns:
+            The VectorStoreEntry if found, None otherwise.
+        """
+        shard_id = self._shard_id(entry_id)
+        shard_name = self._shard_name(shard_id)
+        shard = self._get_shard(shard_name)
+        return shard.find(entry_id)
+
+    def mark_outdated(self, entry_id: int) -> None:
+        """
+        Mark an entry as outdated.
+
+        Args:
+            entry_id: The ID of the entry to mark as outdated.
+        """
+        entry = self._get_entry_by_id(entry_id)
+        if entry is not None:
+            entry.outdated = True
+            shard_id = self._shard_id(entry_id)
+            shard_name = self._shard_name(shard_id)
+            self._shard_cache.mark_dirty(shard_name)
+
+    def rebuild_index(self) -> None:
+        """
+        Rebuild the FAISS index, removing outdated entries.
+
+        This creates a new index with only active (non-outdated) entries,
+        reassigning sequential IDs. All shard files are deleted and entries
+        are re-inserted into the correct shards based on their new IDs to
+        maintain shard consistency.
+        """
+        if self._index is None:
+            return
+
+        # Get all IDs from FAISS (0 to ntotal-1)
+        total = self._index.ntotal
+        all_ids = list(range(total))
+
+        # Collect active entries and their embeddings
+        active_embeddings = []
+        active_entries = []
+        id_mapping = {}  # old_id -> new_id
+
+        for old_id in all_ids:
+            entry = self._get_entry_by_id(old_id)
+            if entry is not None and not entry.outdated:
+                # Get embedding from FAISS
+                embedding = self._index.reconstruct(old_id)
+                active_embeddings.append(embedding)
+                active_entries.append(entry)
+                id_mapping[old_id] = len(active_entries) - 1
+
+        # Create new index with only active embeddings
+        new_index = faiss.IndexFlatL2(self._index.d)
+        if active_embeddings:
+            new_index.add(np.array(active_embeddings, dtype=np.float32))
+
+        # Delete all existing shard files to prevent loading stale data
+        for shard_file in self._path.glob("data_*.json"):
+            shard_file.unlink()
+
+        # Clear the shard cache to ensure we don't use stale in-memory shards
+        self._shard_cache.drop()
+
+        # Update entry IDs and re-insert into correct shards based on new IDs
+        for entry in active_entries:
+            entry.id = id_mapping[entry.id]
+            shard_id = self._shard_id(entry.id)
+            shard_name = self._shard_name(shard_id)
+            shard = self._get_shard(shard_name)
+            shard.insert(entry)
+            self._shard_cache.mark_dirty(shard_name)
+
+        # Replace old index with new one
+        self._index = new_index
+        # Write all updated entries to shards
+        self.write()
 
     def write(self):
         self._shard_cache.flush()
