@@ -102,6 +102,8 @@ class LoopBehaviour:
         )
 
     def _build_turn(self):
+        if hasattr(self, "persona"):
+            getattr(self, "persona").release()
         self.turn = SingleTurn(
             self.persona,
             author_name=self.persona.name,
@@ -162,5 +164,6 @@ class LoopBehaviour:
                         critical=False,
                     )
                 )
+        self.persona.release()
         self.event_handler(StopEvent())
         logger.info("Stopping Loop Behaviour")

@@ -66,6 +66,7 @@ class BondTui(App):
             await self.agent_loop.cancel()
         self.popup_manager.close_all()
         await self._event_handler.stop()
+        self.agent_loop.persona.release()
         super().exit()
 
     async def run_async(self):

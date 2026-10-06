@@ -35,6 +35,10 @@ class Persona:
         self.memory = memory
         self.toolbox = toolbox
 
+    def release(self):
+        if self.memory is not None:
+            self.memory.release()
+
 
 class PersonaConfig(BaseModel):
     type: ClassVar[str] = "default"

@@ -46,10 +46,10 @@ class DefaultMemoryCapability:
     def store(self, content: str) -> str:
         """
         Store a full natural language statement in memory.
-        
+
         Args:
             content: The statement or fact to store
-            
+
         Returns:
             The unique ID of the stored entry
         """
@@ -61,22 +61,22 @@ class DefaultMemoryCapability:
             max_retries=self._max_retries,
         )
         embedding = embedding_response.embeddings[0]
-        
+
         # Create and store the entry
         entry = VectorStoreEntry(content=content)
         self._vector_store.store(embedding, entry)
-        
+
         # Return the ID (VectorStoreEntry uses auto-incrementing int ID)
         return str(entry.id)
 
     def direct_query(self, query: str, k: int = 5) -> list[VectorStoreEntry]:
         """
         Perform a direct KNN lookup for semantically similar statements.
-        
+
         Args:
             query: The search query in natural language
             k: Number of nearest neighbors to return
-            
+
         Returns:
             List of matching VectorStoreEntry objects sorted by similarity
         """
@@ -88,27 +88,28 @@ class DefaultMemoryCapability:
             max_retries=self._max_retries,
         )
         embedding = embedding_response.embeddings[0]
-        
+
         # Query the vector store
         results = self._vector_store.query(embedding, k)
-        
+
         return results
 
-    def deep_remember(
-        self, query: str, max_iterations: int
-    ) -> list[VectorStoreEntry]:
+    def deep_remember(self, query: str, max_iterations: int) -> list[VectorStoreEntry]:
         """
         Launch an agentic loop for deep memory search.
-        
+
         Iteratively refines queries to explore the memory space and find
         relevant information that may not be captured by a single direct query.
-        
+
         Args:
             query: The initial search query in natural language
             max_iterations: Maximum number of search iterations to perform
-            
+
         Returns:
             List of relevant VectorStoreEntry objects found through iterative search
         """
         # TODO: Implement - agentic loop with iterative searching
-        pass
+        raise RuntimeError("Not implemented")
+
+    def release(self):
+        self._vector_store.write()

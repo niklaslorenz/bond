@@ -7,9 +7,7 @@ and querying for the k-nearest neighbors of a given embedding.
 """
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from pydantic import BaseModel
 
@@ -37,8 +35,8 @@ class VectorStore(ABC):
     must implement the methods defined in this class.
     """
 
-    @abstractmethod
     @classmethod
+    @abstractmethod
     def load_or_create(cls, path: Path) -> "VectorStore":
         """
         Load the vector store from the specified directory path.
@@ -72,3 +70,7 @@ class VectorStore(ABC):
             A list of the k-nearest VectorStoreEntry objects, sorted by similarity.
         """
         ...
+
+    @abstractmethod
+    def write(self):
+        pass

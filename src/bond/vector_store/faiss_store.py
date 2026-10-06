@@ -38,6 +38,7 @@ class FAISSShard:
 
     def write(self):
         data = [entry.model_dump() for entry in self.entries]
+        self.path.parent.mkdir(exist_ok=True, parents=True)
         self.path.write_text(json.dumps(data), encoding="utf-8")
         self.dirty = False
 
@@ -192,7 +193,7 @@ class FAISSVectorStore(VectorStore):
         # Load FAISS index
         index_file = path / "index.faiss"
         if index_file.exists():
-            index = faiss.read_index(str(index_file))
+            index = faiss.read_index(index_file.expanduser().absolute().as_posix())
         else:
             index = None
 
@@ -272,3 +273,14 @@ class FAISSVectorStore(VectorStore):
 
     def _get_shard(self, shard_name: str) -> FAISSShard:
         return self._shard_cache.get(shard_name) or self._load_shard(shard_name)
+
+    def write(self):
+        self._shard_cache.flush()
+        if self._index is not None:
+            faiss.write_index(
+                self._index,
+                (self._path / "index.faiss").expanduser().absolute().as_posix(),
+            )
+
+    def __del__(self):
+        self.write()

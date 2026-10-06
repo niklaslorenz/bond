@@ -36,7 +36,7 @@ from bond.tools.file_system import (
 )
 from bond.tools.file_system.search import search_file
 from bond.tools.mcp_toolset import McpToolset
-from bond.tools.memory_tools import remember
+from bond.tools.memory_tools import recall_memory, store_memory
 from bond.tools.shell_tools import run_shell_commands
 from bond.tools.stream_tools import write_to_output
 from bond.tools.test_tool import test_confirmation
@@ -64,7 +64,7 @@ _default_toolsets: list[Toolset] = [
     PythonToolset("shell", [run_shell_commands]),
     PythonToolset("write", [write_to_output]),
     PythonToolset("test", [test_confirmation]),
-    PythonToolset("memory", [remember]),
+    PythonToolset("memory", [recall_memory, store_memory]),
 ]
 
 
