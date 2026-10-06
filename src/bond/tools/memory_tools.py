@@ -1,6 +1,5 @@
 import json
 import logging
-from typing import Any
 
 from bond.tools import tool
 from bond.tools.tool import ToolCallContext
@@ -13,15 +12,15 @@ logger = logging.getLogger(__name__)
     description="Store information in the vector store memory.",
     parameters={
         "content": tool.FunctionParameter(
-            type="string",
-            description="The information to store in memory",
+            type="array",
+            description="List of short paragraphs (1-3 sentences each) to store in memory",
         ),
     },
     required=["content"],
 )
 def store_memory(
     context: ToolCallContext,
-    content: str,
+    content: list[str],
 ) -> str:
     """
     Store information in the vector store memory.
@@ -53,12 +52,15 @@ def store_memory(
         )
 
     try:
-        memory.store(content)
+        entry_ids = []
+        for item in content:
+            entry_id = memory.store(item)
+            entry_ids.append(entry_id)
         return json.dumps(
             {
                 "status": "success",
                 "operation": "store",
-                "content": content,
+                "entry_ids": entry_ids,
                 "message": "Information stored in memory",
             }
         )
