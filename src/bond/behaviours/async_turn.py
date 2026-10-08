@@ -5,8 +5,9 @@ from returns.result import Failure, Result, Success
 
 from bond.behaviours.async_turn_event import *
 from bond.behaviours.auto_summarize import AutoSummarization
-from bond.conversation.conversation import Conversation, ConversationMessage
+from bond.conversation.conversation import Conversation
 from bond.conversation.types import (
+    ConversationMessage,
     FunctionCall,
     TextChunk,
     ToolCall,

@@ -1,55 +1,20 @@
 from dataclasses import field
+from datetime import datetime, timezone
 from pathlib import Path
 
 from pydantic import BaseModel
 
 from bond.conversation.types import (
+    ConversationMessage,
     ConversationMetadata,
     Message,
-    SystemMessage,
     TextChunk,
-    ToolCall,
-    ToolMessage,
     UserMessage,
 )
 
 # TODO: Add a size attribute to the history objects and update them
 # whenever a prompt returns a usage report.
 # Use this to prune the context window
-
-
-class ConversationMessage(BaseModel):
-    message: Message
-    author: str | None = None
-
-    @classmethod
-    def create_system_message(
-        cls, msg: str, system_name: str = "System"
-    ) -> "ConversationMessage":
-        return ConversationMessage(
-            author=system_name, message=SystemMessage(content=[TextChunk(text=msg)])
-        )
-
-    @classmethod
-    def create_user_message(
-        cls, msg: str, user_name: str = "User"
-    ) -> "ConversationMessage":
-        return ConversationMessage(
-            author=user_name, message=UserMessage(content=[TextChunk(text=msg)])
-        )
-
-    @classmethod
-    def create_tool_response_message(
-        cls, response: str, tool_call: ToolCall, tool_name: str | None = None
-    ) -> "ConversationMessage":
-        return ConversationMessage(
-            author=tool_name or tool_call.function.name,
-            message=ToolMessage(
-                name=tool_call.function.name,
-                tool_call_id=tool_call.id,
-                content=[TextChunk(text=response)],
-            ),
-        )
 
 
 class Conversation(BaseModel):
@@ -62,6 +27,7 @@ class Conversation(BaseModel):
     current_usage: int = 0
 
     def add_message(self, message: ConversationMessage):
+        message.timestamp = datetime.now(timezone.utc)
         self.history.append(message)
 
     def get_summary_messages(self, keep: int) -> list[Message]:

@@ -2,7 +2,8 @@ from typing import TYPE_CHECKING, Protocol
 
 from returns.result import Result
 
-from bond.conversation.conversation import Conversation, ConversationMessage
+from bond.conversation.conversation import Conversation
+from bond.conversation.types import ConversationMessage
 from bond.endpoints.chat_completions import (
     ChatCompletionStreamCallback,
     CompletionResponse,

@@ -14,7 +14,8 @@ from bond.behaviours.behaviour_event import (
 from bond.behaviours.behaviour_signal import CommandSignal, PromptSignal, StopSignal
 from bond.behaviours.single_turn import SingleTurn
 from bond.behaviours.types import IBehaviourEventHandler, IBehaviourSignalReceiver
-from bond.conversation.conversation import Conversation, ConversationMessage
+from bond.conversation.conversation import Conversation
+from bond.conversation.types import ConversationMessage
 from bond.persona import Persona
 from bond.runtime import BondRuntime
 from bond.tools.tool import ToolCallContext

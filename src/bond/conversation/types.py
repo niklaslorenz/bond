@@ -1,7 +1,10 @@
 import json
+from datetime import datetime, timezone
 from typing import Any, Literal
+from uuid import uuid4
 
-from pydantic import BaseModel, field_serializer, field_validator
+from pydantic import BaseModel, Field, field_serializer, field_validator
+from typing_extensions import deprecated
 
 
 class TextChunk(BaseModel):
@@ -114,6 +117,47 @@ class ConversationMetadata(BaseModel):
     mistral_cache_key: str | None = None
 
 
+class ConversationMessage(BaseModel):
+    message: Message
+    author: str | None = None
+    message_id: str = Field(default_factory=lambda: str(uuid4()))
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    usage: UsageInfo | None = None
+
+    @classmethod
+    def create_system_message(
+        cls, msg: str, system_name: str = "System"
+    ) -> "ConversationMessage":
+        return ConversationMessage(
+            author=system_name, message=SystemMessage(content=[TextChunk(text=msg)])
+        )
+
+    @classmethod
+    def create_user_message(
+        cls, msg: str, user_name: str = "User"
+    ) -> "ConversationMessage":
+        return ConversationMessage(
+            author=user_name, message=UserMessage(content=[TextChunk(text=msg)])
+        )
+
+    @classmethod
+    def create_tool_response_message(
+        cls, response: str, tool_call: ToolCall, tool_name: str | None = None
+    ) -> "ConversationMessage":
+        return ConversationMessage(
+            author=tool_name or tool_call.function.name,
+            message=ToolMessage(
+                name=tool_call.function.name,
+                tool_call_id=tool_call.id,
+                content=[TextChunk(text=response)],
+            ),
+        )
+
+
+# DEPRECATED: Only used by old std_event_handler and std_command_handler
+@deprecated(
+    "Ignores structure of think and text chunks and deprecated without replacement"
+)
 def parse_chunks_content(chunks: list) -> tuple[str | None, str | None]:
     text = []
     think = []

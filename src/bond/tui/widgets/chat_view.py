@@ -2,9 +2,10 @@ from typing import Literal
 
 from textual.containers import Container
 
-from bond.conversation.conversation import Conversation, ConversationMessage
+from bond.conversation.conversation import Conversation
 from bond.conversation.types import (
     AssistantMessage,
+    ConversationMessage,
     TextChunk,
     ThinkChunk,
     ToolMessage,

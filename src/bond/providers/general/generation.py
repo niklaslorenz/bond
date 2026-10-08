@@ -3,8 +3,13 @@ from typing import Any, Callable
 from pydantic import BaseModel
 from returns.result import Failure, Result, Success
 
-from bond.conversation.conversation import Conversation, ConversationMessage
-from bond.conversation.types import AssistantMessage, SystemMessage, TextChunk
+from bond.conversation.conversation import Conversation
+from bond.conversation.types import (
+    AssistantMessage,
+    ConversationMessage,
+    SystemMessage,
+    TextChunk,
+)
 from bond.endpoints.chat_completions import (
     ChatCompletionsEndpoint,
     CompletionChunk,

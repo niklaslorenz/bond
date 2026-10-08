@@ -13,8 +13,9 @@ from bond.behaviours.behaviour_event import (
 )
 from bond.behaviours.behaviour_signal import InterruptSignal
 from bond.behaviours.types import IBehaviourEventHandler, IBehaviourSignalReceiver
-from bond.conversation.conversation import Conversation, ConversationMessage
+from bond.conversation.conversation import Conversation
 from bond.conversation.types import (
+    ConversationMessage,
     FunctionCall,
 )
 from bond.persona import Persona

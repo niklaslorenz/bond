@@ -8,8 +8,8 @@ from bond.behaviours.async_turn_event import (
     AsyncTurnErrorEvent,
     AsyncTurnMessageInsertedEvent,
 )
-from bond.conversation.conversation import Conversation, ConversationMessage
-from bond.conversation.types import UserMessage
+from bond.conversation.conversation import Conversation
+from bond.conversation.types import ConversationMessage, UserMessage
 from bond.persona import Persona
 from bond.runtime import BondRuntime
 from bond.tools.tool import ToolCallContext

@@ -8,7 +8,8 @@ from returns.result import Failure
 from bond import util
 from bond.behaviours.single_turn import SingleTurn
 from bond.config import get_default_persona
-from bond.conversation.conversation import Conversation, ConversationMessage
+from bond.conversation.conversation import Conversation
+from bond.conversation.types import ConversationMessage
 from bond.environment.std_event_handler import StdEventHandler
 from bond.environment.std_signal_receiver import StdSignalReceiver
 from bond.runtime import BondRuntime
