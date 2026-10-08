@@ -122,7 +122,6 @@ class ConversationMessage(BaseModel):
     author: str | None = None
     message_id: str = Field(default_factory=lambda: str(uuid4()))
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    usage: UsageInfo | None = None
 
     @classmethod
     def create_system_message(
@@ -152,6 +151,31 @@ class ConversationMessage(BaseModel):
                 content=[TextChunk(text=response)],
             ),
         )
+
+
+class Turn(BaseModel):
+    """A single conversational exchange: one user message and all assistant/tool
+    messages generated in response."""
+
+    turn_id: str = Field(default_factory=lambda: str(uuid4()))
+    messages: list[ConversationMessage] = []
+    started_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    usage: UsageInfo | None = None
+
+    @property
+    def completed_at(self) -> datetime | None:
+        """Timestamp of the last message, or None if the turn is empty."""
+        if not self.messages:
+            return None
+        return self.messages[-1].timestamp
+
+    @property
+    def is_complete(self) -> bool:
+        """A turn is complete when it ends with an assistant message without tool calls."""
+        if not self.messages:
+            return False
+        last = self.messages[-1].message
+        return isinstance(last, AssistantMessage) and last.tool_calls is None
 
 
 # DEPRECATED: Only used by old std_event_handler and std_command_handler
