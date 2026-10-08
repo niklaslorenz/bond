@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 @tool.tool(
     name="store_memory",
-    description="Store information in the vector store memory.",
+    description="Store information in your persistent vector-store memory.",
     parameters={
         "content": tool.FunctionParameter(
             type="array",
@@ -77,7 +77,7 @@ def store_memory(
 
 @tool.tool(
     name="retire_memory",
-    description="Invalidate/retire a memory entry in the vector store.",
+    description="Invalidate/retire a memory entry in the vector-store.",
     parameters={
         "memory_id": tool.FunctionParameter(
             type="integer",
@@ -144,7 +144,7 @@ def retire_memory(
 
 @tool.tool(
     name="recall_memory",
-    description="Recall information from the vector store memory.",
+    description="Recall information from your persistent vector-store memory.",
     parameters={
         "query": tool.FunctionParameter(
             type="string",
