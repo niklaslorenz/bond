@@ -1,21 +1,16 @@
 import json
 import shutil
-import tempfile
-from dataclasses import field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, PrivateAttr
+from pydantic import BaseModel, Field, PrivateAttr
 
 from bond.conversation.episode_cache import EpisodeCache
 from bond.conversation.types import (
-    ConversationMessage,
     ConversationMetadata,
     Episode,
-    SystemMessage,
     Turn,
-    UserMessage,
 )
 
 EPISODES_PER_SHARD = 8
@@ -33,7 +28,7 @@ class Conversation(BaseModel):
 
     name: str | None = None
     persona: str | None = None
-    metadata: ConversationMetadata = field(default_factory=ConversationMetadata)
+    metadata: ConversationMetadata = Field(default_factory=ConversationMetadata)
 
     _episodes: EpisodeCache | None = PrivateAttr(default=None)
     _data_path: Path | None = PrivateAttr(default=None)
@@ -64,43 +59,18 @@ class Conversation(BaseModel):
         """
         return self._data_path
 
-    def add_message(self, message: ConversationMessage) -> None:
-        """
-        Add a message to the current unfinished episode.
+    def add_turn(self, turn: Turn) -> None:
+        assert not self.episodes.last.is_finished
+        self.episodes.last.turns.append(turn)
 
-        User messages start a new turn. Assistant and tool messages are appended
-        to the current turn.
-        """
-        message.timestamp = datetime.now(timezone.utc)
-
-        if isinstance(message.message, SystemMessage):
-            raise ValueError("System messages cannot be added to conversation history")
-
-        if len(self.episodes) == 0:
-            self.episodes.append(Episode())
+    def condense_turns(self, kept_turns: int):
+        if kept_turns < 0:
+            raise ValueError("kept_turns must be non-negative")
         episode = self.episodes.last
-        assert not episode.is_finished
+        split = max(0, len(episode.turns) - kept_turns)
+        for turn in episode.turns[:split]:
+            turn.condense()
 
-        if isinstance(message.message, UserMessage):
-            if episode.turns:
-                last_turn = episode.turns[-1]
-                if last_turn.messages and isinstance(
-                    last_turn.messages[-1].message, UserMessage
-                ):
-                    raise ValueError(
-                        "Cannot add user message: previous turn has no assistant response"
-                    )
-                # TODO: Add verification logic that ensures the correct order
-                # of tool messages and assistant messages
-            episode.turns.append(Turn(messages=[message]))
-        else:
-            if not episode.turns:
-                raise ValueError(
-                    "Cannot add assistant/tool message without a preceding user message"
-                )
-            episode.turns[-1].messages.append(message)
-
-    # TODO: unreviewed
     def archive_turns(
         self,
         num_turns: int | None,
@@ -117,23 +87,19 @@ class Conversation(BaseModel):
         ``episode_summary`` should summarize the turns being archived.
         ``prefix_summary`` should summarize all episodes before the new one.
         """
-        if not self.episodes:
-            # This should never happen because there should always be an unfinished episode
-            raise RuntimeError("No episodes")
+        assert self.episodes
         last = self.episodes[-1]
+        assert not last.is_finished
         if not last.turns:
             raise ValueError("Cannot archive an empty episode")
         if num_turns is None:
             num_turns = len(last.turns)
-        if last.is_finished:
-            raise ValueError("Last episode is already finished")
         if num_turns <= 0:
             raise ValueError("num_turns must be positive")
         if num_turns > len(last.turns):
             raise ValueError(
                 f"Cannot archive {num_turns} turns, " f"only {len(last.turns)} active"
             )
-
         archived_turns = last.turns[:num_turns]
         remaining_turns = last.turns[num_turns:]
 

@@ -4,7 +4,6 @@ from typing import Any, Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, Field, field_serializer, field_validator
-from typing_extensions import deprecated
 
 
 class TextChunk(BaseModel):
@@ -117,69 +116,128 @@ class ConversationMetadata(BaseModel):
     mistral_cache_key: str | None = None
 
 
-class ConversationMessage(BaseModel):
-    message: Message
-    author: str | None = None
+class BaseConversationMessage(BaseModel):
     message_id: str = Field(default_factory=lambda: str(uuid4()))
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    @classmethod
-    def create_system_message(
-        cls, msg: str, system_name: str = "System"
-    ) -> "ConversationMessage":
-        return ConversationMessage(
-            author=system_name, message=SystemMessage(content=[TextChunk(text=msg)])
+
+class UserConversationMessage(BaseConversationMessage):
+    message: UserMessage
+    name: str
+
+    def render(self) -> UserMessage:
+        return self.message
+
+
+class AssistantConversationMessage(BaseConversationMessage):
+    message: AssistantMessage
+    name: str
+    condensed_thoughts: str | None = None
+
+    # TODO: do we need this? Maybe we just generate the thoughts before creating this object
+    def condense_thought(self, condensate: str):
+        if self.condensed_thoughts is not None:
+            raise RuntimeError("Tried to condense already condensed thoughts")
+        self.condensed_thoughts = condensate
+
+    def render(self, condense: bool) -> AssistantMessage:
+        if self.message.content is None:
+            return self.message
+        if self.condensed_thoughts is None and not condense:
+            return self.message
+        non_thoughts: list[AssistantMessageChunk] = [
+            chunk for chunk in self.message.content if not isinstance(chunk, ThinkChunk)
+        ]
+        if condense:
+            return AssistantMessage(
+                tool_calls=self.message.tool_calls, content=non_thoughts
+            )
+        assert self.condensed_thoughts is not None  # follows logically
+        content = [
+            ThinkChunk(thinking=[TextChunk(text=self.condensed_thoughts)])
+        ] + non_thoughts
+        return AssistantMessage(tool_calls=self.message.tool_calls, content=content)
+
+
+class ToolConversationMessage(BaseConversationMessage):
+    message: ToolMessage
+    name: str
+    tool_call_parameters: dict[str, Any] | None = None
+    tool_call_summary: str | None = None
+
+    def render(self, condense: bool) -> ToolMessage:
+        if not condense:
+            return self.message
+        return ToolMessage(
+            name=self.message.name,
+            tool_call_id=self.message.tool_call_id,
+            content=[
+                TextChunk(text=self.tool_call_summary or "<tool output truncated>")
+            ],
         )
 
-    @classmethod
-    def create_user_message(
-        cls, msg: str, user_name: str = "User"
-    ) -> "ConversationMessage":
-        return ConversationMessage(
-            author=user_name, message=UserMessage(content=[TextChunk(text=msg)])
-        )
 
-    @classmethod
-    def create_tool_response_message(
-        cls, response: str, tool_call: ToolCall, tool_name: str | None = None
-    ) -> "ConversationMessage":
-        return ConversationMessage(
-            author=tool_name or tool_call.function.name,
-            message=ToolMessage(
-                name=tool_call.function.name,
-                tool_call_id=tool_call.id,
-                content=[TextChunk(text=response)],
-            ),
-        )
+ConversationMessage = (
+    UserConversationMessage | AssistantConversationMessage | ToolConversationMessage
+)
 
 
 class Turn(BaseModel):
-    """A single conversational exchange: one user message and all assistant/tool
-    messages generated in response."""
+    """
+    A single agentic turn: triggers like user input or tool responses
+    followed up by an assistant message.
+    """
 
     turn_id: str = Field(default_factory=lambda: str(uuid4()))
-    messages: list[ConversationMessage] = []
-    started_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    tool_messages: list[ToolConversationMessage] | None = None
+    user_message: UserConversationMessage | None = None
+    assistant_response: AssistantConversationMessage
     usage: UsageInfo | None = None
+    condensed: bool = False
+
+    def model_post_init(self, context: Any, /) -> None:
+        if self.user_message is None and self.tool_messages is None:
+            raise ValueError("A turn must have a user message or tool responses")
 
     @property
-    def completed_at(self) -> datetime | None:
-        """Timestamp of the last message, or None if the turn is empty."""
-        if not self.messages:
-            return None
-        return self.messages[-1].timestamp
+    def completed_at(self) -> datetime:
+        return self.assistant_response.timestamp
 
     @property
-    def is_complete(self) -> bool:
-        """A turn is complete when it ends with an assistant message without tool calls."""
-        if not self.messages:
-            return False
-        last = self.messages[-1].message
-        return isinstance(last, AssistantMessage) and last.tool_calls is None
+    def ends_run(self) -> bool:
+        return self.assistant_response.message.tool_calls is None
+
+    @property
+    def is_user_triggered(self) -> bool:
+        """
+        Determine whether the turn was triggered by the user.
+        """
+        return self.user_message is not None
+
+    def condense(self) -> None:
+        self.condensed = True
+
+    def render(self) -> list[Message]:
+        messages: list[Message] = []
+        if self.tool_messages is not None:
+            messages = [msg.render(self.condensed) for msg in self.tool_messages]
+        if self.user_message is not None:
+            messages.append(self.user_message.render())
+        messages.append(self.assistant_response.render(self.condensed))
+        return messages
+
+    def flatten(self) -> list[ConversationMessage]:
+        messages: list[ConversationMessage] = []
+        if self.tool_messages is not None:
+            messages = list(self.tool_messages)
+        if self.user_message is not None:
+            messages.append(self.user_message)
+        messages.append(self.assistant_response)
+        return messages
 
 
 class Episode(BaseModel):
-    """A group of archived turns with associated summaries.
+    """A group of turns that share common context.
 
     ``prefix_summary`` is a summary of all episodes *before* this one —
     i.e. the context that was available when this episode's turns were active.
@@ -199,25 +257,8 @@ class Episode(BaseModel):
     def is_finished(self) -> bool:
         return self.episode_summary is not None
 
+    def render(self) -> list[Message]:
+        return [msg for turn in self.turns for msg in turn.render()]
+
     def flatten(self) -> list[ConversationMessage]:
-        return [msg for turn in self.turns for msg in turn.messages]
-
-
-# DEPRECATED: Only used by old std_event_handler and std_command_handler
-@deprecated(
-    "Ignores structure of think and text chunks and deprecated without replacement"
-)
-def parse_chunks_content(chunks: list) -> tuple[str | None, str | None]:
-    text = []
-    think = []
-    for chunk in chunks:
-        if isinstance(chunk, TextChunk):
-            text.append(chunk.text)
-        elif isinstance(chunk, ThinkChunk):
-            for think_chunk in chunk.thinking:
-                if isinstance(think_chunk, TextChunk):
-                    think.append(think_chunk.text)
-    return (
-        "".join(text) if len(text) > 0 else None,
-        "".join(think) if len(think) > 0 else None,
-    )
+        return [msg for turn in self.turns for msg in turn.flatten()]
