@@ -178,6 +178,31 @@ class Turn(BaseModel):
         return isinstance(last, AssistantMessage) and last.tool_calls is None
 
 
+class Episode(BaseModel):
+    """A group of archived turns with associated summaries.
+
+    ``prefix_summary`` is a summary of all episodes *before* this one —
+    i.e. the context that was available when this episode's turns were active.
+    ``episode_summary`` is a summary of this episode's turns.
+
+    An episode is *finished* when ``episode_summary`` is set. The last episode
+    in a conversation is always unfinished.
+    """
+
+    episode_id: str = Field(default_factory=lambda: str(uuid4()))
+    prefix_summary: str | None = None
+    episode_summary: str | None = None
+    turns: list[Turn] = []
+    summarized_at: datetime | None = None
+
+    @property
+    def is_finished(self) -> bool:
+        return self.episode_summary is not None
+
+    def flatten(self) -> list[ConversationMessage]:
+        return [msg for turn in self.turns for msg in turn.messages]
+
+
 # DEPRECATED: Only used by old std_event_handler and std_command_handler
 @deprecated(
     "Ignores structure of think and text chunks and deprecated without replacement"
