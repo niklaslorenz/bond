@@ -7,11 +7,13 @@ from typing import Literal
 from pydantic import BaseModel, Field, PrivateAttr
 
 from bond.conversation.episode_cache import EpisodeCache
+from bond.conversation.task_list import TaskList
 from bond.conversation.types import (
     ConversationMetadata,
     Episode,
     Turn,
 )
+from bond.conversation.working_set import WorkingSet
 
 EPISODES_PER_SHARD = 8
 
@@ -28,6 +30,8 @@ class Conversation(BaseModel):
 
     name: str | None = None
     persona: str | None = None
+    working_set: WorkingSet | None = None
+    task_list: TaskList | None = None
     metadata: ConversationMetadata = Field(default_factory=ConversationMetadata)
 
     _episodes: EpisodeCache | None = PrivateAttr(default=None)

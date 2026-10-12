@@ -9,6 +9,9 @@ from bond.capabilities.generation import GenerationCapability
 from bond.capabilities.memory import MemoryCapability
 from bond.capabilities.summarization import SummarizationCapability
 from bond.capabilities.tts import TTSCapability
+from bond.conversation.conversation import Conversation
+from bond.conversation.task_list import TaskList
+from bond.conversation.working_set import WorkingSet
 from bond.tools.toolbox import Toolbox
 
 if TYPE_CHECKING:
@@ -39,11 +42,26 @@ class Persona:
         if self.memory is not None:
             self.memory.release()
 
+    def create_conversation(self) -> Conversation:
+        if (features := self.config.conversation_features) is None:
+            return Conversation()
+        return Conversation(
+            persona=self.name,
+            working_set=WorkingSet() if features.working_set else None,
+            task_list=TaskList() if features.task_list else None,
+        )
+
+
+class ConversationFeatures(BaseModel):
+    task_list: bool
+    working_set: bool
+
 
 class PersonaConfig(BaseModel):
     type: ClassVar[str] = "default"
 
     name: str
+    conversation_features: ConversationFeatures | None = None
 
     generation: dict[str, Any]
     summarization: dict[str, Any] | None = None

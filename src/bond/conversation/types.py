@@ -134,12 +134,6 @@ class AssistantConversationMessage(BaseConversationMessage):
     name: str
     condensed_thoughts: str | None = None
 
-    # TODO: do we need this? Maybe we just generate the thoughts before creating this object
-    def condense_thought(self, condensate: str):
-        if self.condensed_thoughts is not None:
-            raise RuntimeError("Tried to condense already condensed thoughts")
-        self.condensed_thoughts = condensate
-
     def render(self, condense: bool) -> AssistantMessage:
         if self.message.content is None:
             return self.message
