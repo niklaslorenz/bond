@@ -1,27 +1,12 @@
-"""Sharded episode storage for long conversations.
-
-Episodes are split across multiple JSON files (shards) so that only the
-shards that are actually needed have to be loaded into memory.
-"""
-
 import json
-import shutil
 from pathlib import Path
-from typing import Iterable, Iterator, Literal, cast, overload
+from typing import Iterable, cast, overload
 
+from bond.conversation.cache.base import EpisodeCache
 from bond.conversation.types import Episode
 
 
-class EpisodeCache:
-    """A list-like container for :class:`Episode` objects, sharded across files.
-
-    Episodes are stored in files named ``episodes_<shard_index>.json`` inside
-    *path*.  Each shard holds at most *episodes_per_shard* episodes.
-
-    Shards are loaded lazily on first access and cached in memory.  Modified
-    shards are marked *dirty* and only written back to disk when
-    :meth:`write` is called.
-    """
+class DiskMappedEpisodeCache(EpisodeCache):
 
     def __init__(self, path: Path | None, episodes_per_shard: int) -> None:
         if episodes_per_shard <= 0:
@@ -32,17 +17,6 @@ class EpisodeCache:
         self._dirty: set[int] = set()
         self._total: int | None = None
 
-    @property
-    def path(self) -> Path | None:
-        """The directory where shard files are stored."""
-        return self._path
-
-    @property
-    def last(self) -> Episode:
-        """The last (most recent) episode in the cache."""
-        return self[len(self) - 1]
-
-    # -- list-like interface ------------------------------------------------
     @overload
     def __getitem__(self, index: int) -> Episode: ...
 
@@ -50,7 +24,6 @@ class EpisodeCache:
     def __getitem__(self, index: slice) -> list[Episode]: ...
 
     def __getitem__(self, index: int | slice) -> Episode | list[Episode]:
-        """Return the episode at *index*, or a list of episodes for a slice."""
         if isinstance(index, slice):
             start, stop, step = index.indices(len(self))
             return [self[i] for i in range(start, stop, step)]
@@ -95,41 +68,10 @@ class EpisodeCache:
         shard[offset] = cast(Episode, episodes)
         self._dirty.add(shard_idx)
 
-    def _set_slice(self, index: slice, value: Iterable[Episode]) -> None:
-        """Replace episodes in the slice *index* with *value*."""
-        start, stop, step = index.indices(len(self))
-        replacement = list(value)
-
-        if step != 1:
-            # Extended slice: replacement must have the same length
-            indices = list(range(start, stop, step))
-            if len(replacement) != len(indices):
-                raise ValueError(
-                    f"attempt to assign sequence of size {len(replacement)} "
-                    f"to extended slice of size {len(indices)}"
-                )
-            for i, ep in zip(indices, replacement):
-                self[i] = ep
-            return
-
-        # Regular slice: can change length
-        if len(replacement) != stop - start:
-            raise ValueError("Length changes with slices are not allowed")
-
-        for i, ep in enumerate(replacement):
-            self[start + i] = ep
-        return
-
     def __len__(self) -> int:
         if self._total is None:
             self._total = self._compute_total()
         return self._total
-
-    def __iter__(self) -> Iterator[Episode]:
-        for i in range(len(self)):
-            yield self[i]
-
-    # -- mutation -----------------------------------------------------------
 
     def append(self, episode: Episode) -> None:
         """Append *episode* to the cache, creating a new shard if necessary."""
@@ -187,8 +129,7 @@ class EpisodeCache:
         shard_idx = index // self._episodes_per_shard
         self._dirty.add(shard_idx)
 
-    def write(self) -> None:
-        """Write all dirty shards to disk."""
+    def save_as(self, name: str, base_path: Path) -> None:
         if self._path is None:
             raise RuntimeError("Tried to write episode cache with no path set.")
         if not self._dirty:
@@ -259,7 +200,37 @@ class EpisodeCache:
         self._dirty.clear()
         self._total = None
 
+    @property
+    def path(self) -> Path | None:
+        """The directory where shard files are stored."""
+        return self._path
+
     # -- internals ----------------------------------------------------------
+
+    def _set_slice(self, index: slice, value: Iterable[Episode]) -> None:
+        """Replace episodes in the slice *index* with *value*."""
+        start, stop, step = index.indices(len(self))
+        replacement = list(value)
+
+        if step != 1:
+            # Extended slice: replacement must have the same length
+            indices = list(range(start, stop, step))
+            if len(replacement) != len(indices):
+                raise ValueError(
+                    f"attempt to assign sequence of size {len(replacement)} "
+                    f"to extended slice of size {len(indices)}"
+                )
+            for i, ep in zip(indices, replacement):
+                self[i] = ep
+            return
+
+        # Regular slice: can change length
+        if len(replacement) != stop - start:
+            raise ValueError("Length changes with slices are not allowed")
+
+        for i, ep in enumerate(replacement):
+            self[start + i] = ep
+        return
 
     def _load_shard(self, shard_idx: int) -> list[Episode]:
         """Return the shard at *shard_idx*, loading it from disk if necessary."""

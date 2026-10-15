@@ -5,7 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, PrivateAttr
 
-from bond.conversation.episode_cache import EpisodeCache
+from bond.conversation.cache.base import EpisodeCache
+from bond.conversation.cache.file_mapped import FileMappedEpisodeCache
 from bond.conversation.task_list import TaskList
 from bond.conversation.types import (
     ConversationMetadata,
@@ -46,12 +47,17 @@ class Conversation(BaseModel):
         Otherwise, a volatile cache is used.
         """
         if self._episodes is None:
-            self._episodes = EpisodeCache(
-                self._data_path, episodes_per_shard=EPISODES_PER_SHARD
-            )
+            self._episodes = FileMappedEpisodeCache(None, None)
             if len(self._episodes) == 0:
                 self._episodes.append(Episode())
         return self._episodes
+
+    @property
+    def last_episode(self) -> Episode:
+        if (last := self.episodes.last) is None:
+            last = Episode()
+            self.episodes.append(last)
+        return last
 
     @property
     def storage_path(self) -> Path | None:
@@ -63,15 +69,14 @@ class Conversation(BaseModel):
         return self._data_path
 
     def add_turn(self, turn: Turn) -> None:
-        assert not self.episodes.last.is_finished
-        self.episodes.last.turns.append(turn)
+        assert not self.last_episode.is_finished
+        self.last_episode.turns.append(turn)
 
     def condense_turns(self, kept_turns: int):
         if kept_turns < 0:
             raise ValueError("kept_turns must be non-negative")
-        episode = self.episodes.last
-        split = max(0, len(episode.turns) - kept_turns)
-        for turn in episode.turns[:split]:
+        split = max(0, len(self.last_episode.turns) - kept_turns)
+        for turn in self.last_episode.turns[:split]:
             turn.condense()
 
     def archive_turns(
@@ -151,7 +156,7 @@ class Conversation(BaseModel):
 
         raise ValueError(f"Turn {turn_id} not found")
 
-    def save(self) -> None:
+    def save(self, name: str | None, data_path: Path | None) -> None:
         """Save the conversation to a directory at *dir*.
 
         Writes ``metadata.json`` (name, persona, usage, etc.) and episode
@@ -160,17 +165,22 @@ class Conversation(BaseModel):
         If the conversation is already stored at *dir*, this only writes
         dirty shards and metadata — no copying is performed.
         """
-        if self._data_path is None:
-            raise RuntimeError("Tried to save conversation with no data path")
-        dir = self._data_path
-        dir.mkdir(parents=True, exist_ok=True)
+        if data_path is None:
+            data_path = self._data_path
+        if name is None:
+            name = self.name
+        if data_path is None:
+            raise ValueError("Could not determine data path")
+        if name is None:
+            raise ValueError("Could not determine name")
+        data_path.mkdir(parents=True, exist_ok=True)
 
         # Write metadata (episodes are stored separately)
-        metadata_path = dir / "metadata.json"
+        metadata_path = data_path / "metadata.json"
         metadata_path.write_text(self.model_dump_json(), encoding="utf-8")
 
         # Write episodes
-        self.episodes.write()
+        self.episodes.save_as(name, data_path)
 
     # TODO: unreviewed
     def move_to(
