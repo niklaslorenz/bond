@@ -1,21 +1,44 @@
 from typing import Protocol
 
-from pydantic import BaseModel
 from returns.result import Result
 
 from bond.conversation.conversation import Conversation
 
 
-class AutoSummarizationOptions(BaseModel):
-    token_threshold: int | None = None
-    """Number of input and output tokens that triggers an automatic summarization at the end ot the turn."""
-    min_messages: int = 10
-    """Minimum number of messages required to trigger an automatic summarization. Takes precedence over token_threshold"""
-    max_messages: int = 30
-    """Maximum number of messages before triggering an automatic summarization. Takes precedence over token_threshold"""
-
-
 class SummarizationCapability(Protocol):
-    def __call__(self, conversation: Conversation) -> Result[str, str]: ...
 
-    def auto_summarization_options(self) -> AutoSummarizationOptions | None: ...
+    def summarize_episode(
+        self, conversation: Conversation, force: bool
+    ) -> Result[int, str] | None:
+        """
+        Summarize the current episode of a conversation and archive the summarized turns.
+
+        Args:
+            conversation (Conversation): the conversation to summarize
+            force (bool): whether to summarize regardless of episode size
+
+        Returns:
+            None: if episode summarization is not supported
+            Success: the number of archived turns, if the episode was summarized successfully
+            Failure: an explanation, if the summarization failed
+        """
+        ...
+
+    def condense_thoughts(
+        self, conversation: Conversation
+    ) -> Result[str | None, str] | None:
+        """
+        Create a compacted version of the thought traces of the last turn
+        and add it to the assistant response
+
+        Args:
+            conversation (Conversation): the conversation to analyze
+
+        Returns:
+            None: if thought condensation is not supported
+            Success:
+                str: the compacted thought trace
+                None: if there was no condensation
+            Failure: an explaination, when the condensation failed
+        """
+        ...

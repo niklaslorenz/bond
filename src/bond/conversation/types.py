@@ -1,3 +1,4 @@
+import itertools
 import json
 from datetime import datetime, timezone
 from typing import Any, Literal
@@ -132,7 +133,9 @@ class UserConversationMessage(BaseConversationMessage):
 class AssistantConversationMessage(BaseConversationMessage):
     message: AssistantMessage
     name: str
+    usage: UsageInfo
     condensed_thoughts: str | None = None
+    tool_returns: list[str] | None = None
 
     def render(self, condense: bool) -> AssistantMessage:
         if self.message.content is None:
@@ -155,9 +158,12 @@ class AssistantConversationMessage(BaseConversationMessage):
 
 class ToolConversationMessage(BaseConversationMessage):
     message: ToolMessage
-    name: str
     tool_call_parameters: dict[str, Any] | None = None
     tool_call_summary: str | None = None
+
+    @property
+    def name(self):
+        return self.message.name
 
     def render(self, condense: bool) -> ToolMessage:
         if not condense:
@@ -186,7 +192,6 @@ class Turn(BaseModel):
     tool_messages: list[ToolConversationMessage] | None = None
     user_message: UserConversationMessage | None = None
     assistant_response: AssistantConversationMessage
-    usage: UsageInfo | None = None
     condensed: bool = False
 
     def model_post_init(self, context: Any, /) -> None:
@@ -207,6 +212,10 @@ class Turn(BaseModel):
         Determine whether the turn was triggered by the user.
         """
         return self.user_message is not None
+
+    @property
+    def usage(self) -> UsageInfo:
+        return self.assistant_response.usage
 
     def condense(self) -> None:
         self.condensed = True
@@ -251,8 +260,20 @@ class Episode(BaseModel):
     def is_finished(self) -> bool:
         return self.episode_summary is not None
 
-    def render(self) -> list[Message]:
-        return [msg for turn in self.turns for msg in turn.render()]
+    @property
+    def last_turn(self) -> Turn | None:
+        if self.turns:
+            return self.turns[-1]
+        return None
 
-    def flatten(self) -> list[ConversationMessage]:
-        return [msg for turn in self.turns for msg in turn.flatten()]
+    def render(self, turns: int | None = None) -> list[Message]:
+        return [
+            msg for turn in itertools.islice(self.turns, turns) for msg in turn.render()
+        ]
+
+    def flatten(self, turns: int | None = None) -> list[ConversationMessage]:
+        return [
+            msg
+            for turn in itertools.islice(self.turns, turns)
+            for msg in turn.flatten()
+        ]

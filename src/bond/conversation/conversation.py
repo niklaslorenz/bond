@@ -1,4 +1,3 @@
-import json
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
@@ -241,38 +240,3 @@ class Conversation(BaseModel):
         conv = cls.model_validate_json(metadata_path.read_text(encoding="utf-8"))
         conv._data_path = dir
         return conv
-
-
-# TODO: put this somewhere where it belongs
-# ---------------------------------------------------------------------------
-# Pointer helpers for last-conversation indirection
-# ---------------------------------------------------------------------------
-
-
-def write_pointer(pointer_file: Path, target_dir: Path, base_dir: Path) -> None:
-    """Write a pointer file that references *target_dir* relative to *base_dir*.
-
-    The pointer file is a small JSON document::
-
-        {"path": "conversations/my-conv"}
-
-    This allows the last-conversation location to be stored as a relative
-    path, so the data directory can be moved without breaking the pointer.
-    """
-    rel = target_dir.relative_to(base_dir)
-    pointer_file.parent.mkdir(parents=True, exist_ok=True)
-    pointer_file.write_text(json.dumps({"path": str(rel)}, indent=2), encoding="utf-8")
-
-
-def read_pointer(pointer_file: Path, base_dir: Path) -> Path | None:
-    """Read a pointer file and return the absolute target path.
-
-    Returns ``None`` if the pointer file does not exist or is malformed.
-    """
-    if not pointer_file.is_file():
-        return None
-    try:
-        data = json.loads(pointer_file.read_text(encoding="utf-8"))
-        return base_dir / data["path"]
-    except (json.JSONDecodeError, KeyError, TypeError):
-        return None

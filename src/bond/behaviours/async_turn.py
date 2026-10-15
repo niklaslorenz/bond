@@ -5,19 +5,17 @@ from returns.result import Failure, Result, Success
 
 from bond.behaviours.async_turn_event import *
 from bond.behaviours.auto_summarize import AutoSummarization
+from bond.capabilities.generation import GenerationTriggers
 from bond.conversation.conversation import Conversation
 from bond.conversation.types import (
-    ConversationMessage,
-    FunctionCall,
+    AssistantConversationMessage,
     TextChunk,
-    ToolCall,
+    Turn,
 )
-from bond.endpoints.chat_completions import CompletionChunk, CompletionResponse
+from bond.endpoints.chat_completions import CompletionChunk
 from bond.persona import Persona
 from bond.runtime import BondRuntime
-from bond.tools.shell_tools import allow_shell_commands
 from bond.tools.tool import ToolCallContext
-from bond.tools.toolbox import Toolbox
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +29,7 @@ class AsyncAgentTurn:
         runtime: BondRuntime | None = None,
         loop: asyncio.AbstractEventLoop | None = None,
     ):
+        self._lock = asyncio.Lock()
         self._persona = persona
         self._tool_call_context = tool_call_context
         self._event_queue = event_queue
@@ -49,49 +48,71 @@ class AsyncAgentTurn:
             self._runtime.behaviour_flags.allow_shell_executions
         )
 
-        self._running = False
-        self._ask_for_stop: bool = False
+    @property
+    def is_running(self) -> bool:
+        return self._lock.locked()
 
-    def stop(self):
-        self._ask_for_stop = True
-
-    async def run(self, conversation: Conversation) -> Result[None, str]:
-        if self._running:
+    async def run(
+        self, conversation: Conversation, triggers: GenerationTriggers
+    ) -> Result[Turn, str]:
+        if self.is_running:
             raise RuntimeError("Already running")
-        self._running = True
-        self._ask_for_stop = False
-        try:
-            while not self._ask_for_stop:
-                logger.debug("Agent Turn Loop Start")
-                response_result = await self._prompt_response(conversation)
-                logger.debug("Response complete")
+        async with self._lock:
+            try:
+                logger.debug("Starting agent turn")
+                response_result = await self._prompt_response(conversation, triggers)
                 if isinstance(response_result, Failure):
                     return response_result
-                response, _ = response_result.unwrap()
-                await self._summarize(conversation)
-
-                # Return when no tools are called
-                if response.choices[0].message.tool_calls is None:
-                    logger.debug("No tool calls. Finishing Turn")
-                    return Success(None)
-
-                await self._handle_tool_calls(
-                    response.choices[0].message.tool_calls, conversation
+                response = response_result.unwrap()
+                await self._play_tts(response)
+                turn = Turn(
+                    tool_messages=triggers.tool_messages,
+                    user_message=triggers.user_message,
+                    assistant_response=response,
                 )
-        except asyncio.CancelledError:
-            logger.info("Agent turn interrupted")
-            return Failure("Agent turn cancelled")
-        except BaseException as e:
-            await self._event_queue.put(AsyncTurnErrorEvent(f"({type(e)}): {e}"))
-            logger.error(f"Error during agent turn ({type(e)}): {e}")
-            return Failure(f"Error during agent turn ({type(e)}): {e}")
-        finally:
-            self._running = False
-        return Failure("Agent turn stopped")
+                conversation.add_turn(turn)
+                condensed_thoughts = await self._condense_thoughts(conversation)
+                response.condensed_thoughts = condensed_thoughts
+                await self.summarize(conversation, False)
+                logger.debug("Finished Agent Turn")
+                return Success(turn)
+            except asyncio.CancelledError:
+                logger.info("Agent turn interrupted")
+                return Failure("Agent turn cancelled")
+            except BaseException as e:
+                await self._event_queue.put(AsyncTurnErrorEvent(f"({type(e)}): {e}"))
+                logger.error(f"Error during agent turn ({type(e)}): {e}")
+                return Failure(f"Error during agent turn ({type(e)}): {e}")
+
+    async def _play_tts(self, response: AssistantConversationMessage):
+        if self._tts is not None:
+            text = "".join(
+                chunk.text
+                for chunk in response.message.content or []
+                if isinstance(chunk, TextChunk)
+            ).strip()
+            if text:
+                audio = self._tts(text)
+                if isinstance(audio, Success):
+                    self._loop.run_in_executor(None, audio.unwrap().play)
+                else:
+                    logger.error(audio.failure())
+
+    async def _condense_thoughts(self, conversation: Conversation) -> str | None:
+        summarization = self._persona.summarization
+        if summarization is None:
+            return None
+        result = summarization.condense_thoughts(conversation)
+        if result is None:
+            return None
+        if isinstance(result, Failure):
+            logger.error(f"Could not condense thoughts: {result.failure()}")
+            return None
+        return result.unwrap()
 
     async def _prompt_response(
-        self, conversation: Conversation
-    ) -> Result[tuple[CompletionResponse, ConversationMessage], str]:
+        self, conversation: Conversation, triggers: GenerationTriggers
+    ) -> Result[AssistantConversationMessage, str]:
         if self._stream:
             await self._event_queue.put(
                 AsyncTurnResponseStartEvent(author=self._persona.name, role="assistant")
@@ -105,87 +126,33 @@ class AsyncAgentTurn:
 
         response = await self._loop.run_in_executor(
             None,
-            self._generation,
+            self._generation.generate,
             conversation,
+            triggers,
             insert_chunk if self._stream else None,
         )
         if isinstance(response, Failure):
             await self._event_queue.put(AsyncTurnErrorEvent(response.failure()))
         else:
-            raw_response, message = response.unwrap()
-            conversation.add_message(message)
-            conversation.current_usage = raw_response.usage.total_tokens
+            message = response.unwrap()
             await self._event_queue.put(
-                AsyncTurnResponseEndEvent(raw_response.usage)
+                AsyncTurnResponseEndEvent(message.usage)
                 if self._stream
-                else AsyncTurnFullResponseEvent(message=message, response=raw_response)
+                else AsyncTurnFullResponseEvent(message=message)
             )
-            if self._tts is not None:
-                text = "".join(
-                    chunk.text
-                    for chunk in message.message.content or []
-                    if isinstance(chunk, TextChunk)
-                ).strip()
-                if text:
-                    audio = self._tts(text)
-                    if isinstance(audio, Success):
-                        self._loop.run_in_executor(None, audio.unwrap().play)
-                    else:
-                        logger.error(audio.failure())
         return response
 
-    async def _summarize(self, conversation: Conversation):
-        if self._auto_summarize is not None:
-            await self._event_queue.put(AsyncTurnAutoSummaryEvent(False))
-            result = await self._loop.run_in_executor(
-                None, self._auto_summarize.run, conversation
-            )
-            if isinstance(result, Failure):
-                logger.warning(f"Could not create summarization: {result.failure()}")
-            await self._event_queue.put(AsyncTurnAutoSummaryEvent(True))
-
-    async def _handle_tool_calls(
-        self,
-        tool_calls: list[ToolCall],
-        conversation: Conversation,
-    ):
-        for tool_call in tool_calls:
-            await self._event_queue.put(AsyncTurnToolCallEvent(tool_call))
-            if self._allow_shell_executions:
-                with allow_shell_commands():
-                    result = await self._loop.run_in_executor(
-                        None,
-                        _do_tool_call,
-                        self._persona.toolbox,
-                        tool_call.function,
-                        self._tool_call_context,
-                    )
-            else:
-                result = await self._loop.run_in_executor(
-                    None,
-                    _do_tool_call,
-                    self._persona.toolbox,
-                    tool_call.function,
-                    self._tool_call_context,
-                )
-
-            message = ConversationMessage.create_tool_response_message(
-                (
-                    result.unwrap()
-                    if isinstance(result, Success)
-                    else f"Failure: {result.failure()}"
-                ),
-                tool_call,
-            )
-            conversation.add_message(message)
-            await self._event_queue.put(AsyncTurnToolReturnEvent(result=message))
-
-
-def _do_tool_call(
-    toolbox: Toolbox, function_call: FunctionCall, context: ToolCallContext
-) -> Result[str, str]:
-    result = toolbox.call_tool(function_call.name, function_call.arguments, context)
-
-    if isinstance(result, Failure):
-        logger.info(f"Tool call failed: {result.failure()}")
-    return result
+    async def summarize(
+        self, conversation: Conversation, force: bool
+    ) -> Result[int, str] | None:
+        summarize = self._persona.summarization
+        if summarize is None:
+            return
+        await self._event_queue.put(AsyncTurnAutoSummaryEvent(False))
+        result = await self._loop.run_in_executor(
+            None, summarize.summarize_episode, conversation, force
+        )
+        if result is not None and isinstance(result, Failure):
+            logger.warning(f"Could not create summarization: {result.failure()}")
+        await self._event_queue.put(AsyncTurnAutoSummaryEvent(True))
+        return result

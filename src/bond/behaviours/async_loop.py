@@ -1,18 +1,36 @@
 import asyncio
 import logging
+from contextlib import asynccontextmanager
 
-from returns.result import Failure, Result
+from returns.result import Failure, Result, Success
 
 from bond.behaviours.async_turn import AsyncAgentTurn, AsyncTurnEvent
 from bond.behaviours.async_turn_event import (
     AsyncTurnErrorEvent,
-    AsyncTurnMessageInsertedEvent,
+    AsyncTurnToolCallEvent,
+    AsyncTurnToolReturnEvent,
 )
+from bond.behaviours.types import (
+    ContinueTrigger,
+    InputTrigger,
+    StopTrigger,
+    TriggerManager,
+)
+from bond.capabilities.generation import GenerationTriggers
 from bond.conversation.conversation import Conversation
-from bond.conversation.types import ConversationMessage, UserMessage
+from bond.conversation.types import (
+    FunctionCall,
+    TextChunk,
+    ToolCall,
+    ToolConversationMessage,
+    ToolMessage,
+    UserConversationMessage,
+)
 from bond.persona import Persona
 from bond.runtime import BondRuntime
+from bond.tools.shell_tools import allow_shell_commands
 from bond.tools.tool import ToolCallContext
+from bond.tools.toolbox import Toolbox
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +45,10 @@ class AsyncAgentLoop:
         event_queue: asyncio.Queue[AsyncTurnEvent],
         event_loop: asyncio.AbstractEventLoop,
         default_persona_id: str,
+        /,
         user_name: str | None = None,
         save_after_turn: bool = False,
+        stop_on_failure: bool = False,
     ):
         self._runtime = runtime
         self._conversation = conversation
@@ -38,94 +58,154 @@ class AsyncAgentLoop:
         self._default_persona_id = default_persona_id
         self._user_name = user_name
         self._save_after_turn = save_after_turn
+        self._stop_on_failure = stop_on_failure
+
+        self._ask_for_stop = False
+        self._triggers = TriggerManager()
+        self._task: asyncio.Task | None = None
+        self._stopped_event = asyncio.Event()
 
         self._stream = runtime.behaviour_flags.stream
         self._allow_shell_executions = runtime.behaviour_flags.allow_shell_executions
 
-        self._lock = asyncio.Lock()
-        self._current_task: asyncio.Task | None = None
         self._agent_turn, self._persona = self._build_turn()
 
     @property
-    def lock(self):
-        return self._lock
+    def is_running(self) -> bool:
+        return self._task is not None
 
     @property
-    def conversation(self):
+    def conversation(self) -> Conversation:
         return self._conversation
 
     @property
-    def persona(self):
+    def persona(self) -> Persona:
         return self._persona
 
-    def stop(self):
-        self._agent_turn.stop()
-
-    async def wait_for(self):
-        if not self._lock.locked():
-            return
-        assert self._current_turn is not None
-        await self._current_turn
-
     async def set_persona(self, persona_id: str):
-        async with self._lock:
-            self._conversation.current_persona = persona_id
+        async with self.pause():
+            self._conversation.persona = persona_id
             self._agent_turn, self._persona = self._build_turn()
 
     async def set_conversation(self, conversation: Conversation):
-        async with self._lock:
+        async with self.pause():
             self._conversation = conversation
             self._agent_turn, self._persona = self._build_turn()
 
-    async def new_conversation(self, persona_id: str | None = None):
-        await self.set_conversation(
-            Conversation(
-                current_persona=persona_id or self._conversation.current_persona
-            )
+    def prompt(self, message: UserConversationMessage):
+        self._triggers.push(
+            InputTrigger(message=message),
+            cancel_previous=False,
+            insert_when_not_empty=True,
         )
 
+    async def stop(self, reason: str | None = None):
+        if not self.is_running:
+            return
+        self._triggers.push(
+            StopTrigger(reason=reason), cancel_previous=True, insert_when_not_empty=True
+        )
+        await self._stopped_event.wait()
+        assert not self.is_running
+
     async def cancel(self):
-        if self.lock.locked():
-            assert self._current_turn
-            self._current_turn.cancel()
-            self._current_turn = None
+        if self.is_running:
+            assert self._task is not None
+            self._task.cancel()
+            self._task = None
+            self._stopped_event.set()
 
-    async def prompt(self, message: UserMessage) -> Result[None, str]:
-        logger.debug("Triggered AsyncLoop.prompt")
-        async with self._lock:
-            logger.debug("Acquired lock")
-            try:
-                conv_msg = ConversationMessage(message=message, author=self._user_name)
-                self._conversation.add_message(conv_msg)
-                await self._event_queue.put(AsyncTurnMessageInsertedEvent(conv_msg))
-                task = asyncio.create_task(self._agent_turn.run(self._conversation))
-                self._current_turn = task
-                logger.debug("Waiting for prompt completion")
-                result = await task
-                logger.debug("prompt completed")
-                self._current_turn = None
-                return result
-            finally:
-                self._current_turn = None
+    def start(self, clear_triggers: bool = True):
+        if self._task is not None:
+            raise RuntimeError("Already running")
+        if clear_triggers:
+            self._triggers.clear()
+        self._stopped_event.clear()
+        self._task = self._event_loop.create_task(self._run())
 
-    async def summarize(self) -> Result[str, str]:
-        if self._persona.summarization:
-            async with self._lock:
-                try:
-                    task = asyncio.get_event_loop().run_in_executor(
-                        None, self._persona.summarization, self.conversation
+    @asynccontextmanager
+    async def pause(self):
+        restart = self.is_running
+        if self.is_running:
+            self._triggers.push(
+                StopTrigger(reason="pausing"),
+                cancel_previous=False,
+                insert_when_not_empty=True,
+                prepend=True,
+            )
+            await self._stopped_event.wait()
+            assert not self.is_running
+        try:
+            yield
+        finally:
+            if restart:
+                self.start(clear_triggers=False)
+
+    async def _run(self):
+        try:
+            while True:
+                trigger = await self._triggers.pop()
+                user_message = (
+                    trigger.message if isinstance(trigger, InputTrigger) else None
+                )
+                tool_messages = self._build_previous_tool_returns()
+                triggers = GenerationTriggers(
+                    user_message=user_message, tool_messages=tool_messages
+                )
+
+                turn = await self._agent_turn.run(self.conversation, triggers)
+                if isinstance(turn, Failure):
+                    logger.error(f"Error during agent turn: {turn.failure()}")
+                    await self._event_queue.put(
+                        AsyncTurnErrorEvent(
+                            "The agent loop has crashed. Please view the logs to see the reason."
+                        )
                     )
-                    self._current_turn = task
-                    result = await task
-                    self._current_turn = None
-                    return result
-                finally:
-                    self._current_turn = None
-        else:
-            return Failure("Summarization is not enabled")
+                    if self._stop_on_failure:
+                        break
+                    else:
+                        continue
+                turn = turn.unwrap()
+                tool_calls = turn.assistant_response.message.tool_calls
+                if tool_calls is not None:
+                    tool_messages, tool_results = await self._handle_tool_calls(
+                        tool_calls
+                    )
+                    turn.assistant_response.tool_returns = tool_results
+                    self._triggers.push(
+                        ContinueTrigger("tool call results"),
+                        cancel_previous=False,
+                        insert_when_not_empty=False,
+                    )
+        finally:
+            self._task = None
+            self._stopped_event.set()
+
+    async def summarize(self) -> Result[int, str] | None:
+        async with self.pause():
+            return await self._agent_turn.summarize(self.conversation, True)
+
+    def _build_previous_tool_returns(self) -> list[ToolConversationMessage] | None:
+        episode = self.conversation.episodes.last
+        if not episode.turns:
+            return None
+        assistant_response = episode.turns[-1].assistant_response
+        if (
+            assistant_response.message.tool_calls is None
+            or assistant_response.tool_returns is None
+        ):
+            return None
+        return [
+            _build_tool_message(tool_call, tool_return)
+            for tool_call, tool_return in zip(
+                assistant_response.message.tool_calls, assistant_response.tool_returns
+            )
+        ]
 
     def _build_turn(self) -> tuple[AsyncAgentTurn, Persona]:
-        persona_id = self._conversation.current_persona or self._default_persona_id
+        if self.is_running:
+            raise RuntimeError("Cannot rebuild turn while busy")
+        persona_id = self._conversation.persona or self._default_persona_id
         persona_config = self._runtime.get_persona(persona_id)
         if isinstance(persona_config, Failure):
             self._event_queue.put_nowait(AsyncTurnErrorEvent(persona_config.failure()))
@@ -149,3 +229,61 @@ class AsyncAgentLoop:
             ),
             persona,
         )
+
+    async def _handle_tool_calls(
+        self, tool_calls: list[ToolCall]
+    ) -> tuple[list[ToolConversationMessage], list[str]]:
+        results = []
+        messages = []
+        for tool_call in tool_calls:
+            await self._event_queue.put(AsyncTurnToolCallEvent(tool_call))
+            if self._allow_shell_executions:
+                with allow_shell_commands():
+                    result = await self._event_loop.run_in_executor(
+                        None,
+                        _do_tool_call,
+                        self._persona.toolbox,
+                        tool_call.function,
+                        self._tool_call_context,
+                    )
+            else:
+                result = await self._event_loop.run_in_executor(
+                    None,
+                    _do_tool_call,
+                    self._persona.toolbox,
+                    tool_call.function,
+                    self._tool_call_context,
+                )
+
+            res = (
+                result.unwrap()
+                if isinstance(result, Success)
+                else f"Failure: {result.failure()}"
+            )
+            results.append(res)
+            message = _build_tool_message(tool_call, res)
+            messages.append(message)
+            await self._event_queue.put(AsyncTurnToolReturnEvent(result=message))
+        return messages, results
+
+
+def _do_tool_call(
+    toolbox: Toolbox, function_call: FunctionCall, context: ToolCallContext
+) -> Result[str, str]:
+    result = toolbox.call_tool(function_call.name, function_call.arguments, context)
+
+    if isinstance(result, Failure):
+        logger.info(f"Tool call failed: {result.failure()}")
+    return result
+
+
+def _build_tool_message(
+    tool_call: ToolCall, tool_return: str
+) -> ToolConversationMessage:
+    return ToolConversationMessage(
+        message=ToolMessage(
+            tool_call_id=tool_call.id,
+            name=tool_call.function.name,
+            content=[TextChunk(text=tool_return)],
+        )
+    )

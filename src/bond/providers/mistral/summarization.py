@@ -1,147 +1,27 @@
-from typing import Any
-
-from pydantic import BaseModel
-from returns.result import Failure, Result, Success
-
-from bond.capabilities.summarization import AutoSummarizationOptions
-from bond.conversation.conversation import Conversation
-from bond.conversation.types import Message, SystemMessage, TextChunk, UserMessage
+from bond.conversation.conversation import MessageListBuilder
+from bond.providers.general.summarization import (
+    DefaultSummarizationCapability,
+    DefaultSummarizationOptions,
+)
 from bond.providers.mistral.chat_completions import MistralChatCompletions
 
-from . import logger
 
-
-class MistralSummarizationOptions(BaseModel):
-    model: str
-    """The model to use for summarization. Falls back to the persona model if not specified."""
-    model_options: dict[str, Any] | None = None
-    """Model options for summarization"""
-    system_prompt: str | None = None
-    """System prompt for the summarization"""
-    instruction: str
-    """User level instruction that is appended to the end of the input"""
-    keep: int = 10
-    """The number of last messages to not summarize and keep as is"""
-    auto_summarization: AutoSummarizationOptions | None = None
-    """Options for automatic summarization"""
-
-
-class MistralSummarization:
+class MistralSummarization(DefaultSummarizationCapability):
     def __init__(
         self,
-        options: MistralSummarizationOptions,
+        config: DefaultSummarizationOptions,
         chat_completions: MistralChatCompletions,
-        max_retries: int = 10,
+        message_list_builder: MessageListBuilder,
+        generation_prompt: str | None,
+        cache_key: str | None,
     ):
-        self._options = options
-        self._chat_completions = chat_completions
-        self._max_retries = max_retries
-
-    def __call__(self, conversation: Conversation) -> Result[str, str]:
-        logger.debug("Preparing summarization")
-        messages, summary_index = self._extract_message_list(conversation)
-        if summary_index < 0:
-            return Failure(f"Summarization triggered with no messages to summarize")
-        logger.debug(f"Summarizing {len(messages)} messages")
-
-        if self._options.system_prompt is not None:
-            messages = [
-                SystemMessage(content=[TextChunk(text=self._options.system_prompt)])
-            ] + messages
-        messages.append(
-            UserMessage(content=[TextChunk(text=self._options.instruction)])
+        if cache_key is not None and config.episode_summarization is not None:
+            if config.episode_summarization.model_options is None:
+                config.episode_summarization.model_options = {}
+            if "prompt_cache_key" not in config.episode_summarization.model_options:
+                config.episode_summarization.model_options["prompt_cache_key"] = (
+                    cache_key
+                )
+        super().__init__(
+            config, chat_completions, message_list_builder, generation_prompt
         )
-
-        try:
-            response = self._chat_completions.chat_completion(
-                self._options.model,
-                messages,
-                [],
-                None,
-                self._options.model_options,
-                self._max_retries,
-            )
-        except BaseException as e:
-            return Failure(f"An error occured while creating summary ({type(e)}): {e}")
-
-        summary_msg = response.choices[0].message
-        if summary_msg.tool_calls:
-            logger.warning(
-                "Summary call returned with tool calls. This is not expected and the tool calls will be discarded."
-            )
-        if summary_msg.content is None:
-            logger.error("Failed to create summary: no content")
-            return Failure("Summary call returned without content")
-        logger.debug(f"successfully created summary")
-
-        summary = "".join(
-            chunk.text for chunk in summary_msg.content if isinstance(chunk, TextChunk)
-        )
-        conversation.update_summary(summary, summary_index)
-        logger.debug("Updated summary")
-        return Success(
-            "".join(
-                chunk.text
-                for chunk in response.choices[0].message.content or []
-                if isinstance(chunk, TextChunk)
-            )
-        )
-
-    def _extract_message_list(
-        self, conversation: Conversation
-    ) -> tuple[list[Message], int]:
-        """
-        Calculate the message list that should be used for summarization.
-        Returns:
-          list[Message]: messages to summarize
-          int: The new summary_index for the conversation
-        """
-        # Mistral's backend checks the following:
-        # - A System Message MUST NOT appear outside of the first ever message
-        # - Assistant Message MUST NOT follow another Assistant Message
-        # - <n> Tool Messages MUST follow an Assistant message if, and only if,
-        #   the Assistant Message has <n> tool calls
-        # - After a block of Assistant Message and Tool Messages,
-        #   a User Message or Assistant Message MAY follow
-        # - The last message must not be an Assistant Message
-        #
-        # The message list that is passed to the summarization should fulfill the following:
-        # - Preserve AT LEAST <self._keep> messages
-        # - Include every message that is not kept and not already summarized
-        # - Contain as few messages as possible, while adhering to the requirements above
-        #   with a single exception: The last message of the extracted message list MAY be
-        #   an Assistant Message, since the summarization prompt is injected as User Message
-        #
-        if conversation.num_unsummarized_messages() <= self._options.keep:
-            return [], -1
-
-        # Find the next best lower cutoff.
-        # The last message that is included just cannot have a Tool Message following it
-        if self._options.keep != 0:
-            lower_pivot = len(conversation.history) - self._options.keep  # exclusive
-            while (
-                lower_pivot > 0
-                and conversation.history[lower_pivot].message.role == "tool"
-            ):
-                lower_pivot -= 1
-        else:
-            lower_pivot = len(conversation.history)
-
-        # Find the next best upper cutoff.
-        # The first included message just cannot be a Tool Message
-        upper_pivot = conversation.summary_index  # inclusive
-        while (
-            upper_pivot > 0 and conversation.history[upper_pivot].message.role == "tool"
-        ):
-            upper_pivot -= 1
-        if upper_pivot != conversation.summary_index:
-            logger.warning(
-                f"Upper message pivot for summarization is misaligned. Included {conversation.summary_index - upper_pivot} additional previous messages in the summary"
-            )
-
-        return [
-            msg.message for msg in conversation.history[upper_pivot:lower_pivot]
-        ], lower_pivot
-
-    def auto_summarization_options(self) -> AutoSummarizationOptions | None:
-        return self._options.auto_summarization

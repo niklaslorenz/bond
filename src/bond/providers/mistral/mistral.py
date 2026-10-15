@@ -7,6 +7,7 @@ from bond.providers.general.generation import (
 )
 from bond.providers.general.memory import DefaultMemoryCapability, DefaultMemoryOptions
 from bond.providers.general.tts import DefaultTTSCapability, DefaultTTSOptions
+from bond.providers.general.util import DefaultMessageListBuilder
 from bond.providers.mistral.chat_completions import MistralChatCompletions
 from bond.providers.mistral.config import MistralConfig
 from bond.providers.mistral.embeddings import MistralEmbeddings
@@ -32,6 +33,7 @@ class Mistral:
         self._models = MistralModels(self.config)
         self._tts = MistralTTS(self.config)
         self._voices = MistralVoices(self.config)
+        self._build_message_list = DefaultMessageListBuilder()
 
     def chat_completions(self) -> MistralChatCompletions:
         return self._chat_completions
@@ -70,7 +72,12 @@ class Mistral:
         options = DefaultGenerationOptions.model_validate(config)
         options.system_prompt = resolve_skills(options.system_prompt, runtime)
         return DefaultGenerationCapability(
-            name, options, toolbox.tool_descriptions, self.chat_completions(), 10
+            name,
+            options,
+            toolbox.tool_descriptions,
+            self.chat_completions(),
+            10,
+            self._build_message_list,
         )
 
     def tts(

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
 from bond.conversation.conversation import ConversationMessage
-from bond.conversation.types import ToolCall, UsageInfo
+from bond.conversation.types import ToolCall, ToolConversationMessage, UsageInfo
 from bond.endpoints.chat_completions import CompletionChunk, CompletionResponse
 
 if TYPE_CHECKING:
@@ -35,7 +35,6 @@ class AsyncTurnErrorEvent(AsyncTurnEvent):
 @dataclass
 class AsyncTurnFullResponseEvent(AsyncTurnEvent):
     message: ConversationMessage
-    response: CompletionResponse
 
     async def dispatch(self, event_handler: "AsyncTurnEventHandler"):
         await event_handler.handle_full_response_event(self)
@@ -93,7 +92,7 @@ class AsyncTurnToolCallEvent(AsyncTurnEvent):
 
 @dataclass
 class AsyncTurnToolReturnEvent(AsyncTurnEvent):
-    result: ConversationMessage
+    result: ToolConversationMessage
 
     async def dispatch(self, event_handler: "AsyncTurnEventHandler"):
         await event_handler.handle_tool_return_event(self)

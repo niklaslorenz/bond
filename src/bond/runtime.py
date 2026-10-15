@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Type
 
 from mcp import StdioServerParameters
-from returns.result import Result
+from returns.result import Result, Success
 
 from bond.behaviour_flags import BehaviourFlags
 from bond.config import (
@@ -20,7 +20,7 @@ from bond.config import (
     McpHttpServerConfig,
     McpStdioServerConfig,
 )
-from bond.persona import Failure, PersonaConfig, Success
+from bond.persona import PersonaConfig
 from bond.plugins.bond_plugin import BondPlugin
 from bond.providers.mistral.mistral import Mistral
 from bond.providers.ollama.ollama import Ollama
