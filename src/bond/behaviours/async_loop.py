@@ -11,10 +11,11 @@ from bond.behaviours.async_turn_event import (
     AsyncTurnToolReturnEvent,
 )
 from bond.behaviours.types import (
-    ContinueTrigger,
-    InputTrigger,
-    StopTrigger,
-    TriggerManager,
+    AsyncLoopSignalBuffer,
+    ContinueSignal,
+    InputSignal,
+    PauseRequest,
+    StopSignal,
 )
 from bond.capabilities.generation import GenerationTriggers
 from bond.conversation.conversation import Conversation
@@ -60,10 +61,12 @@ class AsyncAgentLoop:
         self._save_after_turn = save_after_turn
         self._stop_on_failure = stop_on_failure
 
-        self._ask_for_stop = False
-        self._triggers = TriggerManager()
+        self._signal_buffer = AsyncLoopSignalBuffer()
         self._task: asyncio.Task | None = None
         self._stopped_event = asyncio.Event()
+        self._pause_owner: asyncio.Task | None = None
+        self._pause_lock = asyncio.Lock()
+        self._pause_depth = 0
 
         self._stream = runtime.behaviour_flags.stream
         self._allow_shell_executions = runtime.behaviour_flags.allow_shell_executions
@@ -92,61 +95,83 @@ class AsyncAgentLoop:
             self._conversation = conversation
             self._agent_turn, self._persona = self._build_turn()
 
-    def prompt(self, message: UserConversationMessage):
-        self._triggers.push(
-            InputTrigger(message=message),
-            cancel_previous=False,
-            insert_when_not_empty=True,
-        )
+    def prompt(self, message: UserConversationMessage) -> Result[None, str]:
+        return self._signal_buffer.signal_user_input(message)
 
-    async def stop(self, reason: str | None = None):
+    async def stop(self, immediate: bool = False):
         if not self.is_running:
             return
-        self._triggers.push(
-            StopTrigger(reason=reason), cancel_previous=True, insert_when_not_empty=True
-        )
+        self._signal_buffer.signal_stop(immediate)
         await self._stopped_event.wait()
         assert not self.is_running
 
     async def cancel(self):
         if self.is_running:
             assert self._task is not None
-            self._task.cancel()
-            self._task = None
-            self._stopped_event.set()
+            task = self._task
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
-    def start(self, clear_triggers: bool = True):
+    def start(self):
         if self._task is not None:
             raise RuntimeError("Already running")
-        if clear_triggers:
-            self._triggers.clear()
+        self._signal_buffer = AsyncLoopSignalBuffer()
         self._stopped_event.clear()
+        self._pause_owner = None
+        self._pause_depth = 0
         self._task = self._event_loop.create_task(self._run())
 
     @asynccontextmanager
     async def pause(self):
-        restart = self.is_running
-        if self.is_running:
-            self._triggers.push(
-                StopTrigger(reason="pausing"),
-                cancel_previous=False,
-                insert_when_not_empty=True,
-                prepend=True,
-            )
-            await self._stopped_event.wait()
-            assert not self.is_running
-        try:
-            yield
-        finally:
-            if restart:
-                self.start(clear_triggers=False)
+        task = asyncio.current_task()
+
+        if self._pause_owner is task:
+            self._pause_depth += 1
+            try:
+                yield
+            finally:
+                self._pause_depth -= 1
+            return
+
+        async with self._pause_lock:
+            self._pause_owner = task
+            self._pause_depth = 1
+
+            request = PauseRequest()
+            try:
+                if self.is_running:
+                    self._signal_buffer.request_pause(request)
+                    await request.wait_until_paused()
+                yield
+            finally:
+                request.resume()
+                self._pause_owner = None
+                self._pause_depth = 0
 
     async def _run(self):
         try:
             while True:
-                trigger = await self._triggers.pop()
+                signal = await self._signal_buffer.pull()
+                if isinstance(signal, StopSignal):
+                    break
+                if isinstance(signal, PauseRequest):
+                    self._is_paused = True
+                    try:
+                        signal.paused()
+                        await signal.wait_until_resume()
+                    finally:
+                        self._is_paused = False
+                    continue
+                if not isinstance(signal, InputSignal) and not isinstance(
+                    signal, ContinueSignal
+                ):
+                    raise RuntimeError(f"Invalid signal type: {type(signal)}")
+
                 user_message = (
-                    trigger.message if isinstance(trigger, InputTrigger) else None
+                    signal.message if isinstance(signal, InputSignal) else None
                 )
                 tool_messages = self._build_previous_tool_returns()
                 triggers = GenerationTriggers(
@@ -172,21 +197,18 @@ class AsyncAgentLoop:
                         tool_calls
                     )
                     turn.assistant_response.tool_returns = tool_results
-                    self._triggers.push(
-                        ContinueTrigger("tool call results"),
-                        cancel_previous=False,
-                        insert_when_not_empty=False,
-                    )
+                    self._signal_buffer.signal_continue()
         finally:
             self._task = None
             self._stopped_event.set()
+            self._signal_buffer.release()
 
     async def summarize(self) -> Result[int, str] | None:
         async with self.pause():
             return await self._agent_turn.summarize(self.conversation, True)
 
     def _build_previous_tool_returns(self) -> list[ToolConversationMessage] | None:
-        episode = self.conversation.episodes.last
+        episode = self.conversation.last_episode
         if not episode.turns:
             return None
         assistant_response = episode.turns[-1].assistant_response

@@ -4,7 +4,6 @@ import logging
 from returns.result import Failure, Result, Success
 
 from bond.behaviours.async_turn_event import *
-from bond.behaviours.auto_summarize import AutoSummarization
 from bond.capabilities.generation import GenerationTriggers
 from bond.conversation.conversation import Conversation
 from bond.conversation.types import (
@@ -36,11 +35,6 @@ class AsyncAgentTurn:
         self._loop = loop or asyncio.get_event_loop()
         self._runtime = runtime or BondRuntime.get_instance()
         self._generation = persona.generation
-        self._auto_summarize = (
-            AutoSummarization(persona.summarization)
-            if persona.summarization is not None
-            else None
-        )
         self._tts = persona.tts
 
         self._stream = self._runtime.behaviour_flags.stream
