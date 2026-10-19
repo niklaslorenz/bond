@@ -20,7 +20,6 @@ from bond.providers.mistral.summarization import (
 from bond.providers.mistral.tts import MistralTTS
 from bond.providers.mistral.voices import MistralVoices
 from bond.tools.toolbox import Toolbox
-from bond.util import resolve_skills
 
 if TYPE_CHECKING:
     from bond.runtime import BondRuntime

@@ -25,7 +25,7 @@ class SummarizationCapability(Protocol):
         ...
 
     def condense_thoughts(
-        self, conversation: Conversation
+        self, conversation: Conversation, force: bool
     ) -> Result[str | None, str] | None:
         """
         Create a compacted version of the thought traces of the last turn
@@ -33,6 +33,7 @@ class SummarizationCapability(Protocol):
 
         Args:
             conversation (Conversation): the conversation to analyze
+            force (bool): whether to condense the thought trace regardless of size
 
         Returns:
             None: if thought condensation is not supported

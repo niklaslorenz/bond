@@ -93,7 +93,7 @@ class DefaultSummarizationCapability:
         )
         if response.choices[0].message.tool_calls is not None:
             logger.warning(
-                "Thought condensation call generated tool calls which is unexpected."
+                "Episode summarization call generated tool calls which is unexpected."
             )
         if (content := response.choices[0].message.content) is None:
             return Failure("Model returned with no content")
@@ -104,7 +104,7 @@ class DefaultSummarizationCapability:
         return Success(n_summarized_turns)
 
     def condense_thoughts(
-        self, conversation: Conversation
+        self, conversation: Conversation, force: bool
     ) -> Result[str | None, str] | None:
         if (options := self._config.thought_condensation) is None:
             return None
@@ -123,6 +123,12 @@ class DefaultSummarizationCapability:
                 if isinstance(tc, TextChunk)
             ]
         )
+        thought_token_estimate = len(thoughts) // 4
+        if (
+            thought_token_estimate < self._config.thought_condensation.token_threshold
+            and not force
+        ):
+            return None
         system_msg = SystemMessage(content=[TextChunk(text=options.prompt)])
         content_msg = UserMessage(content=[TextChunk(text=thoughts)])
         response = self._chat_completions.chat_completion(

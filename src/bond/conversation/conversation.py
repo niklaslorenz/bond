@@ -82,7 +82,7 @@ class Conversation(BaseModel):
         self._data_path = new_value
 
     def add_turn(self, turn: Turn) -> None:
-        self.last_episode.turns.append(turn)
+        self.episodes.add_turn(turn)
 
     # TODO: use conversation.rollback instead
     @deprecated("use Conversation.rollback instead")

@@ -6,6 +6,16 @@ from bond.endpoints.voices import find_voice, list_all
 from bond.runtime import BondRuntime
 
 
+def list_toolsets(_: Namespace):
+    runtime = BondRuntime.get_instance()
+    runtime.initialize_dynamic()
+    toolsets = runtime.list_toolsets()
+    if not toolsets:
+        print(f"No toolsets found")
+        return
+    print("Toolsets:\n  " + "\n  ".join(toolsets))
+
+
 def list_voices(args: Namespace):
     runtime = BondRuntime.get_instance()
     runtime.initialize_dynamic(enable_plugins=False)
@@ -90,6 +100,9 @@ def main():
 
     personas_parser = subparsers.add_parser("personas")
     personas_parser.set_defaults(callback=list_personas)
+
+    toolsets_parser = subparsers.add_parser("toolsets")
+    toolsets_parser.set_defaults(callback=list_toolsets)
 
     tts_parser = subparsers.add_parser("tts")
     tts_parser.add_argument("provider", type=str)

@@ -107,7 +107,7 @@ class AsyncAgentTurn:
         summarization = self._persona.summarization
         if summarization is None:
             return None
-        result = summarization.condense_thoughts(conversation)
+        result = summarization.condense_thoughts(conversation, False)
         if result is None:
             return None
         if isinstance(result, Failure):

@@ -10,7 +10,7 @@ from typing import Iterable, Iterator, overload
 
 from returns.result import Result
 
-from bond.conversation.types import Episode
+from bond.conversation.types import Episode, Turn
 
 
 class EpisodeCache(ABC):
@@ -68,6 +68,13 @@ class EpisodeCache(ABC):
         if len(self) == 0:
             return None
         return self[len(self) - 1]
+
+    def add_turn(self, turn: Turn) -> None:
+        last = self.last
+        if last is None:
+            raise RuntimeError("No episode")
+        last.turns.append(turn)
+        self.mark_dirty(len(self) - 1)
 
     @abstractmethod
     def append(self, episode: Episode) -> None: ...
