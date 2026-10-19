@@ -208,4 +208,8 @@ def grep(
     if not results:
         return "No matches found."
 
+    if len(results) > 100:
+        results.append(f"Found {len(results)} results. Output has been truncated")
+        results = results[:100]
+
     return "\n".join(results)
