@@ -2,7 +2,7 @@ from rich.text import Text
 from textual.reactive import reactive
 from textual.widgets import Static
 
-from bond.tui.types import TuiStatus
+from bond.behaviours.types import LoopStatus
 
 
 class StatusBar(Static):
@@ -33,7 +33,7 @@ class StatusBar(Static):
 
     # Control
 
-    def set_status(self, status: TuiStatus):
+    def set_status(self, status: LoopStatus):
         self.status = status
 
     def set_usage(self, usage: int):

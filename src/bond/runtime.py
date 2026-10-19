@@ -98,7 +98,7 @@ class RuntimeEnvironment(ABC):
     @abstractmethod
     def load_skill(self, name: str, runtime: "BondRuntime") -> str: ...
     @abstractmethod
-    def get_data_dir(self) -> Path: ...
+    def get_plugin_data_base_dir(self) -> Path: ...
     @abstractmethod
     def get_vector_stores_path(self) -> Path: ...
 
@@ -156,7 +156,7 @@ class StaticRuntimeEnvironment(RuntimeEnvironment):
     def load_skill(self, name: str, runtime: "BondRuntime") -> str:
         return self._skills[name]
 
-    def get_data_dir(self) -> Path:
+    def get_plugin_data_base_dir(self) -> Path:
         return self._data_dir
 
     def get_vector_stores_path(self) -> Path:
@@ -216,7 +216,7 @@ class DynamicRuntimeEnvironment(RuntimeEnvironment):
                     plugin_class = plugin_ep.load()
                     plugins[plugin_ep.name] = plugin_class(
                         BondRuntime.get_instance(),
-                        self.get_data_dir() / f"plugins/{plugin_ep.name}",
+                        self.get_plugin_data_base_dir() / f"plugins/{plugin_ep.name}",
                     )
                 except Exception as e:
                     logger.error(f"Failed to load plugin {plugin_ep.name}: {e}")
@@ -259,7 +259,7 @@ class DynamicRuntimeEnvironment(RuntimeEnvironment):
             raise ValueError(f"Invalid skill name: {name}. Path does not exist.")
         return path.read_text(encoding="utf-8")
 
-    def get_data_dir(self) -> Path:
+    def get_plugin_data_base_dir(self) -> Path:
         return self._data_base_dir / "plugins"
 
     def get_vector_stores_path(self) -> Path:
@@ -350,8 +350,8 @@ class BondRuntime:
     def list_skills(self) -> list[str]:
         return self._get_env().list_skills()
 
-    def get_data_dir(self) -> Path:
-        return self._get_env().get_data_dir()
+    def get_plugin_data_base_dir(self):
+        return self._get_env().get_plugin_data_base_dir()
 
     def get_conversations_path(self) -> Path | None:
         return self._get_env().get_conversations_path()

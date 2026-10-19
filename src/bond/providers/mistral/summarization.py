@@ -1,4 +1,4 @@
-from bond.conversation.conversation import MessageListBuilder
+from bond.capabilities.types import MessageListBuilder
 from bond.providers.general.summarization import (
     DefaultSummarizationCapability,
     DefaultSummarizationOptions,
@@ -12,16 +12,14 @@ class MistralSummarization(DefaultSummarizationCapability):
         config: DefaultSummarizationOptions,
         chat_completions: MistralChatCompletions,
         message_list_builder: MessageListBuilder,
-        generation_prompt: str | None,
+        system_prompt: str | None,
         cache_key: str | None,
     ):
-        if cache_key is not None and config.episode_summarization is not None:
-            if config.episode_summarization.model_options is None:
-                config.episode_summarization.model_options = {}
-            if "prompt_cache_key" not in config.episode_summarization.model_options:
-                config.episode_summarization.model_options["prompt_cache_key"] = (
+        if cache_key is not None and config.thought_condensation is not None:
+            if config.thought_condensation.model_options is None:
+                config.thought_condensation.model_options = {}
+            if "prompt_cache_key" not in config.thought_condensation.model_options:
+                config.thought_condensation.model_options["prompt_cache_key"] = (
                     cache_key
                 )
-        super().__init__(
-            config, chat_completions, message_list_builder, generation_prompt
-        )
+        super().__init__(config, chat_completions, message_list_builder, system_prompt)

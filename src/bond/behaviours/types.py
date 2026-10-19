@@ -1,24 +1,20 @@
 import asyncio
 import logging
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Literal, Protocol
 
 from pydantic import BaseModel
 from returns.result import Result
 
-from bond.conversation.conversation import Conversation
-from bond.conversation.types import Message, SystemMessage, UserConversationMessage
+from bond.conversation.types import UserConversationMessage
 
 logger = logging.getLogger(__name__)
 
+TurnStatus = Literal["Receiving", "Summarizing", "Stopped"]
 
-class MessageListBuilder(Protocol):
-    def __call__(
-        self,
-        conversation: Conversation,
-        system_message: str | None,
-        turns: int | None = None,
-    ) -> tuple[SystemMessage | None, list[Message]]: ...
+LoopStatus = Literal[
+    "Waiting", "Idle", "Tool Call", "Receiving", "Paused", "Stopped", "Summarizing"
+]
 
 
 class PauseRequest:
@@ -69,8 +65,12 @@ class AsyncLoopSignalBuffer:
         self._continue: bool = False
         self._stop: bool = False
         self._stop_immediate: bool = False
+        self._interrupt: bool = False
 
         self._waiter: asyncio.Future[AsyncLoopSignal] | None = None
+
+    def has_waiter(self) -> bool:
+        return self._waiter is not None
 
     def signal_user_input(
         self, user_input: UserConversationMessage
@@ -82,6 +82,9 @@ class AsyncLoopSignalBuffer:
         return Result.from_value(None)
 
     def signal_continue(self):
+        if self._interrupt:
+            self._interrupt = False
+            return
         self._continue = True
         self._check_waiter()
 
@@ -99,6 +102,14 @@ class AsyncLoopSignalBuffer:
         """Clear the Input Signals (Stopping signals and pause requests are kept)"""
         self._user_input = None
         self._continue = False
+        self._interrupt = False
+
+    def interrupt(self):
+        """Interrupt the loop, absorbing a following continue signal"""
+        if self._continue:
+            self._continue = False
+        else:
+            self._interrupt = True
 
     async def pull(self) -> AsyncLoopSignal:
         if (signal := self._build_signal()) is not None:

@@ -169,7 +169,9 @@ class PersonaConfig(BaseModel):
             raise RuntimeError("Provider does not support generation")
         summarization = (
             _get_provider(self.summarization, runtime)
-            .map(lambda x: x.summarization(self.summarization or {}, runtime))
+            .map(
+                lambda x: x.summarization(self.summarization or {}, generation, runtime)
+            )
             .value_or(None)
         )
         tts = (

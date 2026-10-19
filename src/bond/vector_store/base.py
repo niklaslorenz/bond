@@ -7,7 +7,6 @@ and querying for the k-nearest neighbors of a given embedding.
 """
 
 from abc import ABC, abstractmethod
-from datetime import datetime
 from pathlib import Path
 
 from pydantic import BaseModel

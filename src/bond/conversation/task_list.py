@@ -4,28 +4,16 @@ from pydantic import BaseModel, Field
 
 
 class TaskListItem(BaseModel):
-    _index: int
-    _task: str
-    _complete: bool
-
-    @property
-    def index(self) -> int:
-        return self._index
-
-    @property
-    def description(self) -> str:
-        return self._task
-
-    @property
-    def is_complete(self) -> int:
-        return self._complete
+    index: int
+    description: str
+    is_complete: bool
 
     def render(self) -> str:
-        return f"{self.index}. [{'x' if self._complete else ' '}] {self._task}"
+        return f"{self.index}. [{'x' if self.is_complete else ' '}] {self.description}"
 
 
 class TaskList(BaseModel):
-    _content: list[TaskListItem] = Field(default_factory=list)
+    content: list[TaskListItem] = Field(default_factory=list)
 
     def __len__(self) -> int:
         return len(self._content)
@@ -55,7 +43,7 @@ class TaskList(BaseModel):
         self._recompute_index()
 
     def add_item(self, item: str) -> TaskListItem:
-        new_item = TaskListItem(_index=len(self), _task=item, _complete=False)
+        new_item = TaskListItem(index=len(self), description=item, is_complete=False)
         self._content.append(new_item)
         return new_item
 

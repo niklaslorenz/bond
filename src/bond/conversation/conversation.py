@@ -1,9 +1,9 @@
-import shutil
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Literal
 
 from pydantic import BaseModel, Field, PrivateAttr
+from typing_extensions import deprecated
 
 from bond.conversation.cache.base import EpisodeCache
 from bond.conversation.cache.file_mapped import FileMappedEpisodeCache
@@ -14,6 +14,8 @@ from bond.conversation.types import (
     Turn,
 )
 from bond.conversation.working_set import WorkingSet
+
+logger = logging.getLogger(__name__)
 
 EPISODES_PER_SHARD = 8
 
@@ -68,9 +70,35 @@ class Conversation(BaseModel):
         """
         return self._data_path
 
+    @property
+    def current_usage(self) -> int:
+        last_turn = self.last_episode.last_turn
+        if last_turn is None:
+            return 0
+        return last_turn.assistant_response.usage.total_tokens
+
+    @storage_path.setter
+    def storage_path(self, new_value: Path | None):
+        self._data_path = new_value
+
     def add_turn(self, turn: Turn) -> None:
-        assert not self.last_episode.is_finished
         self.last_episode.turns.append(turn)
+
+    # TODO: use conversation.rollback instead
+    @deprecated("use Conversation.rollback instead")
+    def delete_turns(self, n: int) -> None:
+        if n <= 0:
+            raise ValueError("n must be strictly positive")
+        ep = self.last_episode
+        if ep is None:
+            return
+        if len(ep.turns) >= n:
+            ep.turns = ep.turns[:-n]
+            return
+        ep_len = len(ep.turns)
+        self.episodes.truncate(len(self.episodes) - 1)
+        # NOTE: recursive call is ugly, but should work fine
+        self.delete_turns(n - ep_len)
 
     def condense_turns(self, kept_turns: int):
         if kept_turns < 0:
@@ -176,77 +204,27 @@ class Conversation(BaseModel):
         data_path.mkdir(parents=True, exist_ok=True)
 
         # Write metadata (episodes are stored separately)
-        metadata_path = data_path / "metadata.json"
-        metadata_path.write_text(self.model_dump_json(), encoding="utf-8")
+        metadata_path = data_path / f"{name}_metadata.json"
+        metadata_path.write_text(self.model_dump_json(indent=2), encoding="utf-8")
 
         # Write episodes
         self.episodes.save_as(name, data_path)
-
-    # TODO: unreviewed
-    def move_to(
-        self, dir: Path, *, on_existing: Literal["error", "replace"] = "error"
-    ) -> None:
-        """Move the conversation (metadata + episodes) to *dir*.
-
-        Uses filesystem-level move (``shutil.move``) so that no data is
-        duplicated.  After the move, the episode cache points to *dir* and
-        shards are lazily reloaded from the new location.
-
-        This is the preferred way to "rename" a conversation directory
-        (e.g. from ``temp/`` to ``conversations/<name>/``) without copying
-        episode data.
-
-        Args:
-            dir: Target directory for the conversation.
-            on_existing: How to handle an existing conversation at *dir*
-                (a ``metadata.json`` or ``episodes_*.json`` files already
-                present).  ``"error"`` (the default) raises
-                :class:`FileExistsError`; ``"replace"`` overwrites them.
-        """
-        dir.mkdir(parents=True, exist_ok=True)
-
-        # Guard against silently overwriting an existing conversation's
-        # metadata file (episode files are handled by EpisodeCache.move_to)
-        metadata_path = dir / "metadata.json"
-        if metadata_path.exists():
-            if on_existing == "error":
-                raise FileExistsError(
-                    "Target directory already contains a conversation "
-                    "(metadata.json exists)"
-                )
-            metadata_path.unlink()
-
-        # Ensure the episode cache is initialised (creates temp dir if needed)
-        _ = self.episodes
-
-        # Write metadata to the new location
-        metadata_path.write_text(self.model_dump_json(), encoding="utf-8")
-
-        # Move episode shards (writes dirty shards first, then moves files)
-        assert self._episodes is not None
-        self._episodes.move_to(dir, on_existing=on_existing)
-
-        self._data_path = dir
+        logger.debug(f"saved conversation to {data_path} as {name}")
 
     @classmethod
-    def create_at(cls, path: Path, *, clear: bool = False) -> "Conversation":
-        """
-        Create a fresh conversation with episodes stored at *path*.
-
-        If *clear* is True, any existing data at *path* is deleted first.
-        """
-        if clear and path.exists():
-            shutil.rmtree(path)
-        conv = cls()
-        conv._data_path = path
-        return conv
-
-    @classmethod
-    def load(cls, dir: Path) -> "Conversation":
+    def load(cls, name: str, data_path: Path) -> "Conversation":
         """
         Load a conversation from a directory at *path*.
         """
-        metadata_path = dir / "metadata.json"
+        logger.debug(f"Loading conversation {name}")
+        metadata_path = data_path / f"{name}_metadata.json"
         conv = cls.model_validate_json(metadata_path.read_text(encoding="utf-8"))
-        conv._data_path = dir
+        conv.storage_path = data_path
+        conv._episodes = FileMappedEpisodeCache.load(name, data_path)
         return conv
+
+    @classmethod
+    def exists(cls, name: str, data_path: Path) -> bool:
+        if not (data_path / f"{name}_metadata.json").is_file():
+            return False
+        return FileMappedEpisodeCache.exists(name, data_path)

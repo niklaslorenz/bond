@@ -26,3 +26,6 @@ class GenerationCapability(Protocol):
         triggers: GenerationTriggers,
         callback: ChatCompletionStreamCallback | None,
     ) -> Result[AssistantConversationMessage, str]: ...
+
+    @property
+    def system_prompt(self) -> str | None: ...

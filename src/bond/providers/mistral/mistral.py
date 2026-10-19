@@ -1,11 +1,13 @@
 import os
 from typing import TYPE_CHECKING, Any, Type
 
+from bond.capabilities.generation import GenerationCapability
 from bond.providers.general.generation import (
     DefaultGenerationCapability,
     DefaultGenerationOptions,
 )
 from bond.providers.general.memory import DefaultMemoryCapability, DefaultMemoryOptions
+from bond.providers.general.summarization import DefaultSummarizationOptions
 from bond.providers.general.tts import DefaultTTSCapability, DefaultTTSOptions
 from bond.providers.general.util import DefaultMessageListBuilder
 from bond.providers.mistral.chat_completions import MistralChatCompletions
@@ -14,7 +16,6 @@ from bond.providers.mistral.embeddings import MistralEmbeddings
 from bond.providers.mistral.models import MistralModels
 from bond.providers.mistral.summarization import (
     MistralSummarization,
-    MistralSummarizationOptions,
 )
 from bond.providers.mistral.tts import MistralTTS
 from bond.providers.mistral.voices import MistralVoices
@@ -51,15 +52,24 @@ class Mistral:
         return self._tts
 
     def summarization(
-        self, config: dict[str, Any], runtime: "BondRuntime | None" = None
+        self,
+        config: dict[str, Any],
+        generation: GenerationCapability | None = None,
+        runtime: "BondRuntime | None" = None,
     ) -> MistralSummarization:
-        options = MistralSummarizationOptions.model_validate(config)
-        options.instruction = resolve_skills(options.instruction, runtime)
-        options.system_prompt = resolve_skills(options.system_prompt, runtime)
+        options = DefaultSummarizationOptions.model_validate(config)
+        options.resolve(runtime)
+        generation_prompt = generation.system_prompt if generation is not None else None
         return MistralSummarization(
             options,
             self.chat_completions(),
-            10,
+            self._build_message_list,
+            generation_prompt,
+            (
+                str(hash(options.thought_condensation.prompt))
+                if options.thought_condensation
+                else None
+            ),
         )
 
     def generation(
@@ -70,7 +80,7 @@ class Mistral:
         runtime: "BondRuntime | None" = None,
     ) -> DefaultGenerationCapability:
         options = DefaultGenerationOptions.model_validate(config)
-        options.system_prompt = resolve_skills(options.system_prompt, runtime)
+        options.resolve(runtime)
         return DefaultGenerationCapability(
             name,
             options,

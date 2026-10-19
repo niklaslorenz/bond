@@ -1,12 +1,17 @@
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 from returns.result import Failure, Result, Success
 
-from bond.conversation.conversation import Conversation, MessageListBuilder
+from bond.capabilities.types import MessageListBuilder
+from bond.conversation.conversation import Conversation
 from bond.conversation.types import SystemMessage, TextChunk, ThinkChunk, UserMessage
 from bond.endpoints.chat_completions import ChatCompletionsEndpoint
+from bond.util import resolve_skills
+
+if TYPE_CHECKING:
+    from bond.runtime import BondRuntime
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +22,9 @@ class ThoughtCondensationOptions(BaseModel):
     prompt: str
     token_threshold: int
 
+    def resolve(self, runtime: "BondRuntime | None"):
+        self.prompt = resolve_skills(self.prompt, runtime)
+
 
 class EpisodeSummarizationOptions(BaseModel):
     model: str
@@ -26,10 +34,19 @@ class EpisodeSummarizationOptions(BaseModel):
     keep_turns: int
     min_summarized_turns: int
 
+    def resolve(self, runtime: "BondRuntime | None"):
+        self.prompt = resolve_skills(self.prompt, runtime)
+
 
 class DefaultSummarizationOptions(BaseModel):
     thought_condensation: ThoughtCondensationOptions | None = None
     episode_summarization: EpisodeSummarizationOptions | None = None
+
+    def resolve(self, runtime: "BondRuntime | None"):
+        if self.thought_condensation is not None:
+            self.thought_condensation.resolve(runtime)
+        if self.episode_summarization is not None:
+            self.episode_summarization.resolve(runtime)
 
 
 class DefaultSummarizationCapability:
@@ -39,12 +56,12 @@ class DefaultSummarizationCapability:
         config: DefaultSummarizationOptions,
         chat_completions: ChatCompletionsEndpoint,
         message_list_builder: MessageListBuilder,
-        generation_prompt: str | None,
+        system_prompt: str | None,
     ):
         self._config = config
         self._chat_completions = chat_completions
         self._message_list_builder = message_list_builder
-        self._generation_prompt = generation_prompt
+        self._system_prompt = system_prompt
 
     def summarize_episode(
         self, conversation: Conversation, force: bool
@@ -52,18 +69,18 @@ class DefaultSummarizationCapability:
         if (options := self._config.episode_summarization) is None:
             return None
 
-        last_turn = conversation.episodes.last.last_turn
+        last_turn = conversation.last_episode.last_turn
         if last_turn is None or (
             last_turn.usage.total_tokens < options.token_threshold and not force
         ):
             return Success(0)
 
-        n_summarized_turns = len(conversation.episodes.last.turns) - options.keep_turns
+        n_summarized_turns = len(conversation.last_episode.turns) - options.keep_turns
         if n_summarized_turns < 0 or n_summarized_turns < options.min_summarized_turns:
             return Success(0)
 
         system_msg, message_list = self._message_list_builder(
-            conversation, self._generation_prompt, n_summarized_turns
+            conversation, self._system_prompt, n_summarized_turns
         )
         message_list.append(UserMessage(content=[TextChunk(text=options.prompt)]))
         response = self._chat_completions.chat_completion(
@@ -91,7 +108,7 @@ class DefaultSummarizationCapability:
     ) -> Result[str | None, str] | None:
         if (options := self._config.thought_condensation) is None:
             return None
-        last_turn = conversation.episodes.last.last_turn
+        last_turn = conversation.last_episode.last_turn
         if last_turn is None:
             return Success(None)
         message = last_turn.assistant_response

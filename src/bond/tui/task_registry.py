@@ -2,6 +2,8 @@ import asyncio
 from collections.abc import Coroutine
 from typing import Any
 
+from . import logger
+
 
 class TaskRegistry:
     def __init__(self, loop: asyncio.AbstractEventLoop | None = None):
@@ -17,6 +19,8 @@ class TaskRegistry:
         async def task():
             try:
                 result = await coro
+            except Exception as e:
+                logger.error(f"Error in task: {e}")
             finally:
                 self._registry.pop(id, None)
             return result

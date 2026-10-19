@@ -8,8 +8,8 @@ from bond.conversation.types import Episode
 
 
 class TemporaryEpisodeCache(EpisodeCache):
-    def __init__(self):
-        self._episodes: list[Episode] = []
+    def __init__(self, episodes: list[Episode] | None = None):
+        self._episodes: list[Episode] = list(episodes) if episodes is not None else []
 
     def __len__(self) -> int:
         return len(self._episodes)

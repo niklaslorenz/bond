@@ -17,7 +17,7 @@ class DefaultMessageListBuilder:
         system_message: str | None,
         turns: int | None = None,
     ) -> tuple[SystemMessage | None, list[Message]]:
-        episode = conversation.episodes.last
+        episode = conversation.last_episode
 
         summary_prompt_extension = (
             (
@@ -42,7 +42,7 @@ class DefaultMessageListBuilder:
             else None
         )
 
-        messages = conversation.episodes.last.render(turns)
+        messages = conversation.last_episode.render(turns)
         if episode.turns and episode.turns[0].tool_messages is not None:
             mock = AssistantMessage(
                 tool_calls=[

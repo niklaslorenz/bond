@@ -6,9 +6,13 @@ from datetime import datetime, timezone
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 from time import sleep
-from typing import TYPE_CHECKING, Callable, overload
+from typing import TYPE_CHECKING, Annotated, Callable, overload
 
 import requests
+from pydantic import (
+    AfterValidator,
+    PlainSerializer,
+)
 
 if TYPE_CHECKING:
     from bond.runtime import BondRuntime
@@ -18,6 +22,22 @@ logger = logging.getLogger(__name__)
 _retry_codes: list[int] = [408, 429, 500, 502, 503, 504]
 
 http_logger = logging.getLogger(__name__ + ".http")
+
+
+def _to_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+UtcDateTime = Annotated[
+    datetime,
+    AfterValidator(_to_utc),
+    PlainSerializer(
+        lambda dt: dt.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+        return_type=str,
+    ),
+]
 
 
 def http_retry_loop(

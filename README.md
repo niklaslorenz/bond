@@ -76,7 +76,11 @@ The configuration for Ollama supports the following fields:
 The base_url must not point inside any endpoint, for a locally hosted environment
 for example this would be `"base_url": "http://localhost:11434/"`
 
+## TODO
+
+- create mistral version of generation capability and use this to inject cache key into model options
+- remove conversation metadata from chat completions endpoint
+
 ## Known Issues
 
-- Deleting messages with the :delete command does not roll back the summary and when deleting messages across the summary boudary,
-  the retrieved messages will be empty, leaving the agent with just the old summary to work with.
+- Deleting messages can result a message list that is shorter than the amount of specified kept turns in the summary configuration

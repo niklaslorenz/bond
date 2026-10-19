@@ -6,6 +6,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field, field_serializer, field_validator
 
+from bond.util import UtcDateTime
+
 
 class TextChunk(BaseModel):
     type: Literal["text"] = "text"
@@ -119,7 +121,7 @@ class ConversationMetadata(BaseModel):
 
 class BaseConversationMessage(BaseModel):
     message_id: str = Field(default_factory=lambda: str(uuid4()))
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: UtcDateTime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class UserConversationMessage(BaseConversationMessage):
@@ -254,7 +256,7 @@ class Episode(BaseModel):
     prefix_summary: str | None = None
     episode_summary: str | None = None
     turns: list[Turn] = []
-    summarized_at: datetime | None = None
+    summarized_at: UtcDateTime | None = None
 
     @property
     def is_finished(self) -> bool:

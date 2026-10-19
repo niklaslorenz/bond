@@ -64,11 +64,6 @@ class TuiEventHandler(AsyncTurnEventHandler):
         finally:
             self._task = None
 
-    async def handle_auto_summary_event(self, event: AsyncTurnAutoSummaryEvent):
-        self._get_app().chat_view.status_bar.set_status(
-            "Summarizing" if not event.finished else "Waiting"
-        )
-
     async def handle_error_event(self, event: AsyncTurnErrorEvent):
         # TODO: Show error popup instead
         self._get_app().notify(event.reason, severity="error")
@@ -79,7 +74,7 @@ class TuiEventHandler(AsyncTurnEventHandler):
 
     async def handle_message_inserted_event(self, event: AsyncTurnMessageInsertedEvent):
         logger.debug(
-            f"Inserted message for {event.message.author} ({event.message.message.role})"
+            f"Inserted message for {event.message.name} ({event.message.message.role})"
         )
         self._get_app().chat_view.add_conversation_message(event.message)
         self._get_app().chat_view.chat_log.scroll_end()
@@ -114,17 +109,14 @@ class TuiEventHandler(AsyncTurnEventHandler):
         self._get_app().chat_view.chat_log.scroll_end()
 
     async def handle_response_end_event(self, event: AsyncTurnResponseEndEvent):
-        self._get_app().chat_view.status_bar.set_status("Waiting")
         self._get_app().chat_view.status_bar.set_usage(event.usage.total_tokens)
 
     async def handle_response_start_event(self, event: AsyncTurnResponseStartEvent):
         self._get_app().chat_view.ensure_current_author(event.role, event.author)
-        self._get_app().chat_view.status_bar.set_status("Receiving")
 
     async def handle_tool_call_event(self, event: AsyncTurnToolCallEvent):
-        self._get_app().chat_view.status_bar.set_status("Tool Call")
+        pass
 
     async def handle_tool_return_event(self, event: AsyncTurnToolReturnEvent):
         self._get_app().chat_view.add_conversation_message(event.result)
         self._get_app().chat_view.chat_log.scroll_end()
-        self._get_app().chat_view.status_bar.set_status("Waiting")

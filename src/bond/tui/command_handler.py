@@ -27,10 +27,7 @@ class TuiCommandHandler:
         self._app = app
         self._runtime = runtime or BondRuntime.get_instance()
         self._conversation_base_path = self._runtime.get_conversations_path()
-        cache_path = self._runtime.get_cache_path()
-        self._last_conv_path = (
-            cache_path / "last-conv.json" if cache_path is not None else None
-        )
+        self._data_path = self._runtime.get_cache_path()
         self._save_on_quit = self._runtime.behaviour_flags.save_on_quit
 
         self._parser = ArgumentParser(exit_on_error=False)
@@ -41,70 +38,73 @@ class TuiCommandHandler:
         return await self.handle(cmd)
 
     def _save_conversation(self, conversation: Conversation):
-        if conversation.name and self._conversation_base_path is not None:
-            conversation.save_to_file(
-                self._conversation_base_path / (conversation.name + ".json")
-            )
+        if conversation.name and conversation.storage_path:
+            conversation.save(None, None)
 
     def _save_last_conversation(self, conversation: Conversation):
-        if self._last_conv_path is not None:
-            conversation.save_to_file(self._last_conv_path)
+        conversation.save("last-conv", self._data_path)
 
-    # Command Callbacks
-
-    async def quit(self, args: Namespace) -> bool:
-        if not args.force and self._app.chat_lock.locked():
-            return False
+    async def _save_and_stop(self, immediate: bool, save: bool):
+        logger.debug("Saving")
         conversation = self._app.current_conversation
-        await self._app.exit()
-        if self._save_on_quit:
-            async with self._app.chat_lock:
+        if save:
+            async with self._app.agent_loop.pause():
                 self._save_conversation(conversation)
+                logger.debug("Saved conversation")
                 self._save_last_conversation(conversation)
-        return True
-
-    async def save(self, args: Namespace) -> bool:
-        if self._app.chat_lock.locked():
-            return False
-        conv = self._app.current_conversation
-        name: str | None = args.name or conv.name
-        if name is None:
-            self._notify("Please specify a name for the conversation")
-            return True
-        conv.name = name
-        async with self._app.chat_lock:
-            self._save_conversation(conv)
-            if self._save_on_quit:
-                self._save_last_conversation(conv)
-        self._notify(f"Saved as '{name}'")
-        return True
+                logger.debug("Saved as last conversation")
+        logger.debug("Stopping application")
+        await self._app.stop(immediate)
 
     async def _load_conversation_interactive(self):
         assert self._conversation_base_path is not None
         async with self._app.action_lock:
-            result = await self._app.select_conversation(
-                self._list_conversations(), True
-            )
+            result = await self._app.select_conversation(self._list_conversations())
             logger.debug(f"Selected conversation: {result}")
             if isinstance(result, Failure):
                 return False
             name = result.unwrap()
             if name == None:
                 return True
-            path = self._conversation_base_path / (name + ".json")
-            if not path.is_file():
+            if Conversation.exists(name, self._conversation_base_path):
                 self._notify(f"Error: unable to find conversation: {name}")
                 return True
-            await self._app.agent_loop.set_conversation(
-                Conversation.load_from_file(path)
-            )
-            await self._app.chat_view.sync(self._app.current_conversation)
-            self._app.chat_view.status_bar.set_persona(
-                self._app.agent_loop.persona.name
-            )
+            async with self._app.agent_loop.pause():
+                if self._save_on_quit:
+                    self._save_conversation(self._app.current_conversation)
+                await self._app.agent_loop.set_conversation(
+                    Conversation.load(name, self._conversation_base_path)
+                )
+                await self._app.chat_view.sync(self._app.current_conversation)
+                self._app.chat_view.status_bar.set_persona(
+                    self._app.agent_loop.persona.name
+                )
+
+    # Command Callbacks
+
+    async def quit(self, args: Namespace) -> bool:
+        logger.debug(f"Quitting with saving: {self._save_on_quit}")
+        self._app.schedule(self._save_and_stop(args.force, self._save_on_quit))
+        return True
+
+    async def save(self, args: Namespace) -> bool:
+        if not self._app.is_idle:
+            return False
+        async with self._app.agent_loop.pause():
+            conv = self._app.current_conversation
+            name: str | None = args.name or conv.name
+            if name is None:
+                self._notify("Please specify a name for the conversation")
+                return True
+            conv.name = name
+            self._save_conversation(conv)
+            if self._save_on_quit:
+                self._save_last_conversation(conv)
+        self._notify(f"Saved as '{name}'")
+        return True
 
     async def load(self, args: Namespace) -> bool:
-        if self._app.chat_lock.locked():
+        if not self._app.is_idle:
             return False
         name: str | None = args.name
         if self._conversation_base_path is None:
@@ -116,51 +116,65 @@ class TuiCommandHandler:
             )
             self._app.schedule(self._load_conversation_interactive())
             return True
-        path = self._conversation_base_path / (name + ".json")
-        if not path.is_file():
+        if not Conversation.exists(name, self._conversation_base_path):
             self._notify(f"Error: unable to find conversation: {name}")
             return True
-        await self._app.agent_loop.set_conversation(Conversation.load_from_file(path))
-        await self._app.chat_view.sync(self._app.current_conversation)
-        self._app.chat_view.status_bar.set_persona(self._app.agent_loop.persona.name)
+        async with self._app.agent_loop.pause():
+            if self._save_on_quit:
+                self._save_conversation(self._app.current_conversation)
+            await self._app.agent_loop.set_conversation(
+                Conversation.load(name, self._conversation_base_path)
+            )
+            await self._app.chat_view.sync(self._app.current_conversation)
+            self._app.chat_view.status_bar.set_persona(
+                self._app.agent_loop.persona.name
+            )
         return True
 
     async def new(self, args: Namespace) -> bool:
-        if self._app.chat_lock.locked():
+        logger.debug("Creating new conversation")
+        if not self._app.is_idle:
+            logger.debug("Agent is busy")
             return False
-        await self._app.agent_loop.new_conversation(args.to)
-        await self._app.chat_view.sync(self._app.current_conversation)
+        async with self._app.agent_loop.pause():
+            if self._save_on_quit:
+                logger.debug("Saving current conversation")
+                self._save_conversation(self._app.current_conversation)
+            logger.debug("Setting up new conversation")
+            await self._app.agent_loop.set_conversation(Conversation(persona=args.to))
+            logger.debug("Synchronizing chat log")
+            await self._app.chat_view.sync(self._app.current_conversation)
+            logger.debug("Setting persona")
+            self._app.chat_view.status_bar.set_persona(
+                self._app.agent_loop.persona.name
+            )
+            logger.debug("Finished setting up new conversation")
         return True
 
     async def forget(self, args: Namespace) -> bool:
-        if not args.force and self._app.chat_lock.locked():
-            return False
-        await self._app.exit()
+        self._app.schedule(self._save_and_stop(args.force, False))
         return True
 
     async def remember(self, args: Namespace) -> bool:
-        if not args.force and self._app.chat_lock.locked():
-            return False
-        async with self._app.chat_lock:
-            conv = self._app.current_conversation
-            self._save_conversation(conv)
-            self._save_last_conversation(conv)
-        await self._app.exit()
+        self._app.schedule(self._save_and_stop(args.force, True))
         return True
 
     async def to(self, args: Namespace) -> bool:
-        if self._app.chat_lock.locked():
+        if not self._app.is_idle:
             return False
         persona_name: str = args.name
         if persona_name not in self._runtime.list_personas():
             self._notify(f"'{persona_name}' is not a valid persona")
             return False
-        await self._app.agent_loop.set_persona(persona_name)
-        self._app.chat_view.status_bar.set_persona(self._app.agent_loop.persona.name)
+        async with self._app.agent_loop.pause():
+            self._app.chat_view.status_bar.set_persona(
+                self._app.agent_loop.persona.name
+            )
+            await self._app.agent_loop.set_persona(persona_name)
         return True
 
     async def delete(self, args: Namespace) -> bool:
-        if self._app.chat_lock.locked():
+        if not self._app.is_idle:
             return False
         n: int = args.n
         if n < 0:
@@ -168,28 +182,14 @@ class TuiCommandHandler:
                 "Please specify a positive number for how many turns to delete"
             )
             return True
-        async with self._app.chat_lock:
+        async with self._app.agent_loop.pause():
             conversation = self._app.current_conversation
-            user_msg_indices = [
-                idx
-                for (idx, msg) in enumerate(conversation.history)
-                if msg.message.role == "user"
-            ]
-            delete_to = user_msg_indices[-n] if len(user_msg_indices) >= n else -1
-            if delete_to >= 0:
-                conversation.history = conversation.history[:delete_to]
-                conversation.summary_index = max(
-                    conversation.summary_index, len(conversation.history)
-                )
-            else:
-                conversation.history = []
-                conversation.summary = None
-                conversation.summary_index = 0
+            conversation.delete_turns(n)
             await self._app.chat_view.sync(conversation)
         return True
 
     async def summarize(self, _: Namespace) -> bool:
-        if self._app.chat_lock.locked():
+        if not self._app.is_idle:
             return False
         result = await self._app.agent_loop.summarize()
         if isinstance(result, Failure):
@@ -201,9 +201,9 @@ class TuiCommandHandler:
         return True
 
     async def detach(self, _: Namespace) -> bool:
-        if self._app.chat_lock.locked():
+        if not self._app.is_idle:
             return False
-        async with self._app.chat_lock:
+        async with self._app.agent_loop.pause():
             if self._app.current_conversation.name is None:
                 self._notify("Conversation is not attached to any name")
                 return True
@@ -252,13 +252,13 @@ class TuiCommandHandler:
             or not self._conversation_base_path.exists()
         ):
             return []
-        files = [
-            (path.stat().st_mtime if path.exists() else 0.0, path.stem)
+        dirs = [
+            (path.stat().st_mtime, path.name)
             for path in self._conversation_base_path.iterdir()
-            if path.is_file() and path.suffix == ".json"
+            if path.is_dir() and (path / "metadata.json").is_file()
         ]
-        files.sort(key=lambda item: item[0], reverse=True)
-        return [name for _, name in files]
+        dirs.sort(key=lambda item: item[0], reverse=True)
+        return [name for _, name in dirs]
 
     async def handle(self, cmd: str) -> bool:
         if self._app.action_lock.locked():
@@ -276,6 +276,7 @@ class TuiCommandHandler:
                     args = self._parser.parse_args(shlex.split(cmd))
                     return await args.callback(args)
             except Exception as e:
+                logger.error(f"error while executing command '{cmd}' ({type(e)}): {e}")
                 self._notify(f"error while executing command '{cmd}' ({type(e)}): {e}")
         return True
 

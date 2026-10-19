@@ -1,24 +1,26 @@
 import itertools
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel
 
 
-class WorkingSetItem(ABC):
+class WorkingSetItemBase(ABC):
     @abstractmethod
     def render(self) -> str: ...
 
 
-class TextItem(WorkingSetItem, BaseModel):
+class TextItem(WorkingSetItemBase, BaseModel):
+    type: Literal["text"] = "text"
     text: str
 
     def render(self) -> str:
         return self.text
 
 
-class FileReferenceItem(WorkingSetItem, BaseModel):
+class FileReferenceItem(WorkingSetItemBase, BaseModel):
+    type: Literal["file"] = "file"
     path: str
     start_line: int | None
     end_line: int | None
@@ -47,7 +49,8 @@ class FileReferenceItem(WorkingSetItem, BaseModel):
 MAX_DIR_ENTRIES = 64
 
 
-class DirectoryReferenceItem(WorkingSetItem, BaseModel):
+class DirectoryReferenceItem(WorkingSetItemBase, BaseModel):
+    type: Literal["directory"] = "directory"
     path: str
     pattern: str
     recursive: bool
@@ -65,3 +68,6 @@ class DirectoryReferenceItem(WorkingSetItem, BaseModel):
         )
         lines = [res.as_posix() for res in itertools.islice(results, MAX_DIR_ENTRIES)]
         return f"Contents of '{path.as_posix()}':\n" + "\n".join(lines)
+
+
+WorkingSetItem = TextItem | FileReferenceItem | DirectoryReferenceItem

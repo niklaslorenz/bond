@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 
 from bond.behaviours.async_turn_event import (
-    AsyncTurnAutoSummaryEvent,
     AsyncTurnErrorEvent,
     AsyncTurnFullResponseEvent,
     AsyncTurnMessageInsertedEvent,
@@ -15,8 +14,6 @@ from bond.behaviours.async_turn_event import (
 
 
 class AsyncTurnEventHandler(ABC):
-    @abstractmethod
-    async def handle_auto_summary_event(self, event: AsyncTurnAutoSummaryEvent): ...
     @abstractmethod
     async def handle_error_event(self, event: AsyncTurnErrorEvent): ...
     @abstractmethod

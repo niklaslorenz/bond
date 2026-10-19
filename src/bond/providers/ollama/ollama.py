@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, Any, Type
 
+from bond.capabilities.generation import GenerationCapability
 from bond.conversation.types import (
     Message,
     ReferenceChunk,
@@ -11,6 +12,7 @@ from bond.providers.general.generation import (
     DefaultGenerationCapability,
     DefaultGenerationOptions,
 )
+from bond.providers.general.util import DefaultMessageListBuilder
 from bond.providers.ollama.chat_completions import OllamaChatCompletions
 from bond.providers.ollama.config import OllamaConfig
 from bond.providers.ollama.models import OllamaModels
@@ -56,6 +58,7 @@ class Ollama:
         self.config = config
         self._models = OllamaModels(config)
         self._chat_completions = OllamaChatCompletions(config)
+        self._build_message_list = DefaultMessageListBuilder()
 
     def chat_completions(self) -> OllamaChatCompletions:
         return self._chat_completions
@@ -84,7 +87,12 @@ class Ollama:
     ) -> DefaultGenerationCapability:
         options = DefaultGenerationOptions.model_validate(config)
         return DefaultGenerationCapability(
-            name, options, toolbox.tool_descriptions, self.chat_completions(), 10
+            name,
+            options,
+            toolbox.tool_descriptions,
+            self.chat_completions(),
+            10,
+            self._build_message_list,
         )
 
     def tts(self, config: dict[str, Any], runtime: "BondRuntime | None" = None):
@@ -92,7 +100,10 @@ class Ollama:
         return None
 
     def summarization(
-        self, config: dict[str, Any], runtime: "BondRuntime | None" = None
+        self,
+        config: dict[str, Any],
+        generation: GenerationCapability | None,
+        runtime: "BondRuntime | None" = None,
     ):
         # Not implmented
         return None

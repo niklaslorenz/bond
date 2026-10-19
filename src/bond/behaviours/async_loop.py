@@ -7,6 +7,7 @@ from returns.result import Failure, Result, Success
 from bond.behaviours.async_turn import AsyncAgentTurn, AsyncTurnEvent
 from bond.behaviours.async_turn_event import (
     AsyncTurnErrorEvent,
+    AsyncTurnMessageInsertedEvent,
     AsyncTurnToolCallEvent,
     AsyncTurnToolReturnEvent,
 )
@@ -14,8 +15,10 @@ from bond.behaviours.types import (
     AsyncLoopSignalBuffer,
     ContinueSignal,
     InputSignal,
+    LoopStatus,
     PauseRequest,
     StopSignal,
+    TurnStatus,
 )
 from bond.capabilities.generation import GenerationTriggers
 from bond.conversation.conversation import Conversation
@@ -27,6 +30,7 @@ from bond.conversation.types import (
     ToolMessage,
     UserConversationMessage,
 )
+from bond.observable import Observable
 from bond.persona import Persona
 from bond.runtime import BondRuntime
 from bond.tools.shell_tools import allow_shell_commands
@@ -46,8 +50,7 @@ class AsyncAgentLoop:
         event_queue: asyncio.Queue[AsyncTurnEvent],
         event_loop: asyncio.AbstractEventLoop,
         default_persona_id: str,
-        /,
-        user_name: str | None = None,
+        *,
         save_after_turn: bool = False,
         stop_on_failure: bool = False,
     ):
@@ -57,7 +60,6 @@ class AsyncAgentLoop:
         self._event_queue = event_queue
         self._event_loop = event_loop
         self._default_persona_id = default_persona_id
-        self._user_name = user_name
         self._save_after_turn = save_after_turn
         self._stop_on_failure = stop_on_failure
 
@@ -67,6 +69,7 @@ class AsyncAgentLoop:
         self._pause_owner: asyncio.Task | None = None
         self._pause_lock = asyncio.Lock()
         self._pause_depth = 0
+        self._loop_status: Observable[LoopStatus] = Observable("Stopped")
 
         self._stream = runtime.behaviour_flags.stream
         self._allow_shell_executions = runtime.behaviour_flags.allow_shell_executions
@@ -89,11 +92,21 @@ class AsyncAgentLoop:
         async with self.pause():
             self._conversation.persona = persona_id
             self._agent_turn, self._persona = self._build_turn()
+            self._signal_buffer.clear()
 
     async def set_conversation(self, conversation: Conversation):
         async with self.pause():
             self._conversation = conversation
             self._agent_turn, self._persona = self._build_turn()
+            self._signal_buffer.clear()
+
+    @property
+    def is_idle(self):
+        return self._signal_buffer.has_waiter()
+
+    @property
+    def loop_status(self):
+        return self._loop_status
 
     def prompt(self, message: UserConversationMessage) -> Result[None, str]:
         return self._signal_buffer.signal_user_input(message)
@@ -115,14 +128,15 @@ class AsyncAgentLoop:
             except asyncio.CancelledError:
                 pass
 
-    def start(self):
+    async def start(self):
         if self._task is not None:
             raise RuntimeError("Already running")
-        self._signal_buffer = AsyncLoopSignalBuffer()
-        self._stopped_event.clear()
-        self._pause_owner = None
-        self._pause_depth = 0
-        self._task = self._event_loop.create_task(self._run())
+        async with self._pause_lock:
+            self._signal_buffer = AsyncLoopSignalBuffer()
+            self._stopped_event.clear()
+            self._pause_owner = None
+            self._pause_depth = 0
+            self._task = self._event_loop.create_task(self._run())
 
     @asynccontextmanager
     async def pause(self):
@@ -145,15 +159,22 @@ class AsyncAgentLoop:
                 if self.is_running:
                     self._signal_buffer.request_pause(request)
                     await request.wait_until_paused()
+                    logger.debug("Paused Agent Loop")
                 yield
             finally:
                 request.resume()
                 self._pause_owner = None
                 self._pause_depth = 0
 
+    def interrupt(self):
+        if not self.is_running:
+            raise RuntimeError("Not running")
+        self._signal_buffer.interrupt()
+
     async def _run(self):
         try:
             while True:
+                self._loop_status.value = "Idle"
                 signal = await self._signal_buffer.pull()
                 if isinstance(signal, StopSignal):
                     break
@@ -161,6 +182,7 @@ class AsyncAgentLoop:
                     self._is_paused = True
                     try:
                         signal.paused()
+                        self._loop_status.value = "Paused"
                         await signal.wait_until_resume()
                     finally:
                         self._is_paused = False
@@ -170,6 +192,7 @@ class AsyncAgentLoop:
                 ):
                     raise RuntimeError(f"Invalid signal type: {type(signal)}")
 
+                self._loop_status.value = "Waiting"
                 user_message = (
                     signal.message if isinstance(signal, InputSignal) else None
                 )
@@ -177,6 +200,10 @@ class AsyncAgentLoop:
                 triggers = GenerationTriggers(
                     user_message=user_message, tool_messages=tool_messages
                 )
+                if user_message is not None:
+                    await self._event_queue.put(
+                        AsyncTurnMessageInsertedEvent(message=user_message)
+                    )
 
                 turn = await self._agent_turn.run(self.conversation, triggers)
                 if isinstance(turn, Failure):
@@ -192,6 +219,7 @@ class AsyncAgentLoop:
                         continue
                 turn = turn.unwrap()
                 tool_calls = turn.assistant_response.message.tool_calls
+                self._loop_status.value = "Tool Call"
                 if tool_calls is not None:
                     tool_messages, tool_results = await self._handle_tool_calls(
                         tool_calls
@@ -199,6 +227,7 @@ class AsyncAgentLoop:
                     turn.assistant_response.tool_returns = tool_results
                     self._signal_buffer.signal_continue()
         finally:
+            self._loop_status.value = "Stopped"
             self._task = None
             self._stopped_event.set()
             self._signal_buffer.release()
@@ -224,8 +253,15 @@ class AsyncAgentLoop:
             )
         ]
 
+    def _on_turn_status_update(self, status: TurnStatus):
+        if status == "Stopped":
+            self._loop_status.value = "Waiting"
+        else:
+            self._loop_status.value = status
+        pass
+
     def _build_turn(self) -> tuple[AsyncAgentTurn, Persona]:
-        if self.is_running:
+        if self.is_running and not self._is_paused:
             raise RuntimeError("Cannot rebuild turn while busy")
         persona_id = self._conversation.persona or self._default_persona_id
         persona_config = self._runtime.get_persona(persona_id)
@@ -239,18 +275,25 @@ class AsyncAgentLoop:
         self._tool_call_context.persona = persona
         self._tool_call_context.conversation = self.conversation
 
+        if hasattr(self, "_agent_turn"):
+            getattr(self, "_agent_turn").turn_status.unsubscribe(
+                self._on_turn_status_update
+            )
+
         if hasattr(self, "_persona"):
             getattr(self, "_persona").release()
-        return (
-            AsyncAgentTurn(
-                persona,
-                self._tool_call_context,
-                self._event_queue,
-                self._runtime,
-                self._event_loop,
-            ),
+
+        turn = AsyncAgentTurn(
             persona,
+            self._tool_call_context,
+            self._event_queue,
+            self._runtime,
+            self._event_loop,
         )
+        turn.turn_status.subscribe(self._on_turn_status_update)
+        if self.conversation.persona is None:
+            self.conversation.persona = persona_id
+        return (turn, persona)
 
     async def _handle_tool_calls(
         self, tool_calls: list[ToolCall]

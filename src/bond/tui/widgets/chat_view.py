@@ -15,6 +15,8 @@ from bond.tui.widgets.chat_log import ChatLog, ChatMessage
 from bond.tui.widgets.input_bar import InputBar
 from bond.tui.widgets.status_bar import StatusBar
 
+NUM_RENDERED_OLD_EPISODES = 3
+
 
 class ChatView(Container):
     def __init__(self):
@@ -63,7 +65,7 @@ class ChatView(Container):
         elif isinstance(message.message, UserMessage) or isinstance(
             message.message, AssistantMessage
         ):
-            msg = ChatMessage(message.author or "<unknown>", message.message.role)
+            msg = ChatMessage(message.name or "<unknown>", message.message.role)
             _append_chunks(msg, message.message.content or [])
             self.chat_log.add_message(msg)
 
@@ -76,8 +78,9 @@ class ChatView(Container):
 
     async def sync(self, conversation: Conversation):
         await self.chat_log.clear()
-        for message in conversation.history:
-            self.add_conversation_message(message)
+        for episode in conversation.episodes[-NUM_RENDERED_OLD_EPISODES:]:
+            for message in episode.flatten():
+                self.add_conversation_message(message)
         self.status_bar.set_usage(conversation.current_usage)
         self.chat_log.scroll_end(animate=False)
 

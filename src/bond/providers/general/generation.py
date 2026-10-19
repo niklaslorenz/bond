@@ -1,25 +1,33 @@
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
 
 from pydantic import BaseModel
 from returns.result import Failure, Result, Success
 
 from bond.capabilities.generation import GenerationTriggers
-from bond.conversation.conversation import Conversation, MessageListBuilder
+from bond.capabilities.types import MessageListBuilder
+from bond.conversation.conversation import Conversation
 from bond.conversation.types import (
     AssistantConversationMessage,
-    UsageInfo,
 )
 from bond.endpoints.chat_completions import (
     ChatCompletionsEndpoint,
     CompletionChunk,
 )
 from bond.tools.tool import Tool
+from bond.util import resolve_skills
+
+if TYPE_CHECKING:
+    from bond.runtime import BondRuntime
 
 
 class DefaultGenerationOptions(BaseModel):
     model: str
     model_options: dict[str, Any] | None = None
     system_prompt: str | None
+
+    def resolve(self, runtime: "BondRuntime | None"):
+        if self.system_prompt is not None:
+            self.system_prompt = resolve_skills(self.system_prompt, runtime)
 
 
 class DefaultGenerationCapability:
@@ -44,6 +52,7 @@ class DefaultGenerationCapability:
         conversation: Conversation,
         triggers: GenerationTriggers,
         callback: Callable[[CompletionChunk], None] | None,
+        model_options: dict[str, Any] | None = None,
     ) -> Result[AssistantConversationMessage, str]:
         can_stream = self._chat_completions.supports_streaming()
         should_stream = callback is not None
@@ -51,7 +60,7 @@ class DefaultGenerationCapability:
             return Failure("Streaming is not supported by the provided endpoint")
 
         # Verify trigger structure
-        episode = conversation.episodes.last
+        episode = conversation.last_episode
         last_turn_tool_calls = (
             episode.turns[-1].assistant_response.message.tool_calls
             if episode.turns
@@ -81,6 +90,11 @@ class DefaultGenerationCapability:
         if triggers.user_message is not None:
             messages.append(triggers.user_message.render())
 
+        all_model_options: dict[str, Any] = {
+            **(self._options.model_options or {}),
+            **(model_options or {}),
+        }
+
         # Generate response
         try:
             if should_stream:
@@ -90,7 +104,7 @@ class DefaultGenerationCapability:
                     self._tools,
                     callback,
                     system_message,
-                    self._options.model_options,
+                    all_model_options,
                     self._max_retries,
                     conversation.metadata,
                 )
@@ -100,7 +114,7 @@ class DefaultGenerationCapability:
                     messages,
                     self._tools,
                     system_message,
-                    self._options.model_options,
+                    all_model_options,
                     self._max_retries,
                     conversation.metadata,
                 )
@@ -115,3 +129,7 @@ class DefaultGenerationCapability:
             return Failure(
                 f"An exception occured during response generation: {type(e)}: {e}"
             )
+
+    @property
+    def system_prompt(self) -> str | None:
+        return self._options.system_prompt

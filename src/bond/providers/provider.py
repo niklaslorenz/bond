@@ -39,7 +39,10 @@ class Provider[ConfigType: BaseModel](Protocol):
         runtime: "BondRuntime | None" = None,
     ) -> "GenerationCapability | None": ...
     def summarization(
-        self, config: dict[str, Any], runtime: "BondRuntime | None" = None
+        self,
+        config: dict[str, Any],
+        generation: GenerationCapability | None,
+        runtime: "BondRuntime | None" = None,
     ) -> "SummarizationCapability | None": ...
     def tts(
         self, config: dict[str, Any], runtime: "BondRuntime | None" = None

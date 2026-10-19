@@ -3,9 +3,13 @@ from asyncio import Future
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
-from bond.conversation.conversation import ConversationMessage
-from bond.conversation.types import ToolCall, ToolConversationMessage, UsageInfo
-from bond.endpoints.chat_completions import CompletionChunk, CompletionResponse
+from bond.conversation.types import (
+    ConversationMessage,
+    ToolCall,
+    ToolConversationMessage,
+    UsageInfo,
+)
+from bond.endpoints.chat_completions import CompletionChunk
 
 if TYPE_CHECKING:
     from bond.behaviours.async_turn_event_handler import AsyncTurnEventHandler
@@ -14,14 +18,6 @@ if TYPE_CHECKING:
 class AsyncTurnEvent(ABC):
     @abstractmethod
     async def dispatch(self, event_handler: "AsyncTurnEventHandler"): ...
-
-
-@dataclass
-class AsyncTurnAutoSummaryEvent(AsyncTurnEvent):
-    finished: bool
-
-    async def dispatch(self, event_handler: "AsyncTurnEventHandler"):
-        await event_handler.handle_auto_summary_event(self)
 
 
 @dataclass

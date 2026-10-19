@@ -25,7 +25,6 @@ async def run(args: Namespace):
     data_base_path = (
         Path(args.conversation_path or "~/.local/share/bond").expanduser().absolute()
     )
-    last_conv_path = data_base_path / "last-conv.json"
 
     runtime = BondRuntime.get_instance()
     behaviour_flags = BehaviourFlags(
@@ -38,17 +37,25 @@ async def run(args: Namespace):
         config_base_path, data_base_path, behaviour_flags=behaviour_flags
     )
     config = runtime.get_bond_config()
+    logger.debug(
+        f"Found last conversation: {Conversation.exists('last-conv', data_base_path)}"
+    )
     conversation = (
-        (
-            Conversation.load_from_file(last_conv_path)
-            if last_conv_path.is_file()
-            else Conversation()
-        )
-        if not args.temp and not args.to and not args.new
+        Conversation.load("last-conv", data_base_path)
+        if Conversation.exists("last-conv", data_base_path)
+        and not args.temp
+        and not args.to
+        and not args.new
         else Conversation()
     )
+    logger.debug(
+        f"conversation loading gates: temp: {args.temp}, to: {args.to}, new: {args.new}"
+    )
+    logger.debug(
+        f"Number of turns loaded: {sum([len(ep.turns) for ep in conversation.episodes])}"
+    )
     if args.to:
-        conversation.current_persona = args.to
+        conversation.persona = args.to
 
     event_loop = asyncio.get_event_loop()
     persona_id = get_default_persona(config.chat)
@@ -62,8 +69,8 @@ async def run(args: Namespace):
         event_queue,
         event_loop,
         persona_id,
-        config.user_name,
-        not args.no_save_after_turn,
+        save_after_turn=not args.no_save_after_turn,
+        stop_on_failure=False,
     )
     event_handler = TuiEventHandler(event_queue)
     app = BondTui(loop, event_handler)
