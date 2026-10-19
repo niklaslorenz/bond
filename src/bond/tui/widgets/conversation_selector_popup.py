@@ -2,9 +2,9 @@ from difflib import SequenceMatcher
 
 from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.events import Key
+from textual.timer import Timer
 from textual.widgets import Button, Input, Static
 
-from bond.tui.debouncer import Debouncer
 from bond.tui.widgets.popup import TuiPopup
 
 
@@ -15,7 +15,6 @@ class ConversationSelectorPopup(TuiPopup[str], Vertical):
     ):
         super().__init__()
         self.conversations = conversations
-        self._update_debouncer = Debouncer(self.refresh_conversation_list, 0.5)
 
         self._cancel_button = Button(
             "Cancel",
@@ -32,6 +31,7 @@ class ConversationSelectorPopup(TuiPopup[str], Vertical):
 
         self._id_to_index: dict[str, int] = {}
         self._search_value: str = ""
+        self._search_timer: Timer | None = None
         self._visible_buttons: list[Button] = []
         self._visible_conversations: list[str] = []
         self._selected_index: int = -1
@@ -80,11 +80,16 @@ class ConversationSelectorPopup(TuiPopup[str], Vertical):
 
     # Event Handling
 
-    async def on_input_changed(self, event: Input.Changed):
+    def on_input_changed(self, event: Input.Changed):
         if event.input.id != "conversation-selector-search":
             return
         self._search_value = event.value
-        await self._update_debouncer()
+        if self._search_timer is None:
+            self._search_timer = self.set_timer(0.5, self._on_search_timer)
+
+    async def _on_search_timer(self):
+        self._search_timer = None
+        await self.refresh_conversation_list()
 
     def on_key(self, event: Key):
         key = event.key

@@ -184,23 +184,30 @@ class Conversation(BaseModel):
 
         raise ValueError(f"Turn {turn_id} not found")
 
-    def save(self, name: str | None, data_path: Path | None) -> None:
-        """Save the conversation to a directory at *dir*.
+    def move_to(self, name: str, data_path: Path) -> None:
+        if self._data_path is not None and self.name is not None:
+            old_metadata_path = self._data_path / f"{self.name}_metadata.json"
+        else:
+            old_metadata_path = None
+        self.episodes.move_to(name, data_path)
+        self._data_path = data_path
+        self.name = name
+        self.save()
+        if old_metadata_path is not None and old_metadata_path.exists():
+            old_metadata_path.unlink()
 
-        Writes ``metadata.json`` (name, persona, usage, etc.) and episode
-        shards (``episodes_*.json``) into the same directory.
+    def save(self) -> None:
+        if self._data_path is None or self.name is None:
+            raise RuntimeError("Cant save temporary conversation")
 
-        If the conversation is already stored at *dir*, this only writes
-        dirty shards and metadata — no copying is performed.
-        """
-        if data_path is None:
-            data_path = self._data_path
-        if name is None:
-            name = self.name
-        if data_path is None:
-            raise ValueError("Could not determine data path")
-        if name is None:
-            raise ValueError("Could not determine name")
+        self._data_path.mkdir(parents=True, exist_ok=True)
+
+        metadata_path = self._data_path / f"{self.name}_metadata.json"
+        metadata_path.write_text(self.model_dump_json(indent=2), encoding="utf-8")
+
+        self.episodes.save()
+
+    def save_as(self, name: str, data_path: Path) -> None:
         data_path.mkdir(parents=True, exist_ok=True)
 
         # Write metadata (episodes are stored separately)

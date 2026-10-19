@@ -26,8 +26,12 @@ class TuiCommandHandler:
     ):
         self._app = app
         self._runtime = runtime or BondRuntime.get_instance()
-        self._conversation_base_path = self._runtime.get_conversations_path()
-        self._data_path = self._runtime.get_cache_path()
+        conversation_base_path = self._runtime.get_conversations_path()
+        assert conversation_base_path is not None
+        self._conversation_base_path = conversation_base_path
+        data_path = self._runtime.get_cache_path()
+        assert data_path is not None
+        self._data_path = data_path
         self._save_on_quit = self._runtime.behaviour_flags.save_on_quit
 
         self._parser = ArgumentParser(exit_on_error=False)
@@ -39,10 +43,10 @@ class TuiCommandHandler:
 
     def _save_conversation(self, conversation: Conversation):
         if conversation.name and conversation.storage_path:
-            conversation.save(None, None)
+            conversation.save()
 
     def _save_last_conversation(self, conversation: Conversation):
-        conversation.save("last-conv", self._data_path)
+        conversation.save_as("last-conv", self._data_path)
 
     async def _save_and_stop(self, immediate: bool, save: bool):
         logger.debug("Saving")
@@ -66,15 +70,15 @@ class TuiCommandHandler:
             name = result.unwrap()
             if name == None:
                 return True
-            if Conversation.exists(name, self._conversation_base_path):
+            if not Conversation.exists(name, self._conversation_base_path):
                 self._notify(f"Error: unable to find conversation: {name}")
                 return True
             async with self._app.agent_loop.pause():
                 if self._save_on_quit:
                     self._save_conversation(self._app.current_conversation)
-                await self._app.agent_loop.set_conversation(
-                    Conversation.load(name, self._conversation_base_path)
-                )
+                conversation = Conversation.load(name, self._conversation_base_path)
+                conversation._data_path = self._conversation_base_path
+                await self._app.agent_loop.set_conversation(conversation)
                 await self._app.chat_view.sync(self._app.current_conversation)
                 self._app.chat_view.status_bar.set_persona(
                     self._app.agent_loop.persona.name
@@ -92,15 +96,16 @@ class TuiCommandHandler:
             return False
         async with self._app.agent_loop.pause():
             conv = self._app.current_conversation
-            name: str | None = args.name or conv.name
-            if name is None:
-                self._notify("Please specify a name for the conversation")
-                return True
-            conv.name = name
-            self._save_conversation(conv)
+            if args.name is not None:
+                conv.move_to(args.name, self._conversation_base_path)
+            else:
+                if conv.name is None or conv._data_path is None:
+                    self._notify("Please specify a name for the conversation")
+                    return True
+                conv.save()
             if self._save_on_quit:
                 self._save_last_conversation(conv)
-        self._notify(f"Saved as '{name}'")
+        self._notify(f"Saved as '{conv.name}'")
         return True
 
     async def load(self, args: Namespace) -> bool:
@@ -252,13 +257,13 @@ class TuiCommandHandler:
             or not self._conversation_base_path.exists()
         ):
             return []
-        dirs = [
-            (path.stat().st_mtime, path.name)
+        files = [
+            (path.stat().st_mtime, path.name[:-14])
             for path in self._conversation_base_path.iterdir()
-            if path.is_dir() and (path / "metadata.json").is_file()
+            if path.is_file() and path.name.endswith("_metadata.json")
         ]
-        dirs.sort(key=lambda item: item[0], reverse=True)
-        return [name for _, name in dirs]
+        files.sort(key=lambda item: item[0], reverse=True)
+        return [name for _, name in files]
 
     async def handle(self, cmd: str) -> bool:
         if self._app.action_lock.locked():
