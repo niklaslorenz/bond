@@ -63,3 +63,6 @@ line-length = 88
 [tool.isort]
 profile = "black"
 line_length = 88
+
+[tool.pytest.ini_options]
+testpaths = ["test"]

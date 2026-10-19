@@ -59,3 +59,9 @@ class TemporaryEpisodeCache(EpisodeCache):
 
     def save_as(self, name: str, base_path: Path) -> Failure[str]:
         return Failure("Temporary cache cant save")
+
+    def save(self) -> Failure[str]:
+        return Failure("Temporary cache cant save")
+
+    def move_to(self, name: str, base_path: Path) -> Failure[str]:
+        return Failure("Temporary cache cant move")

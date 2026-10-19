@@ -15,7 +15,7 @@ class TextChunk(BaseModel):
 
 
 class ReferenceChunk(BaseModel):
-    type: Literal["reference"]
+    type: Literal["reference"] = "reference"
     reference_ids: list[int]
 
 

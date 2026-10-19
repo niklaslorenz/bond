@@ -22,8 +22,8 @@ class TextItem(WorkingSetItemBase, BaseModel):
 class FileReferenceItem(WorkingSetItemBase, BaseModel):
     type: Literal["file"] = "file"
     path: str
-    start_line: int | None
-    end_line: int | None
+    start_line: int | None = None
+    end_line: int | None = None
 
     def model_post_init(self, context: Any, /) -> None:
         if self.start_line is not None and self.start_line < 0:
