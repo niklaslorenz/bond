@@ -4,4 +4,4 @@
 **/scratch.py
 build/
 /.conversations/
-
+.coverage

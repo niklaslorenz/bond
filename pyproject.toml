@@ -30,7 +30,8 @@ dev = [
     "basedpyright>=1.39.10",
     "black>=26.5.1",
     "isort>=8.0.1",
-    "pytest>=9.1.1"
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0"
 ]
 
 [project.urls]
@@ -66,3 +67,28 @@ line_length = 88
 
 [tool.pytest.ini_options]
 testpaths = ["test"]
+
+[tool.coverage.run]
+source = ["src/bond"]
+branch = true
+omit = [
+    "*/__pycache__/*",
+    "*/.venv/*",
+    "*/test/*"
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+    "@overload"
+]
+show_missing = true
+precision = 2
+
+fail_under = 80
