@@ -239,7 +239,7 @@ class TestConversationAddTurn:
 
 
 # ---------------------------------------------------------------------------
-# delete_turns (deprecated)
+# delete_turns
 # ---------------------------------------------------------------------------
 
 
@@ -269,12 +269,105 @@ class TestConversationDeleteTurns:
         conv.delete_turns(2)
         assert len(conv.last_episode.turns) == 3
 
-    def test_delete_turns_all(self):
+    def test_delete_turns_all_keeps_empty_episode(self):
+        """Deleting all turns should keep one empty episode."""
         conv = Conversation()
         conv.add_turn(make_turn("1"))
         conv.add_turn(make_turn("2"))
         conv.delete_turns(2)
         assert len(conv.last_episode.turns) == 0
+        # Should still have one episode
+        assert len(conv.episodes) == 1
+
+    def test_delete_turns_more_than_exist(self):
+        """Deleting more turns than exist should not cause infinite recursion.
+
+        This was a bug in the old recursive implementation.
+        """
+        conv = Conversation()
+        conv.add_turn(make_turn("1"))
+        conv.add_turn(make_turn("2"))
+        # Delete 10 turns when only 2 exist
+        conv.delete_turns(10)
+        # All turns should be gone, but one empty episode remains
+        assert len(conv.episodes) == 1
+        assert len(conv.episodes[0].turns) == 0
+
+    def test_delete_turns_exact_count(self):
+        """Deleting exactly the number of turns that exist."""
+        conv = Conversation()
+        for i in range(3):
+            conv.add_turn(make_turn(f"Turn {i}"))
+        conv.delete_turns(3)
+        assert len(conv.episodes) == 1
+        assert len(conv.episodes[0].turns) == 0
+
+    def test_delete_turns_on_empty_conversation(self):
+        """Deleting from an empty conversation should not crash."""
+        conv = Conversation()
+        # No turns added - should have one empty episode
+        conv.delete_turns(5)
+        assert len(conv.episodes) == 1
+        assert len(conv.episodes[0].turns) == 0
+
+    def test_delete_turns_across_episodes(self):
+        """Deleting turns should span across multiple episodes."""
+        conv = Conversation()
+        # Add 3 turns to first episode
+        for i in range(3):
+            conv.add_turn(make_turn(f"Turn {i}"))
+        # Archive to create a second episode
+        conv.archive_turns(None, "Summary", "Prefix")
+        # Add 2 turns to second episode
+        conv.add_turn(make_turn("Turn 3"))
+        conv.add_turn(make_turn("Turn 4"))
+
+        assert len(conv.episodes) == 2
+
+        # Delete 3 turns: should remove 2 from second episode + 1 from first
+        conv.delete_turns(3)
+
+        # Should now have 2 episodes (first one has 2 turns left)
+        total_turns = sum(len(ep.turns) for ep in conv.episodes)
+        assert total_turns == 2
+
+    def test_delete_turns_removes_entire_episodes(self):
+        """If deletion spans entire episodes, those episodes should be removed."""
+        conv = Conversation()
+        # Episode 1: 2 turns
+        conv.add_turn(make_turn("1"))
+        conv.add_turn(make_turn("2"))
+        conv.archive_turns(None, "Summary 1", "Prefix")
+        # Episode 2: 2 turns
+        conv.add_turn(make_turn("3"))
+        conv.add_turn(make_turn("4"))
+        conv.archive_turns(None, "Summary 2", "Prefix")
+        # Episode 3: 1 turn
+        conv.add_turn(make_turn("5"))
+
+        assert len(conv.episodes) == 3
+
+        # Delete 4 turns: removes all of episode 3 (1) + episode 2 (2) + 1 from episode 1
+        conv.delete_turns(4)
+
+        # Should have 1 episode left with 1 turn
+        assert len(conv.episodes) == 1
+        assert len(conv.episodes[0].turns) == 1
+
+    def test_delete_turns_preserves_remaining_turns(self):
+        """Turns before the deletion point should be preserved."""
+        conv = Conversation()
+        turns = [make_turn(f"Turn {i}") for i in range(5)]
+        for t in turns:
+            conv.add_turn(t)
+
+        conv.delete_turns(2)
+
+        remaining = conv.last_episode.turns
+        assert len(remaining) == 3
+        assert remaining[0].turn_id == turns[0].turn_id
+        assert remaining[1].turn_id == turns[1].turn_id
+        assert remaining[2].turn_id == turns[2].turn_id
 
 
 # ---------------------------------------------------------------------------

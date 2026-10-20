@@ -3,7 +3,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from pydantic import BaseModel, Field, PrivateAttr
-from typing_extensions import deprecated
 
 from bond.conversation.cache.base import EpisodeCache
 from bond.conversation.cache.file_mapped import FileMappedEpisodeCache
@@ -84,21 +83,48 @@ class Conversation(BaseModel):
     def add_turn(self, turn: Turn) -> None:
         self.episodes.add_turn(turn)
 
-    # TODO: use conversation.rollback instead
-    @deprecated("use Conversation.rollback instead")
     def delete_turns(self, n: int) -> None:
+        """Delete the last *n* turns from the conversation.
+
+        If *n* exceeds the total number of turns, all turns are removed but
+        the conversation always retains at least one (empty) episode.
+
+        Args:
+            n: Number of turns to delete. Must be strictly positive.
+
+        Raises:
+            ValueError: If *n* is not strictly positive.
+        """
         if n <= 0:
             raise ValueError("n must be strictly positive")
-        ep = self.last_episode
-        if ep is None:
-            return
-        if len(ep.turns) >= n:
-            ep.turns = ep.turns[:-n]
-            return
-        ep_len = len(ep.turns)
-        self.episodes.truncate(len(self.episodes) - 1)
-        # NOTE: recursive call is ugly, but should work fine
-        self.delete_turns(n - ep_len)
+
+        remaining = n
+
+        # Work backwards through episodes, removing turns
+        while remaining > 0 and len(self.episodes) > 0:
+            episode_idx = len(self.episodes) - 1
+            episode = self.episodes[episode_idx]
+
+            if len(episode.turns) <= remaining:
+                # Episode has fewer turns than we need to delete
+                remaining -= len(episode.turns)
+                if len(self.episodes) > 1:
+                    # Remove this episode entirely (but keep at least one)
+                    self.episodes.truncate(episode_idx)
+                else:
+                    # Last episode: just clear its turns
+                    episode.turns = []
+                    self.episodes.mark_dirty(episode_idx)
+                    remaining = 0  # Nothing more to delete
+            else:
+                # Episode has more turns than we need to delete
+                episode.turns = episode.turns[:-remaining]
+                self.episodes.mark_dirty(episode_idx)
+                remaining = 0
+
+        # Safety: ensure at least one episode exists
+        if len(self.episodes) == 0:
+            self.episodes.append(Episode())
 
     def condense_turns(self, kept_turns: int):
         if kept_turns < 0:

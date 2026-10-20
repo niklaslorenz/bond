@@ -350,9 +350,6 @@ class BondRuntime:
     def list_skills(self) -> list[str]:
         return self._get_env().list_skills()
 
-    def get_plugin_data_base_dir(self):
-        return self._get_env().get_plugin_data_base_dir()
-
     def get_conversations_path(self) -> Path | None:
         return self._get_env().get_conversations_path()
 
