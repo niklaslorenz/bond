@@ -7,7 +7,6 @@ from pydantic import BaseModel
 
 from bond.conversation.types import (
     AssistantMessage,
-    ConversationMetadata,
     Message,
     SystemMessage,
     TextChunk,
@@ -173,7 +172,6 @@ class OllamaChatCompletions:
         system_message: SystemMessage | None = None,
         options: dict[str, Any] | None = None,
         max_retries: int = 3,
-        conversation_metadata: ConversationMetadata | None = None,
     ) -> CompletionResponse:
         if self.config.models is not None and model not in self.config.models:
             raise ValueError(f"This model is not whitelisted")
@@ -214,7 +212,6 @@ class OllamaChatCompletions:
         system_message: SystemMessage | None = None,
         options: dict[str, Any] | None = None,
         max_retries: int = 3,
-        conversation_metadata: ConversationMetadata | None = None,
     ) -> CompletionResponse:
         raise NotImplementedError()
 

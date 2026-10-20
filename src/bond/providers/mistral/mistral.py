@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING, Any, Type
 
 from bond.capabilities.generation import GenerationCapability
 from bond.providers.general.generation import (
-    DefaultGenerationCapability,
     DefaultGenerationOptions,
 )
 from bond.providers.general.memory import DefaultMemoryCapability, DefaultMemoryOptions
@@ -13,6 +12,7 @@ from bond.providers.general.util import DefaultMessageListBuilder
 from bond.providers.mistral.chat_completions import MistralChatCompletions
 from bond.providers.mistral.config import MistralConfig
 from bond.providers.mistral.embeddings import MistralEmbeddings
+from bond.providers.mistral.generation import MistralGeneration
 from bond.providers.mistral.models import MistralModels
 from bond.providers.mistral.summarization import (
     MistralSummarization,
@@ -77,10 +77,10 @@ class Mistral:
         config: dict[str, Any],
         toolbox: Toolbox,
         runtime: "BondRuntime | None" = None,
-    ) -> DefaultGenerationCapability:
+    ) -> MistralGeneration:
         options = DefaultGenerationOptions.model_validate(config)
         options.resolve(runtime)
-        return DefaultGenerationCapability(
+        return MistralGeneration(
             name,
             options,
             toolbox.tool_descriptions,

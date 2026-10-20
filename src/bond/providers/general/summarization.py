@@ -89,7 +89,6 @@ class DefaultSummarizationCapability:
             [],
             system_msg,
             options.model_options,
-            conversation_metadata=conversation.metadata,
         )
         if response.choices[0].message.tool_calls is not None:
             logger.warning(

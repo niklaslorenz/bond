@@ -7,7 +7,6 @@ from pydantic import BaseModel, field_validator
 from bond.conversation.types import (
     AssistantMessage,
     AssistantMessageChunk,
-    ConversationMetadata,
     Message,
     ReferenceChunk,
     SystemMessage,
@@ -74,7 +73,6 @@ class ChatCompletionsEndpoint(Protocol):
         system_message: SystemMessage | None = None,
         options: dict[str, Any] | None = None,
         max_retries: int = 10,
-        conversation_metadata: ConversationMetadata | None = None,
     ) -> CompletionResponse: ...
     def stream_chat_completion(
         self,
@@ -85,7 +83,6 @@ class ChatCompletionsEndpoint(Protocol):
         system_message: SystemMessage | None = None,
         options: dict[str, Any] | None = None,
         max_retries: int = 10,
-        conversation_metadata: ConversationMetadata | None = None,
     ) -> CompletionResponse: ...
     def supports_streaming(self) -> bool: ...
 

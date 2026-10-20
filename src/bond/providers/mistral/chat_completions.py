@@ -1,9 +1,8 @@
 from typing import Any
-from uuid import uuid4
 
 import requests
 
-from bond.conversation.types import ConversationMetadata, SystemMessage
+from bond.conversation.types import SystemMessage
 from bond.endpoints.chat_completions import (
     ChatCompletionStreamCallback,
     CompletionChunk,
@@ -35,7 +34,6 @@ class MistralChatCompletions:
         system_message: SystemMessage | None = None,
         options: dict[str, Any] | None = None,
         max_retries: int = 3,
-        conversation_metadata: ConversationMetadata | None = None,
     ) -> CompletionResponse:
         if self.config.models is not None and model not in self.config.models:
             raise ValueError(f"This model is not whitelisted: {model}")
@@ -49,11 +47,6 @@ class MistralChatCompletions:
             "tools": [tool.model_dump() for tool in tools],
             **merged_options,
         }
-        if (
-            conversation_metadata is not None
-            and conversation_metadata.mistral_cache_key is not None
-        ):
-            payload["prompt_cache_key"] = conversation_metadata.mistral_cache_key
         response = http_retry_loop(
             lambda: requests.post(
                 "https://api.mistral.ai/v1/chat/completions",
@@ -63,11 +56,6 @@ class MistralChatCompletions:
             ),
             max_retries=max_retries,
         )
-        if (
-            conversation_metadata is not None
-            and conversation_metadata.mistral_cache_key is None
-        ):
-            conversation_metadata.mistral_cache_key = _generate_cache_key()
         return CompletionResponse.model_validate(response.json())
 
     def stream_chat_completion(
@@ -79,7 +67,6 @@ class MistralChatCompletions:
         system_message: SystemMessage | None = None,
         options: dict[str, Any] | None = None,
         max_retries: int = 3,
-        conversation_metadata: ConversationMetadata | None = None,
     ) -> CompletionResponse:
         if self.config.models is not None and model not in self.config.models:
             raise ValueError(f"Invalid model: {model}")
@@ -94,11 +81,6 @@ class MistralChatCompletions:
             "stream": True,
             **merged_options,
         }
-        if (
-            conversation_metadata is not None
-            and conversation_metadata.mistral_cache_key is not None
-        ):
-            payload["prompt_cache_key"] = conversation_metadata.mistral_cache_key
         response = http_retry_loop(
             lambda: requests.post(
                 "https://api.mistral.ai/v1/chat/completions",
@@ -115,16 +97,7 @@ class MistralChatCompletions:
             chunk = CompletionChunk.model_validate_json(event)
             chunks.append(chunk)
             callback(chunk)
-        if (
-            conversation_metadata is not None
-            and conversation_metadata.mistral_cache_key is None
-        ):
-            conversation_metadata.mistral_cache_key = _generate_cache_key()
         return build_response(chunks)
 
     def supports_streaming(self) -> bool:
         return True
-
-
-def _generate_cache_key():
-    return str(uuid4())

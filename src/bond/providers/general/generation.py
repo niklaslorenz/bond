@@ -106,7 +106,6 @@ class DefaultGenerationCapability:
                     system_message,
                     all_model_options,
                     self._max_retries,
-                    conversation.metadata,
                 )
             else:
                 response = self._chat_completions.chat_completion(
@@ -116,7 +115,6 @@ class DefaultGenerationCapability:
                     system_message,
                     all_model_options,
                     self._max_retries,
-                    conversation.metadata,
                 )
             if len(response.choices) == 0:
                 return Failure(f"Received empty response from backend: {response}")
