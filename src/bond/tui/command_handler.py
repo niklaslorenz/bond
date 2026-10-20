@@ -103,7 +103,7 @@ class TuiCommandHandler:
                 if conv.name is None or conv._data_path is None:
                     self._notify("Please specify a name for the conversation")
                     return True
-                conv.save()
+                conv.save_as(conv.name, self._conversation_base_path)
             if self._save_on_quit:
                 self._save_last_conversation(conv)
         self._notify(f"Saved as '{conv.name}'")

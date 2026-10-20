@@ -1,3 +1,4 @@
+import json
 from typing import Any
 
 import requests
@@ -56,7 +57,13 @@ class MistralChatCompletions:
             ),
             max_retries=max_retries,
         )
-        return CompletionResponse.model_validate(response.json())
+        raw_data = response.json()
+        parsed_response = CompletionResponse.model_validate(raw_data)
+        if (
+            cached_tokens := _extract_cached_tokens(raw_data.get("usage", {}))
+        ) is not None:
+            parsed_response.usage.num_cached_tokens = cached_tokens
+        return parsed_response
 
     def stream_chat_completion(
         self,
@@ -94,10 +101,25 @@ class MistralChatCompletions:
         for event in parse_sse_stream(response.iter_lines()):
             if event == "[DONE]":
                 break
-            chunk = CompletionChunk.model_validate_json(event)
+            raw_chunk = json.loads(event)
+            chunk = CompletionChunk.model_validate(raw_chunk)
+            if chunk.usage is not None:
+                if (
+                    cached_tokens := _extract_cached_tokens(raw_chunk.get("usage", {}))
+                ) is not None:
+                    chunk.usage.num_cached_tokens = cached_tokens
             chunks.append(chunk)
             callback(chunk)
         return build_response(chunks)
 
     def supports_streaming(self) -> bool:
         return True
+
+
+def _extract_cached_tokens(raw_usage: dict[str, Any]) -> int | None:
+    details = raw_usage.get("prompt_token_details") or raw_usage.get(
+        "prompt_tokens_details"
+    )
+    if isinstance(details, dict):
+        return details.get("cached_tokens")
+    return None

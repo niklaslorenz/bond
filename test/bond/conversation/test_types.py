@@ -8,26 +8,21 @@ from pydantic import ValidationError
 from bond.conversation.types import (
     AssistantConversationMessage,
     AssistantMessage,
-    AssistantMessageChunk,
-    BaseConversationMessage,
     ConversationMetadata,
     Episode,
     FunctionCall,
     ReferenceChunk,
     SystemMessage,
-    SystemMessageChunk,
     TextChunk,
     ThinkChunk,
     ToolCall,
     ToolConversationMessage,
     ToolMessage,
-    ToolMessageChunk,
     ToolReferenceChunk,
     Turn,
     UsageInfo,
     UserConversationMessage,
     UserMessage,
-    UserMessageChunk,
 )
 
 # ---------------------------------------------------------------------------
@@ -343,6 +338,14 @@ class TestUsageInfo:
             total_tokens=30,
         )
         assert usage.prompt_audio_seconds is None
+
+    def test_cached_tokens_optional(self):
+        usage = UsageInfo(
+            completion_tokens=10,
+            prompt_tokens=20,
+            total_tokens=30,
+        )
+        assert usage.num_cached_tokens is None
 
 
 class TestConversationMetadata:

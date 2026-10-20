@@ -9,6 +9,7 @@ class StatusBar(Static):
     persona = reactive("<unknown>")
     status = reactive("Idle")
     context_length = reactive(0)
+    cache_rate = reactive(None)
 
     def __init__(
         self,
@@ -28,7 +29,9 @@ class StatusBar(Static):
             ("Status: ", "bold"),
             f"{self.status}  ",
             ("Context: ", "bold"),
-            f"{self.context_length}",
+            f"{self.context_length}  ",
+            ("Cache Rate: ", "bold"),
+            f"{int(self.cache_rate * 100)}%" if self.cache_rate is not None else "?",
         )
 
     # Control
@@ -38,6 +41,9 @@ class StatusBar(Static):
 
     def set_usage(self, usage: int):
         self.context_length = usage
+
+    def set_cache_rate(self, cache_rate: float | None):
+        self.cache_rate = cache_rate
 
     def set_persona(self, persona_name: str):
         self.persona = persona_name

@@ -82,6 +82,7 @@ class ChatView(Container):
             for message in episode.flatten():
                 self.add_conversation_message(message)
         self.status_bar.set_usage(conversation.current_usage)
+        self.status_bar.set_cache_rate(None)
         self.chat_log.scroll_end(animate=False)
 
     def ensure_current_author(

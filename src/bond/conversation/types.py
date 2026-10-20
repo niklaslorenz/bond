@@ -110,6 +110,7 @@ Message = AssistantMessage | UserMessage | SystemMessage | ToolMessage
 
 class UsageInfo(BaseModel):
     completion_tokens: int
+    num_cached_tokens: int | None = None
     prompt_audio_seconds: int | None = None
     prompt_tokens: int
     total_tokens: int

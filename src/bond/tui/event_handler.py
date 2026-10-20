@@ -110,6 +110,11 @@ class TuiEventHandler(AsyncTurnEventHandler):
 
     async def handle_response_end_event(self, event: AsyncTurnResponseEndEvent):
         self._get_app().chat_view.status_bar.set_usage(event.usage.total_tokens)
+        self._get_app().chat_view.status_bar.set_cache_rate(
+            (event.usage.num_cached_tokens) / event.usage.prompt_tokens
+            if event.usage.num_cached_tokens is not None
+            else None
+        )
 
     async def handle_response_start_event(self, event: AsyncTurnResponseStartEvent):
         self._get_app().chat_view.ensure_current_author(event.role, event.author)

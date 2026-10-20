@@ -14,7 +14,7 @@ class Observable[T]:
 
     def notify(self):
         for subscriber in self._subscribers:
-            subscriber.notify(self._value)
+            subscriber(self._value)
 
     def clear_subscribers(self):
         self._subscribers.clear()
@@ -29,4 +29,4 @@ class Observable[T]:
     @value.setter
     def value(self, new_value: T):
         self._value = new_value
-        self.notify
+        self.notify()
