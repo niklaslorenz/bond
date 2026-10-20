@@ -19,23 +19,49 @@ class DefaultMessageListBuilder:
     ) -> tuple[SystemMessage | None, list[Message]]:
         episode = conversation.last_episode
 
-        summary_prompt_extension = (
-            (
-                "\n<previous-context>\n"
-                "  <reliability>imperfect</reliability>\n"
-                "  <source>model generated</source>\n"
-                "  <content>\n"
-                f"    {episode.prefix_summary}\n"
-                "  </content>\n"
+        context_sections: list[str] = []
+
+        if conversation.working_set is not None and conversation.working_set.items:
+            context_sections.append(
+                "<working-set>\n"
+                "<reliability>potentially outdated</reliability>\n"
+                "<source>updated during summarization</source>\n"
+                "<content>\n"
+                f"{conversation.working_set.render()}\n"
+                "</content>\n"
+                "</working-set>"
+            )
+
+        if conversation.task_list is not None and len(conversation.task_list) > 0:
+            context_sections.append(
+                "<task-list>\n"
+                "<reliability>imperfect</reliability>\n"
+                "<source>self-maintained</source>\n"
+                "<content>\n"
+                f"{conversation.task_list.render()}\n"
+                "</content>\n"
+                "</task-list>"
+            )
+
+        if episode.prefix_summary is not None:
+            context_sections.append(
+                "<previous-context>\n"
+                "<reliability>imperfect</reliability>\n"
+                "<source>model generated</source>\n"
+                "<content>\n"
+                f"{episode.prefix_summary}\n"
+                "</content>\n"
                 "</previous-context>"
             )
-            if episode.prefix_summary is not None
-            else None
-        )
-        if system_message is not None or summary_prompt_extension is not None:
-            system_prompt = (
-                (system_message or "") + "\n" + (summary_prompt_extension or "")
+
+        context_extension = "\n".join(context_sections) if context_sections else None
+
+        if system_message is not None or context_extension is not None:
+            system_prompt = (system_message or "") + (
+                "\n\n" + context_extension if context_extension else ""
             )
+        else:
+            system_prompt = None
         system_prompt = (
             SystemMessage(content=[TextChunk(text=system_prompt)])
             if system_prompt is not None

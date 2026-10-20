@@ -42,26 +42,19 @@ class Persona:
         if self.memory is not None:
             self.memory.release()
 
-    def create_conversation(self) -> Conversation:
-        if (features := self.config.conversation_features) is None:
-            return Conversation()
-        return Conversation(
-            persona=self.name,
-            working_set=WorkingSet() if features.working_set else None,
-            task_list=TaskList() if features.task_list else None,
-        )
-
 
 class ConversationFeatures(BaseModel):
-    task_list: bool
-    working_set: bool
+    task_list: bool = False
+    working_set: bool = False
 
 
 class PersonaConfig(BaseModel):
     type: ClassVar[str] = "default"
 
     name: str
-    conversation_features: ConversationFeatures | None = None
+    conversation_features: ConversationFeatures = Field(
+        default_factory=ConversationFeatures
+    )
 
     generation: dict[str, Any]
     summarization: dict[str, Any] | None = None
