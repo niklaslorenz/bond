@@ -27,6 +27,8 @@ class AsyncAgentTurn:
         persona: Persona,
         tool_call_context: ToolCallContext,
         event_queue: asyncio.Queue[AsyncTurnEvent],
+        stream: bool,
+        allow_shell_executions: bool,
         runtime: BondRuntime | None = None,
         loop: asyncio.AbstractEventLoop | None = None,
     ):
@@ -39,10 +41,8 @@ class AsyncAgentTurn:
         self._generation = persona.generation
         self._tts = persona.tts
 
-        self._stream = self._runtime.behaviour_flags.stream
-        self._allow_shell_executions = (
-            self._runtime.behaviour_flags.allow_shell_executions
-        )
+        self._stream = stream
+        self._allow_shell_executions = allow_shell_executions
         self._turn_status: Observable[TurnStatus] = Observable("Stopped")
 
     @property

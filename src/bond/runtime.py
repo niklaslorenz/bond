@@ -14,7 +14,6 @@ from typing import Type
 from mcp import StdioServerParameters
 from returns.result import Result, Success
 
-from bond.behaviour_flags import BehaviourFlags
 from bond.config import (
     BondConfig,
     McpHttpServerConfig,
@@ -292,7 +291,6 @@ class BondRuntime:
         self._loaded_personas = NamedEntryRegistry[PersonaConfig]()
         self._loaded_skills = NamedEntryRegistry[str]()
         self._environment: RuntimeEnvironment | None = None
-        self._behaviour_flags = BehaviourFlags()
         logger.debug("BondRuntime created")
 
     def initialize_static(
@@ -302,13 +300,10 @@ class BondRuntime:
         personas: dict[str, PersonaConfig],
         plugins: dict[str, BondPlugin],
         skills: dict[str, str],
-        behaviour_flags: BehaviourFlags | None = None,
     ) -> StaticRuntimeEnvironment:
         self._environment = StaticRuntimeEnvironment(
             config, providers, personas, plugins, skills
         )
-        if behaviour_flags:
-            self._behaviour_flags = behaviour_flags
         self._register_builtin_toolsets()
         self._register_builtin_provider_types()
         self._register_mcp_toolsets()
@@ -320,15 +315,12 @@ class BondRuntime:
         config_dir: Path | None = None,
         data_dir: Path | None = None,
         enable_plugins: bool = True,
-        behaviour_flags: BehaviourFlags | None = None,
     ) -> DynamicRuntimeEnvironment:
         if config_dir is None:
             config_dir = Path("~/.config/bond").expanduser().absolute()
         if data_dir is None:
             data_dir = Path("~/.local/share/bond").expanduser().absolute()
         self._environment = DynamicRuntimeEnvironment(config_dir, data_dir)
-        if behaviour_flags:
-            self._behaviour_flags = behaviour_flags
         self._register_builtin_toolsets()
         self._register_builtin_provider_types()
         self._register_mcp_toolsets()
@@ -365,10 +357,6 @@ class BondRuntime:
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
-
-    @property
-    def behaviour_flags(self):
-        return self._behaviour_flags
 
     @property
     def provider_type_registry(self) -> NamedEntryRegistry[Type[Provider]]:

@@ -51,8 +51,10 @@ class AsyncAgentLoop:
         event_loop: asyncio.AbstractEventLoop,
         default_persona_id: str,
         *,
-        save_after_turn: bool = False,
-        stop_on_failure: bool = False,
+        stream: bool,
+        allow_shell_executions: bool,
+        save_after_turn: bool,
+        stop_on_failure: bool,
     ):
         self._runtime = runtime
         self._conversation = conversation
@@ -71,8 +73,8 @@ class AsyncAgentLoop:
         self._pause_depth = 0
         self._loop_status: Observable[LoopStatus] = Observable("Stopped")
 
-        self._stream = runtime.behaviour_flags.stream
-        self._allow_shell_executions = runtime.behaviour_flags.allow_shell_executions
+        self._stream = stream
+        self._allow_shell_executions = allow_shell_executions
 
         self._agent_turn, self._persona = self._build_turn()
 
@@ -287,6 +289,8 @@ class AsyncAgentLoop:
             persona,
             self._tool_call_context,
             self._event_queue,
+            self._stream,
+            self._allow_shell_executions,
             self._runtime,
             self._event_loop,
         )

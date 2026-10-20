@@ -33,13 +33,14 @@ class BondTui(App):
         self,
         loop: AsyncAgentLoop,
         event_handler: TuiEventHandler,
+        save_on_quit: bool,
         user_name: str = "User",
     ):
         super().__init__()
         self.agent_loop = loop
         self._event_handler = event_handler
         self._user_name = user_name
-        self._command_handler = TuiCommandHandler(self)
+        self._command_handler = TuiCommandHandler(self, save_on_quit)
         self.task_registry = TaskRegistry()
         self.popup_manager = PopupManager(self)
         self.chat_view = ChatView()

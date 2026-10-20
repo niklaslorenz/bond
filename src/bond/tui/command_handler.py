@@ -22,6 +22,7 @@ class TuiCommandHandler:
     def __init__(
         self,
         app: "BondTui",
+        save_on_quit: bool,
         runtime: BondRuntime | None = None,
     ):
         self._app = app
@@ -32,7 +33,7 @@ class TuiCommandHandler:
         data_path = self._runtime.get_cache_path()
         assert data_path is not None
         self._data_path = data_path
-        self._save_on_quit = self._runtime.behaviour_flags.save_on_quit
+        self._save_on_quit = save_on_quit
 
         self._parser = ArgumentParser(exit_on_error=False)
         self._subparsers = self._parser.add_subparsers(title="command")

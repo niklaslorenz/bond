@@ -4,7 +4,6 @@ from argparse import ArgumentParser, Namespace
 from asyncio import Queue
 from pathlib import Path
 
-from bond.behaviour_flags import BehaviourFlags
 from bond.behaviours.async_loop import AsyncAgentLoop
 from bond.behaviours.async_turn import AsyncTurnEvent
 from bond.config import get_default_persona
@@ -26,16 +25,13 @@ async def run(args: Namespace):
         Path(args.conversation_path or "~/.local/share/bond").expanduser().absolute()
     )
 
+    save_after_turn = args.no_save_after_turn
+    save_on_quit = not args.temp
+    allow_shell_executions = True
+    stream = True
+
     runtime = BondRuntime.get_instance()
-    behaviour_flags = BehaviourFlags(
-        save_after_turn=args.no_save_after_turn,
-        save_on_quit=not args.temp,
-        allow_shell_executions=True,
-        stream=True,
-    )
-    runtime.initialize_dynamic(
-        config_base_path, data_base_path, behaviour_flags=behaviour_flags
-    )
+    runtime.initialize_dynamic(config_base_path, data_base_path)
     config = runtime.get_bond_config()
     logger.debug(
         f"Found last conversation: {Conversation.exists('last-conv', data_base_path)}"
@@ -69,11 +65,13 @@ async def run(args: Namespace):
         event_queue,
         event_loop,
         persona_id,
+        stream=stream,
+        allow_shell_executions=allow_shell_executions,
         save_after_turn=not args.no_save_after_turn,
         stop_on_failure=False,
     )
     event_handler = TuiEventHandler(event_queue)
-    app = BondTui(loop, event_handler)
+    app = BondTui(loop, event_handler, save_on_quit)
     event_handler.link(app)
     await app.run_async()
 
