@@ -102,7 +102,6 @@ class Ollama:
     def summarization(
         self,
         config: dict[str, Any],
-        generation: GenerationCapability | None,
         runtime: "BondRuntime | None" = None,
     ):
         # Not implmented

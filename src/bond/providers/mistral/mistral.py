@@ -53,17 +53,14 @@ class Mistral:
     def summarization(
         self,
         config: dict[str, Any],
-        generation: GenerationCapability | None = None,
         runtime: "BondRuntime | None" = None,
     ) -> MistralSummarization:
         options = DefaultSummarizationOptions.model_validate(config)
         options.resolve(runtime)
-        generation_prompt = generation.system_prompt if generation is not None else None
         return MistralSummarization(
             options,
             self.chat_completions(),
             self._build_message_list,
-            generation_prompt,
             (
                 str(hash(options.thought_condensation.prompt))
                 if options.thought_condensation

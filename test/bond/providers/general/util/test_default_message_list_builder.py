@@ -1,4 +1,4 @@
-"""Tests for bond.providers.general.util module."""
+"""Tests for bond.providers.general.util.default_message_list_builder module."""
 
 from bond.conversation.conversation import Conversation
 from bond.conversation.types import (

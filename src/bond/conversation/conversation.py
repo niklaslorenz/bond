@@ -138,6 +138,8 @@ class Conversation(BaseModel):
         num_turns: int | None,
         episode_summary: str,
         prefix_summary: str,
+        *,
+        condense_kept_turns: bool,
     ) -> Episode:
         """Archive the oldest N turns from the current unfinished episode.
 
@@ -180,6 +182,9 @@ class Conversation(BaseModel):
             prefix_summary=prefix_summary,
             turns=remaining_turns,
         )
+        if condense_kept_turns:
+            for turn in remaining_turns:
+                turn.condense()
         self.episodes.append(new_episode)
 
         return finished

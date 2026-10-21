@@ -9,9 +9,6 @@ from bond.capabilities.generation import GenerationCapability
 from bond.capabilities.memory import MemoryCapability
 from bond.capabilities.summarization import SummarizationCapability
 from bond.capabilities.tts import TTSCapability
-from bond.conversation.conversation import Conversation
-from bond.conversation.task_list import TaskList
-from bond.conversation.working_set import WorkingSet
 from bond.tools.toolbox import Toolbox
 
 if TYPE_CHECKING:
@@ -162,9 +159,7 @@ class PersonaConfig(BaseModel):
             raise RuntimeError("Provider does not support generation")
         summarization = (
             _get_provider(self.summarization, runtime)
-            .map(
-                lambda x: x.summarization(self.summarization or {}, generation, runtime)
-            )
+            .map(lambda x: x.summarization(self.summarization or {}, runtime))
             .value_or(None)
         )
         tts = (

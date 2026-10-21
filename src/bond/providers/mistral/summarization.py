@@ -12,7 +12,6 @@ class MistralSummarization(DefaultSummarizationCapability):
         config: DefaultSummarizationOptions,
         chat_completions: MistralChatCompletions,
         message_list_builder: MessageListBuilder,
-        system_prompt: str | None,
         cache_key: str | None,
     ):
         if cache_key is not None and config.thought_condensation is not None:
@@ -22,4 +21,4 @@ class MistralSummarization(DefaultSummarizationCapability):
                 config.thought_condensation.model_options["prompt_cache_key"] = (
                     cache_key
                 )
-        super().__init__(config, chat_completions, message_list_builder, system_prompt)
+        super().__init__(config, chat_completions, message_list_builder)

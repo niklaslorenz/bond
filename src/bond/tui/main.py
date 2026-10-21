@@ -67,7 +67,7 @@ async def run(args: Namespace):
         persona_id,
         stream=stream,
         allow_shell_executions=allow_shell_executions,
-        save_after_turn=not args.no_save_after_turn,
+        save_after_turn=save_after_turn,
         stop_on_failure=False,
     )
     event_handler = TuiEventHandler(event_queue)
