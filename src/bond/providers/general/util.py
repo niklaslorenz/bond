@@ -6,6 +6,7 @@ from bond.conversation.types import (
     SystemMessage,
     TextChunk,
     ToolCall,
+    ToolMessage,
 )
 
 
@@ -83,4 +84,20 @@ class DefaultMessageListBuilder:
                 ]
             )
             messages = [mock] + messages
+
+        # When rendering a prefix of the episode (e.g. for summarization),
+        # the cut may land right after an assistant message with tool calls
+        # whose responses live in the excluded turns. Append mock tool
+        # responses so the message list stays valid for the API.
+        if turns is not None and messages:
+            last = messages[-1]
+            if isinstance(last, AssistantMessage) and last.tool_calls:
+                messages.extend(
+                    ToolMessage(
+                        name=call.function.name,
+                        tool_call_id=call.id,
+                        content=[TextChunk(text="<tool output truncated>")],
+                    )
+                    for call in last.tool_calls
+                )
         return system_prompt, messages
