@@ -38,7 +38,21 @@ from bond.tools.mcp_toolset import McpToolset
 from bond.tools.memory_tools import recall_memory, retire_memory, store_memory
 from bond.tools.shell_tools import run_shell_commands
 from bond.tools.stream_tools import write_to_output
+from bond.tools.task_list import (
+    add_tasks,
+    clear_completed_tasks,
+    clear_tasks,
+    complete_tasks,
+    delete_tasks,
+)
 from bond.tools.test_tool import test_confirmation
+from bond.tools.working_set import (
+    add_working_set_directory,
+    add_working_set_file,
+    add_working_set_text,
+    clear_working_set,
+    remove_working_set_items,
+)
 from bond.tools.toolbox import PythonToolset, Toolbox, Toolset
 from bond.tools.web_access import access_web
 from bond.tools.web_search import search_the_web
@@ -64,6 +78,20 @@ _default_toolsets: list[Toolset] = [
     PythonToolset("write", [write_to_output]),
     PythonToolset("test", [test_confirmation]),
     PythonToolset("memory", [recall_memory, store_memory, retire_memory]),
+    PythonToolset(
+        "task_list",
+        [add_tasks, complete_tasks, delete_tasks, clear_tasks, clear_completed_tasks],
+    ),
+    PythonToolset(
+        "working_set",
+        [
+            add_working_set_text,
+            add_working_set_file,
+            add_working_set_directory,
+            remove_working_set_items,
+            clear_working_set,
+        ],
+    ),
 ]
 
 

@@ -100,6 +100,14 @@ class DefaultSummarizationCapability:
             [chunk.text for chunk in content if isinstance(chunk, TextChunk)]
         )
         conversation.archive_turns(n_summarized_turns, "", summary)
+
+        # Refresh the displayed working set and task list so changes made
+        # by tools become visible to the model
+        if conversation.working_set is not None:
+            conversation.working_set.update()
+        if conversation.task_list is not None:
+            conversation.task_list.update()
+
         return Success(n_summarized_turns)
 
     def condense_thoughts(

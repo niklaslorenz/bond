@@ -14,6 +14,7 @@ class TaskListItem(BaseModel):
 
 class TaskList(BaseModel):
     content: list[TaskListItem] = Field(default_factory=list)
+    displayed: str | None = None
 
     def __len__(self) -> int:
         return len(self.content)
@@ -36,7 +37,13 @@ class TaskList(BaseModel):
         return item
 
     def render(self) -> str:
-        return "\n".join([item.render() for item in self.content])
+        if self.displayed is None:
+            return self.update()
+        return self.displayed
+
+    def update(self) -> str:
+        self.displayed = "\n".join([item.render() for item in self.content])
+        return self.displayed
 
     def clear_complete_items(self) -> None:
         self.content = [item for item in self.content if not item.is_complete]

@@ -49,13 +49,15 @@ class TestWorkingSetCreation:
         assert len(ws.items) == 0
 
     def test_creation_with_items(self):
-        items = [
+        items: list[WorkingSetItem] = [
             make_text_item("First"),
             make_text_item("Second"),
         ]
         ws = WorkingSet(items=items)
         assert len(ws.items) == 2
+        assert isinstance(ws.items[0], TextItem)
         assert ws.items[0].text == "First"
+        assert isinstance(ws.items[1], TextItem)
         assert ws.items[1].text == "Second"
 
     def test_creation_with_mixed_item_types(self):
@@ -89,6 +91,7 @@ class TestWorkingSetItemAccess:
         ws = WorkingSet()
         ws.items.append(make_text_item("New item"))
         assert len(ws.items) == 1
+        assert isinstance(ws.items[0], TextItem)
         assert ws.items[0].text == "New item"
 
     def test_append_multiple_items(self):
@@ -109,11 +112,13 @@ class TestWorkingSetItemAccess:
         assert len(ws.items) == 0
 
     def test_iterate_items(self):
-        ws = WorkingSet(items=[
-            make_text_item("A"),
-            make_text_item("B"),
-            make_text_item("C"),
-        ])
+        ws = WorkingSet(
+            items=[
+                make_text_item("A"),
+                make_text_item("B"),
+                make_text_item("C"),
+            ]
+        )
         texts = [item.text for item in ws.items if isinstance(item, TextItem)]
         assert texts == ["A", "B", "C"]
 
@@ -127,7 +132,7 @@ class TestWorkingSetSerialization:
     def test_model_dump_empty(self):
         ws = WorkingSet()
         data = ws.model_dump()
-        assert data == {"items": []}
+        assert data == {"items": [], "displayed": None}
 
     def test_model_dump_with_text_items(self):
         ws = WorkingSet(items=[make_text_item("Hello")])
@@ -138,11 +143,13 @@ class TestWorkingSetSerialization:
         assert data["items"][0]["text"] == "Hello"
 
     def test_model_dump_with_mixed_items(self):
-        ws = WorkingSet(items=[
-            make_text_item("Note"),
-            make_file_item("/file.txt"),
-            make_dir_item("/dir"),
-        ])
+        ws = WorkingSet(
+            items=[
+                make_text_item("Note"),
+                make_file_item("/file.txt"),
+                make_dir_item("/dir"),
+            ]
+        )
         data = ws.model_dump()
         assert len(data["items"]) == 3
         # Each item should have its type discriminator
@@ -170,10 +177,12 @@ class TestWorkingSetDeserialization:
         assert ws2.items == []
 
     def test_roundtrip_with_text_items(self):
-        ws = WorkingSet(items=[
-            make_text_item("First"),
-            make_text_item("Second"),
-        ])
+        ws = WorkingSet(
+            items=[
+                make_text_item("First"),
+                make_text_item("Second"),
+            ]
+        )
         data = ws.model_dump(mode="json")
         ws2 = WorkingSet.model_validate(data)
         assert len(ws2.items) == 2
@@ -184,11 +193,13 @@ class TestWorkingSetDeserialization:
 
     def test_roundtrip_with_mixed_items(self):
         """Polymorphic deserialization: each item type should be correctly restored."""
-        ws = WorkingSet(items=[
-            make_text_item("A note"),
-            make_file_item("/path/to/file.txt"),
-            make_dir_item("/path/to/dir"),
-        ])
+        ws = WorkingSet(
+            items=[
+                make_text_item("A note"),
+                make_file_item("/path/to/file.txt"),
+                make_dir_item("/path/to/dir"),
+            ]
+        )
         data = ws.model_dump(mode="json")
         ws2 = WorkingSet.model_validate(data)
         assert len(ws2.items) == 3
@@ -243,10 +254,12 @@ class TestWorkingSetJsonSerialization:
         assert '"text":"JSON"' in json_str
 
     def test_model_validate_json_roundtrip(self):
-        ws = WorkingSet(items=[
-            make_text_item("Text item"),
-            make_file_item("/file.txt"),
-        ])
+        ws = WorkingSet(
+            items=[
+                make_text_item("Text item"),
+                make_file_item("/file.txt"),
+            ]
+        )
         json_str = ws.model_dump_json()
         ws2 = WorkingSet.model_validate_json(json_str)
         assert len(ws2.items) == 2
@@ -268,7 +281,12 @@ class TestWorkingSetValidation:
         data = {
             "items": [
                 {"type": "text", "text": "Hello"},
-                {"type": "file", "path": "/file.txt", "start_line": None, "end_line": None},
+                {
+                    "type": "file",
+                    "path": "/file.txt",
+                    "start_line": None,
+                    "end_line": None,
+                },
             ]
         }
         ws = WorkingSet.model_validate(data)
