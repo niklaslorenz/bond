@@ -78,11 +78,34 @@ class ChatView(Container):
 
     async def sync(self, conversation: Conversation):
         await self.chat_log.clear()
+
+        cache_hits: int = 0
+        turns: int = 0
         for episode in conversation.episodes[-NUM_RENDERED_OLD_EPISODES:]:
             for message in episode.flatten():
                 self.add_conversation_message(message)
+            for turn in episode.turns:
+                turns += 1
+                if (
+                    turn.assistant_response.usage.num_cached_tokens is not None
+                    and turn.assistant_response.usage.num_cached_tokens == 0
+                ):
+                    cache_hits += 1
+
+        self.status_bar.set_cache_hit_rate((cache_hits, turns) if turns > 0 else None)
         self.status_bar.set_usage(conversation.current_usage)
-        self.status_bar.set_cache_rate(None)
+        last_turn = conversation.last_episode.last_turn
+        if last_turn is not None:
+            (
+                self.status_bar.set_cached_prefix_portion(
+                    last_turn.assistant_response.usage.num_cached_tokens
+                    / last_turn.assistant_response.usage.prompt_tokens
+                )
+                if last_turn.assistant_response.usage.num_cached_tokens is not None
+                else None
+            )
+        else:
+            self.status_bar.set_cached_prefix_portion(None)
         self.chat_log.scroll_end(animate=False)
 
     def ensure_current_author(

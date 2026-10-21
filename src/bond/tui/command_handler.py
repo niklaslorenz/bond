@@ -173,10 +173,10 @@ class TuiCommandHandler:
             self._notify(f"'{persona_name}' is not a valid persona")
             return False
         async with self._app.agent_loop.pause():
+            await self._app.agent_loop.set_persona(persona_name)
             self._app.chat_view.status_bar.set_persona(
                 self._app.agent_loop.persona.name
             )
-            await self._app.agent_loop.set_persona(persona_name)
         return True
 
     async def delete(self, args: Namespace) -> bool:
