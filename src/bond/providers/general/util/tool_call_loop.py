@@ -1,7 +1,7 @@
 import logging
 from typing import Any
 
-from returns.result import Result, Success
+from returns.result import Failure, Result, Success
 
 from bond.conversation.types import (
     Message,
@@ -40,6 +40,8 @@ class ToolCallLoop:
         The instruction, every assistant message and every tool response are
         appended to the shared message list so subsequent calls (and steps)
         reuse the KV cache for the whole prefix.
+
+        Returns Failure if the chat completions endpoint raises.
         """
         assert self._toolbox is not None  # guaranteed by the caller
         message_list.append(
@@ -59,14 +61,18 @@ class ToolCallLoop:
                         ]
                     )
                 )
-            response = self._chat_completions.chat_completion(
-                model,
-                message_list,
-                self._toolbox.tool_descriptions,
-                system_msg,
-                model_options,
-                max_retries=max_retries,
-            )
+            try:
+                response = self._chat_completions.chat_completion(
+                    model,
+                    message_list,
+                    self._toolbox.tool_descriptions,
+                    system_msg,
+                    model_options,
+                    max_retries=max_retries,
+                )
+            except Exception as e:
+                logger.error(f"Tool call loop endpoint error: {type(e).__name__}: {e}")
+                return Failure(f"Endpoint error during tool call loop: {e}")
             message = response.choices[0].message
             message_list.append(message)
             if not message.tool_calls:

@@ -1,6 +1,6 @@
 """Tests for bond.providers.general.util.tool_call_loop module."""
 
-from returns.result import Success
+from returns.result import Failure, Success
 
 from bond.conversation.conversation import Conversation
 from bond.conversation.types import (
@@ -121,6 +121,24 @@ class FakeChatCompletions:
             model=model,
             usage=make_usage(),
         )
+
+    def stream_chat_completion(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def supports_streaming(self):
+        return False
+
+
+class RaisingChatCompletions:
+    """Always raises on chat_completion, simulating an endpoint failure."""
+
+    def __init__(self, exception: Exception | None = None):
+        self.exception = exception or RuntimeError("endpoint exploded")
+        self.calls = 0
+
+    def chat_completion(self, *args, **kwargs):
+        self.calls += 1
+        raise self.exception
 
     def stream_chat_completion(self, *args, **kwargs):
         raise NotImplementedError
