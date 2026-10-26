@@ -9,7 +9,6 @@ from bond.conversation.types import (
     TextChunk,
     ToolCall,
     ToolMessage,
-    UserMessage,
 )
 from bond.endpoints.chat_completions import ChatCompletionsEndpoint
 from bond.tools.tool import ToolCallContext
@@ -30,7 +29,6 @@ class ToolCallLoop:
         model_options: dict[str, Any],
         message_list: list[Message],
         system_msg: SystemMessage,
-        instruction: str,
         tool_context: ToolCallContext,
         max_iterations: int,
         max_retries: int = 3,
@@ -44,23 +42,8 @@ class ToolCallLoop:
         Returns Failure if the chat completions endpoint raises.
         """
         assert self._toolbox is not None  # guaranteed by the caller
-        message_list.append(
-            UserMessage(
-                content=[
-                    TextChunk(text=f"{instruction}\nAvailable Budget: {max_iterations}")
-                ]
-            )
-        )
         tool_calls: list[tuple[ToolCall, ToolMessage]] = []
-        for i in range(max_iterations):
-            if i > 0:
-                message_list.append(
-                    UserMessage(
-                        content=[
-                            TextChunk(text=f"Available Budget: {max_iterations - i}")
-                        ]
-                    )
-                )
+        for _ in range(max_iterations):
             try:
                 response = self._chat_completions.chat_completion(
                     model,
@@ -93,7 +76,4 @@ class ToolCallLoop:
                 )
                 message_list.append(tool_message)
                 tool_calls.append((tool_call, tool_message))
-        logger.warning(
-            f"Maintenance step reached the tool iteration cap ({max_iterations})"
-        )
         return Success(tool_calls)

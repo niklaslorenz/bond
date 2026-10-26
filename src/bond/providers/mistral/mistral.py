@@ -5,7 +5,13 @@ from bond.providers.general.generation import (
     DefaultGenerationOptions,
 )
 from bond.providers.general.memory import DefaultMemoryCapability, DefaultMemoryOptions
-from bond.providers.general.summarization import DefaultSummarizationOptions
+from bond.providers.general.summarization import (
+    DefaultSummarizationCapability,
+    DefaultSummarizationOptions,
+)
+from bond.providers.general.thought_condensation import (
+    DefaultThoughtCondensationOptions,
+)
 from bond.providers.general.tts import DefaultTTSCapability, DefaultTTSOptions
 from bond.providers.general.util.default_system_message_builder import (
     DefaultSystemMessageBuilder,
@@ -15,9 +21,7 @@ from bond.providers.mistral.config import MistralConfig
 from bond.providers.mistral.embeddings import MistralEmbeddings
 from bond.providers.mistral.generation import MistralGeneration
 from bond.providers.mistral.models import MistralModels
-from bond.providers.mistral.summarization import (
-    MistralSummarization,
-)
+from bond.providers.mistral.thought_condensation import MistralThoughtCondensation
 from bond.providers.mistral.tts import MistralTTS
 from bond.providers.mistral.util.message_list_builder import MistralMessageListBuilder
 from bond.providers.mistral.voices import MistralVoices
@@ -59,10 +63,10 @@ class Mistral:
         self,
         config: dict[str, Any],
         runtime: "BondRuntime | None" = None,
-    ) -> MistralSummarization:
+    ) -> DefaultSummarizationCapability:
         options = DefaultSummarizationOptions.model_validate(config)
         options.resolve(runtime)
-        return MistralSummarization(
+        return DefaultSummarizationCapability(
             options,
             self.chat_completions(),
             MistralMessageListBuilder(
@@ -71,11 +75,6 @@ class Mistral:
                 mock_ending_tool_calls=True,
             ),
             DefaultSystemMessageBuilder(include_prefix_summary=True),
-            (
-                str(hash(options.thought_condensation.prompt))
-                if options.thought_condensation
-                else None
-            ),
         )
 
     def generation(
@@ -95,6 +94,14 @@ class Mistral:
             10,
             DefaultSystemMessageBuilder(include_prefix_summary=True),
             MistralMessageListBuilder(mock_starting_assistant_message=True),
+        )
+
+    def thought_condensation(
+        self, config: dict[str, Any], runtime: "BondRuntime | None" = None
+    ):
+        options = DefaultThoughtCondensationOptions.model_validate(config)
+        return MistralThoughtCondensation(
+            options, self._chat_completions, str(hash(options.prompt)), runtime
         )
 
     def tts(

@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 from bond.capabilities.types import MessageListBuilder, SystemMessageBuilder
 from bond.conversation.conversation import Conversation
+from bond.conversation.types import TextChunk, UserMessage
 from bond.endpoints.chat_completions import ChatCompletionsEndpoint
 from bond.providers.general.util import ToolCallLoop
 from bond.tools.task_list import task_list_toolset
@@ -19,12 +20,12 @@ if TYPE_CHECKING:
 class ToolLoopRunnerOptions(BaseModel):
     model: str
     model_options: dict[str, Any] | None = None
-    system_prompt: str
+    prompt: str
     instruction: str
     iterations: int
 
     def resolve(self, runtime: "BondRuntime | None"):
-        self.system_prompt = resolve_skills(self.system_prompt, runtime)
+        self.prompt = resolve_skills(self.prompt, runtime)
         self.instruction = resolve_skills(self.instruction, runtime)
 
 
@@ -38,6 +39,7 @@ class ToolLoopRunner:
         chat_completions: ChatCompletionsEndpoint,
         system_message_builder: SystemMessageBuilder,
         message_list_builder: MessageListBuilder,
+        runtime: "BondRuntime | None" = None,
     ):
         self._options = options
         self._chat_completions = chat_completions
@@ -46,9 +48,11 @@ class ToolLoopRunner:
         self._toolbox = Toolbox([task_list_toolset])
         self._tool_call_loop = ToolCallLoop(self._toolbox, self._chat_completions)
 
+        self._options.resolve(runtime)
+
     def run(self, conversation: Conversation, turns: int | None):
         system_message = self._system_message_builder.render_system_message(
-            conversation, self._options.system_prompt
+            conversation, self._options.prompt
         )
         message_list = self._message_list_builder.render_conversation(
             conversation, turns
@@ -66,12 +70,14 @@ class ToolLoopRunner:
             confirmation_prompt=None,
             conversation=conversation,
         )
+        message_list.append(
+            UserMessage(content=[TextChunk(text=self._options.instruction)])
+        )
         self._tool_call_loop.run(
             self._options.model,
             self._options.model_options or {},
             message_list,
             system_message,
-            self._options.instruction,
             tool_context,
             self._options.iterations,
         )

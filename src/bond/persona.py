@@ -1,4 +1,5 @@
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -8,6 +9,7 @@ from returns.result import Failure, Result, Success
 from bond.capabilities.generation import GenerationCapability
 from bond.capabilities.memory import MemoryCapability
 from bond.capabilities.summarization import SummarizationCapability
+from bond.capabilities.thought_condensation import ThoughtCondensationCapability
 from bond.capabilities.tts import TTSCapability
 from bond.tools.toolbox import Toolbox
 
@@ -16,24 +18,16 @@ if TYPE_CHECKING:
     from bond.runtime import BondRuntime
 
 
+@dataclass
 class Persona:
-    def __init__(
-        self,
-        name: str,
-        config: "PersonaConfig",
-        generation: GenerationCapability,
-        summarization: SummarizationCapability | None,
-        tts: TTSCapability | None,
-        memory: MemoryCapability | None,
-        toolbox: Toolbox,
-    ):
-        self.name = name
-        self.config = config
-        self.generation = generation
-        self.summarization = summarization
-        self.tts = tts
-        self.memory = memory
-        self.toolbox = toolbox
+    name: str
+    config: "PersonaConfig"
+    generation: GenerationCapability
+    summarization: SummarizationCapability | None
+    thought_condensation: ThoughtCondensationCapability | None
+    tts: TTSCapability | None
+    memory: MemoryCapability | None
+    toolbox: Toolbox
 
     def release(self):
         if self.memory is not None:
@@ -55,6 +49,7 @@ class PersonaConfig(BaseModel):
 
     generation: dict[str, Any]
     summarization: dict[str, Any] | None = None
+    thought_condensation: dict[str, Any] | None = None
     tts: dict[str, Any] | None = None
     voice_input: dict[str, Any] | None = None
     memory: dict[str, Any] | None = None
@@ -162,6 +157,15 @@ class PersonaConfig(BaseModel):
             .map(lambda x: x.summarization(self.summarization or {}, runtime))
             .value_or(None)
         )
+        thought_condensation = (
+            _get_provider(self.thought_condensation, runtime)
+            .map(
+                lambda x: x.thought_condensation(
+                    self.thought_condensation or {}, runtime
+                )
+            )
+            .value_or(None)
+        )
         tts = (
             _get_provider(self.tts, runtime)
             .map(lambda x: x.tts(self.tts or {}, runtime))
@@ -172,7 +176,16 @@ class PersonaConfig(BaseModel):
             .map(lambda x: x.memory(self.memory or {}, runtime))
             .value_or(None)
         )
-        return Persona(self.name, self, generation, summarization, tts, memory, toolbox)
+        return Persona(
+            self.name,
+            self,
+            generation,
+            summarization,
+            thought_condensation,
+            tts,
+            memory,
+            toolbox,
+        )
 
 
 def _get_provider(

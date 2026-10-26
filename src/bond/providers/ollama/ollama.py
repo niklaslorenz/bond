@@ -109,6 +109,13 @@ class Ollama:
         # Not implmented
         return None
 
+    def thought_condensation(
+        self,
+        config: dict[str, Any],
+        runtime: "BondRuntime | None" = None,
+    ):
+        return None
+
     def memory(self, config: dict[str, Any], runtime: "BondRuntime | None" = None):
         # Not implemented
         return None

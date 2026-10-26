@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from bond.capabilities.generation import GenerationCapability
 from bond.capabilities.memory import MemoryCapability
 from bond.capabilities.summarization import SummarizationCapability
+from bond.capabilities.thought_condensation import ThoughtCondensationCapability
 from bond.capabilities.tts import TTSCapability
 from bond.endpoints.chat_completions import (
     ChatCompletionsEndpoint,
@@ -37,15 +38,18 @@ class Provider[ConfigType: BaseModel](Protocol):
         config: dict[str, Any],
         toolbox: Toolbox,
         runtime: "BondRuntime | None" = None,
-    ) -> "GenerationCapability | None": ...
+    ) -> GenerationCapability | None: ...
     def summarization(
         self,
         config: dict[str, Any],
         runtime: "BondRuntime | None" = None,
     ) -> "SummarizationCapability | None": ...
+    def thought_condensation(
+        self, config: dict[str, Any], runtime: "BondRuntime | None" = None
+    ) -> ThoughtCondensationCapability | None: ...
     def tts(
         self, config: dict[str, Any], runtime: "BondRuntime | None" = None
-    ) -> "TTSCapability | None": ...
+    ) -> TTSCapability | None: ...
     def memory(
         self, config: dict[str, Any], runtime: "BondRuntime | None" = None
     ) -> MemoryCapability | None: ...

@@ -105,12 +105,10 @@ class AsyncAgentTurn:
                     logger.error(audio.failure())
 
     async def _condense_thoughts(self, conversation: Conversation) -> str | None:
-        summarization = self._persona.summarization
-        if summarization is None:
+        thought_condensation = self._persona.thought_condensation
+        if thought_condensation is None:
             return None
-        result = summarization.condense_thoughts(conversation, False)
-        if result is None:
-            return None
+        result = thought_condensation.condense_thoughts(conversation, False)
         if isinstance(result, Failure):
             logger.error(f"Could not condense thoughts: {result.failure()}")
             return None
@@ -158,6 +156,6 @@ class AsyncAgentTurn:
         result = await self._loop.run_in_executor(
             None, summarize.summarize_episode, conversation, force
         )
-        if result is not None and isinstance(result, Failure):
+        if isinstance(result, Failure):
             logger.warning(f"Could not create summarization: {result.failure()}")
         return result
