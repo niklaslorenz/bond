@@ -87,8 +87,8 @@ class ChatView(Container):
             for turn in episode.turns:
                 turns += 1
                 if (
-                    turn.assistant_response.usage.num_cached_tokens is not None
-                    and turn.assistant_response.usage.num_cached_tokens == 0
+                    turn.usage.num_cached_tokens is not None
+                    and turn.usage.num_cached_tokens == 0
                 ):
                     cache_hits += 1
 
@@ -98,10 +98,9 @@ class ChatView(Container):
         if last_turn is not None:
             (
                 self.status_bar.set_cached_prefix_portion(
-                    last_turn.assistant_response.usage.num_cached_tokens
-                    / last_turn.assistant_response.usage.prompt_tokens
+                    last_turn.usage.num_cached_tokens / last_turn.usage.prompt_tokens
                 )
-                if last_turn.assistant_response.usage.num_cached_tokens is not None
+                if last_turn.usage.num_cached_tokens is not None
                 else None
             )
         else:

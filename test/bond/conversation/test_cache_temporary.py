@@ -16,7 +16,6 @@ from bond.conversation.types import (
     UserMessage,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -35,8 +34,8 @@ def make_turn(user_text: str = "Hello") -> Turn:
         assistant_response=AssistantConversationMessage(
             message=AssistantMessage(content=[TextChunk(text="Hi")]),
             name="assistant",
-            usage=UsageInfo(completion_tokens=5, prompt_tokens=10, total_tokens=15),
         ),
+        usage=UsageInfo(completion_tokens=5, prompt_tokens=10, total_tokens=15),
     )
 
 
@@ -151,7 +150,12 @@ class TestTemporaryCacheSetItem:
             cache[0] = "not an episode"  # type: ignore
 
     def test_setitem_slice(self):
-        ep1, ep2, ep3, ep4 = make_episode(), make_episode(), make_episode(), make_episode()
+        ep1, ep2, ep3, ep4 = (
+            make_episode(),
+            make_episode(),
+            make_episode(),
+            make_episode(),
+        )
         cache = TemporaryEpisodeCache([ep1, ep2, ep3])
         cache[0:2] = [ep4]
         assert len(cache) == 2

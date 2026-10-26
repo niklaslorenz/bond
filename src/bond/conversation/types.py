@@ -129,34 +129,11 @@ class UserConversationMessage(BaseConversationMessage):
     message: UserMessage
     name: str
 
-    def render(self) -> UserMessage:
-        return self.message
-
 
 class AssistantConversationMessage(BaseConversationMessage):
     message: AssistantMessage
     name: str
-    usage: UsageInfo
     condensed_thoughts: str | None = None
-    tool_returns: list[str] | None = None
-
-    def render(self, condense: bool) -> AssistantMessage:
-        if self.message.content is None:
-            return self.message
-        if self.condensed_thoughts is None and not condense:
-            return self.message
-        non_thoughts: list[AssistantMessageChunk] = [
-            chunk for chunk in self.message.content if not isinstance(chunk, ThinkChunk)
-        ]
-        if condense:
-            return AssistantMessage(
-                tool_calls=self.message.tool_calls, content=non_thoughts
-            )
-        assert self.condensed_thoughts is not None  # follows logically
-        content = [
-            ThinkChunk(thinking=[TextChunk(text=self.condensed_thoughts)])
-        ] + non_thoughts
-        return AssistantMessage(tool_calls=self.message.tool_calls, content=content)
 
 
 class ToolConversationMessage(BaseConversationMessage):
@@ -167,17 +144,6 @@ class ToolConversationMessage(BaseConversationMessage):
     @property
     def name(self):
         return self.message.name
-
-    def render(self, condense: bool) -> ToolMessage:
-        if not condense:
-            return self.message
-        return ToolMessage(
-            name=self.message.name,
-            tool_call_id=self.message.tool_call_id,
-            content=[
-                TextChunk(text=self.tool_call_summary or "<tool output truncated>")
-            ],
-        )
 
 
 ConversationMessage = (
@@ -195,7 +161,7 @@ class Turn(BaseModel):
     tool_messages: list[ToolConversationMessage] | None = None
     user_message: UserConversationMessage | None = None
     assistant_response: AssistantConversationMessage
-    condensed: bool = False
+    usage: UsageInfo
 
     def model_post_init(self, context: Any, /) -> None:
         if self.user_message is None and self.tool_messages is None:
@@ -206,31 +172,12 @@ class Turn(BaseModel):
         return self.assistant_response.timestamp
 
     @property
-    def ends_run(self) -> bool:
-        return self.assistant_response.message.tool_calls is None
-
-    @property
     def is_user_triggered(self) -> bool:
         """
         Determine whether the turn was triggered by the user.
         """
         return self.user_message is not None
 
-    @property
-    def usage(self) -> UsageInfo:
-        return self.assistant_response.usage
-
-    def condense(self) -> None:
-        self.condensed = True
-
-    def render(self) -> list[Message]:
-        messages: list[Message] = []
-        if self.tool_messages is not None:
-            messages = [msg.render(self.condensed) for msg in self.tool_messages]
-        if self.user_message is not None:
-            messages.append(self.user_message.render())
-        messages.append(self.assistant_response.render(self.condensed))
-        return messages
 
     def flatten(self) -> list[ConversationMessage]:
         messages: list[ConversationMessage] = []
@@ -269,14 +216,11 @@ class Episode(BaseModel):
             return self.turns[-1]
         return None
 
-    def render(self, turns: int | None = None) -> list[Message]:
-        return [
-            msg for turn in itertools.islice(self.turns, turns) for msg in turn.render()
-        ]
-
-    def flatten(self, turns: int | None = None) -> list[ConversationMessage]:
+    def flatten(self, turns: int | slice | None = None) -> list[ConversationMessage]:
         return [
             msg
-            for turn in itertools.islice(self.turns, turns)
+            for turn in self.turns[
+                turns if isinstance(turns, slice) else slice(None, turns)
+            ]
             for msg in turn.flatten()
         ]

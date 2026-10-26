@@ -1,103 +1,69 @@
-from bond.conversation.conversation import Conversation
+from bond.capabilities.types import MessageListBuilder
 from bond.conversation.types import (
+    AssistantConversationMessage,
     AssistantMessage,
-    FunctionCall,
+    AssistantMessageChunk,
     Message,
-    SystemMessage,
     TextChunk,
-    ToolCall,
+    ThinkChunk,
+    ToolConversationMessage,
     ToolMessage,
+    UserConversationMessage,
 )
 
 
-class DefaultMessageListBuilder:
+class DefaultMessageListBuilder(MessageListBuilder):
+    def __init__(self, *, condensed: bool = False):
+        super().__init__(lambda x: sum(x, []))
+        self._condensed = condensed
 
-    def __call__(
-        self,
-        conversation: Conversation,
-        system_message: str | None,
-        turns: int | None = None,
-    ) -> tuple[SystemMessage | None, list[Message]]:
-        episode = conversation.last_episode
+    def render_user_message(
+        self, user_message: UserConversationMessage
+    ) -> list[Message]:
+        return [user_message.message]
 
-        context_sections: list[str] = []
-
-        if conversation.working_set is not None and conversation.working_set.items:
-            context_sections.append(
-                "<working-set>\n"
-                "<reliability>potentially outdated</reliability>\n"
-                "<source>updated during summarization</source>\n"
-                "<content>\n"
-                f"{conversation.working_set.render()}\n"
-                "</content>\n"
-                "</working-set>"
-            )
-
-        if conversation.task_list is not None and len(conversation.task_list) > 0:
-            context_sections.append(
-                "<task-list>\n"
-                "<reliability>imperfect</reliability>\n"
-                "<source>self-maintained</source>\n"
-                "<content>\n"
-                f"{conversation.task_list.render()}\n"
-                "</content>\n"
-                "</task-list>"
-            )
-
-        if episode.prefix_summary is not None:
-            context_sections.append(
-                "<previous-context>\n"
-                "<reliability>imperfect</reliability>\n"
-                "<source>model generated</source>\n"
-                "<content>\n"
-                f"{episode.prefix_summary}\n"
-                "</content>\n"
-                "</previous-context>"
-            )
-
-        context_extension = "\n".join(context_sections) if context_sections else None
-
-        if system_message is not None or context_extension is not None:
-            system_prompt = (system_message or "") + (
-                "\n\n" + context_extension if context_extension else ""
-            )
-        else:
-            system_prompt = None
-        system_prompt = (
-            SystemMessage(content=[TextChunk(text=system_prompt)])
-            if system_prompt is not None
-            else None
-        )
-
-        messages = conversation.last_episode.render(turns)
-        if episode.turns and episode.turns[0].tool_messages is not None:
-            mock = AssistantMessage(
-                tool_calls=[
-                    ToolCall(
-                        id=resp.message.tool_call_id,
-                        function=FunctionCall(
-                            name=resp.name or "<unknown>",
-                            arguments=resp.tool_call_parameters or {},
-                        ),
+    def render_tool_message(
+        self, tool_message: ToolConversationMessage
+    ) -> list[Message]:
+        if not self._condensed:
+            return [tool_message.message]
+        return [
+            ToolMessage(
+                name=tool_message.message.name,
+                tool_call_id=tool_message.message.tool_call_id,
+                content=[
+                    TextChunk(
+                        text=tool_message.tool_call_summary or "<tool output truncated>"
                     )
-                    for resp in episode.turns[0].tool_messages
-                ]
+                ],
             )
-            messages = [mock] + messages
+        ]
 
-        # When rendering a prefix of the episode (e.g. for summarization),
-        # the cut may land right after an assistant message with tool calls
-        # whose responses live in the excluded turns. Append mock tool
-        # responses so the message list stays valid for the API.
-        if turns is not None and messages:
-            last = messages[-1]
-            if isinstance(last, AssistantMessage) and last.tool_calls:
-                messages.extend(
-                    ToolMessage(
-                        name=call.function.name,
-                        tool_call_id=call.id,
-                        content=[TextChunk(text="<tool output truncated>")],
-                    )
-                    for call in last.tool_calls
+    def render_assistant_message(
+        self, assistant_message: AssistantConversationMessage
+    ) -> list[Message]:
+        if assistant_message.message.content is None:
+            return [assistant_message.message]
+        if assistant_message.condensed_thoughts is None and not self._condensed:
+            return [assistant_message.message]
+        non_thoughts: list[AssistantMessageChunk] = [
+            chunk
+            for chunk in assistant_message.message.content
+            if not isinstance(chunk, ThinkChunk)
+        ]
+        if self._condensed:
+            return [
+                AssistantMessage(
+                    tool_calls=assistant_message.message.tool_calls,
+                    content=non_thoughts,
                 )
-        return system_prompt, messages
+            ]
+        assert assistant_message.condensed_thoughts is not None  # follows logically
+        content = [
+            ThinkChunk(thinking=[TextChunk(text=assistant_message.condensed_thoughts)])
+        ] + non_thoughts
+        return [
+            AssistantMessage(
+                tool_calls=assistant_message.message.tool_calls, content=content
+            )
+        ]

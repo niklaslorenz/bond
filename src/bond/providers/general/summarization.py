@@ -4,15 +4,17 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel
 from returns.result import Failure, Result, Success
 
-from bond.capabilities.types import MessageListBuilder
+from bond.capabilities.types import MessageListBuilder, SystemMessageBuilder
 from bond.conversation.conversation import Conversation
 from bond.conversation.types import (
+    Message,
     SystemMessage,
     TextChunk,
     ThinkChunk,
     UserMessage,
 )
 from bond.endpoints.chat_completions import ChatCompletionsEndpoint
+from bond.providers.general.util.markdown_renderer import MarkdownRenderer
 from bond.providers.general.util.tool_loop_runner import (
     ToolLoopRunner,
     ToolLoopRunnerOptions,
@@ -78,10 +80,12 @@ class DefaultSummarizationCapability:
         config: DefaultSummarizationOptions,
         chat_completions: ChatCompletionsEndpoint,
         message_list_builder: MessageListBuilder,
+        system_message_builder: SystemMessageBuilder,
     ):
         self._config = config
         self._chat_completions = chat_completions
         self._message_list_builder = message_list_builder
+        self._system_message_builder = system_message_builder
 
         if (opts := self._config.episode_summarization) is not None:
             self._task_list_handler = (
@@ -118,7 +122,7 @@ class DefaultSummarizationCapability:
         if n_summarized_turns < 0 or n_summarized_turns < options.min_summarized_turns:
             return Success(0)
 
-        summary = self._run_summarization(conversation, n_summarized_turns)
+        summary = self._run_rendered_summarization(conversation, n_summarized_turns)
         if isinstance(summary, Failure):
             return summary
         summary = summary.unwrap()
@@ -136,10 +140,43 @@ class DefaultSummarizationCapability:
             conversation.task_list.update()
         if conversation.working_set is not None:
             conversation.working_set.update()
-        conversation.archive_turns(
-            n_summarized_turns, "", summary, condense_kept_turns=True
-        )
+        conversation.archive_turns(n_summarized_turns, "", summary)
         return Success(n_summarized_turns)
+
+    def _run_rendered_summarization(
+        self, conversation: Conversation, turns: int | None
+    ) -> Result[str, str]:
+        options = self._config.episode_summarization
+        assert options is not None
+        options = options.summary_handler
+        renderer = MarkdownRenderer()
+
+        rendered = renderer.render_conversation(conversation, turns)
+
+        system_message = SystemMessage(content=[TextChunk(text=options.prompt)])
+        message_list: list[Message] = [
+            UserMessage(content=[TextChunk(text=rendered)]),
+        ]
+
+        response = self._chat_completions.chat_completion(
+            options.model, message_list, [], system_message, options.model_options
+        )
+        if response.choices[0].message.tool_calls is not None:
+            logger.warning(
+                "Episode summarization call generated tool calls which is unexpected.\n"
+                + "\n".join(
+                    f"Function: {tool_call.function.name}\nParameters: {tool_call.function.arguments}"
+                    for tool_call in response.choices[0].message.tool_calls
+                )
+            )
+        if (content := response.choices[0].message.content) is None:
+            return Failure("Model returned with no content")
+        summary = "".join(
+            [chunk.text for chunk in content if isinstance(chunk, TextChunk)]
+        )
+        if summary == "":
+            return Failure("Model returned with no content")
+        return Success(summary)
 
     def _run_summarization(
         self, conversation: Conversation, turns: int | None
@@ -148,8 +185,12 @@ class DefaultSummarizationCapability:
         assert options is not None
         options = options.summary_handler
 
-        system_msg, message_list = self._message_list_builder(
-            conversation, options.prompt, turns
+        message_list = self._message_list_builder.render_conversation(
+            conversation, turns
+        )
+        system_msg = self._system_message_builder.render_system_message(
+            conversation,
+            options.prompt,
         )
         instruction_msg = UserMessage(content=[TextChunk(text=options.instruction)])
         message_list.append(instruction_msg)
@@ -220,12 +261,14 @@ class DefaultSummarizationCapability:
         message.condensed_thoughts = condensate
 
         compression_ratio = len(condensate) / len(thoughts)
-        new_completion_tokens = int(message.usage.completion_tokens * compression_ratio)
-        message.usage.total_tokens = (
-            message.usage.total_tokens
-            - message.usage.completion_tokens
+        new_completion_tokens = int(
+            last_turn.usage.completion_tokens * compression_ratio
+        )
+        last_turn.usage.total_tokens = (
+            last_turn.usage.total_tokens
+            - last_turn.usage.completion_tokens
             + new_completion_tokens
         )
-        message.usage.completion_tokens = new_completion_tokens
+        last_turn.usage.completion_tokens = new_completion_tokens
 
         return Success(condensate)

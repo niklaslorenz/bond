@@ -4,10 +4,12 @@ from pydantic import BaseModel
 from returns.result import Failure, Result, Success
 
 from bond.capabilities.generation import GenerationTriggers
-from bond.capabilities.types import MessageListBuilder
+from bond.capabilities.types import MessageListBuilder, SystemMessageBuilder
 from bond.conversation.conversation import Conversation
 from bond.conversation.types import (
     AssistantConversationMessage,
+    UsageInfo,
+    UserConversationMessage,
 )
 from bond.endpoints.chat_completions import (
     ChatCompletionsEndpoint,
@@ -38,6 +40,7 @@ class DefaultGenerationCapability:
         tools: list[Tool],
         chat_completions: ChatCompletionsEndpoint,
         max_retries: int,
+        system_message_builder: SystemMessageBuilder,
         message_list_builder: MessageListBuilder,
     ):
         self._name = name
@@ -45,6 +48,7 @@ class DefaultGenerationCapability:
         self._tools = tools
         self._chat_completions = chat_completions
         self._max_retries = max_retries
+        self._system_message_builder = system_message_builder
         self._message_list_builder = message_list_builder
 
     def generate(
@@ -53,42 +57,31 @@ class DefaultGenerationCapability:
         triggers: GenerationTriggers,
         callback: Callable[[CompletionChunk], None] | None,
         model_options: dict[str, Any] | None = None,
-    ) -> Result[AssistantConversationMessage, str]:
+    ) -> Result[tuple[AssistantConversationMessage, UsageInfo], str]:
         can_stream = self._chat_completions.supports_streaming()
         should_stream = callback is not None
         if should_stream and not can_stream:
             return Failure("Streaming is not supported by the provided endpoint")
 
-        # Verify trigger structure
-        episode = conversation.last_episode
-        last_turn_tool_calls = (
-            episode.turns[-1].assistant_response.message.tool_calls
-            if episode.turns
-            else []
-        )
-        called_tool_ids = (
-            {call.id for call in last_turn_tool_calls}
-            if last_turn_tool_calls is not None
-            else set()
-        )
-        received_tool_response_ids = (
-            {resp.message.tool_call_id for resp in triggers.tool_messages}
-            if triggers.tool_messages is not None
-            else set()
-        )
-        if called_tool_ids != received_tool_response_ids:
-            return Failure(
-                "Tool message triggers do not match the last turn's tool calls"
-            )
-
-        system_message, messages = self._message_list_builder(
+        system_message = self._system_message_builder.render_system_message(
             conversation, self._options.system_prompt
         )
+        messages = self._message_list_builder.render_conversation(conversation)
 
-        for tool_msg in triggers.tool_messages or []:
-            messages.append(tool_msg.render(False))
+        if triggers.tool_messages is not None:
+            messages.extend(
+                sum(
+                    (
+                        self._message_list_builder.render_tool_message(tool_msg)
+                        for tool_msg in triggers.tool_messages
+                    ),
+                    [],
+                )
+            )
         if triggers.user_message is not None:
-            messages.append(triggers.user_message.render())
+            messages.extend(
+                self._message_list_builder.render_user_message(triggers.user_message)
+            )
 
         all_model_options: dict[str, Any] = {
             **(self._options.model_options or {}),
@@ -120,9 +113,10 @@ class DefaultGenerationCapability:
                 return Failure(f"Received empty response from backend: {response}")
             message = response.choices[0].message
             conversation_message = AssistantConversationMessage(
-                name=self._name, message=message, usage=response.usage
+                name=self._name,
+                message=message,
             )
-            return Success(conversation_message)
+            return Success((conversation_message, response.usage))
         except BaseException as e:
             return Failure(
                 f"An exception occured during response generation: {type(e)}: {e}"

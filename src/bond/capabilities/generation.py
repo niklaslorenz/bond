@@ -7,6 +7,7 @@ from bond.conversation.conversation import Conversation
 from bond.conversation.types import (
     AssistantConversationMessage,
     ToolConversationMessage,
+    UsageInfo,
     UserConversationMessage,
 )
 from bond.endpoints.chat_completions import (
@@ -25,7 +26,4 @@ class GenerationCapability(Protocol):
         conversation: Conversation,
         triggers: GenerationTriggers,
         callback: ChatCompletionStreamCallback | None,
-    ) -> Result[AssistantConversationMessage, str]: ...
-
-    @property
-    def system_prompt(self) -> str | None: ...
+    ) -> Result[tuple[AssistantConversationMessage, UsageInfo], str]: ...

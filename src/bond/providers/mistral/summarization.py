@@ -1,4 +1,4 @@
-from bond.capabilities.types import MessageListBuilder
+from bond.capabilities.types import MessageListBuilder, SystemMessageBuilder
 from bond.providers.general.summarization import (
     DefaultSummarizationCapability,
     DefaultSummarizationOptions,
@@ -12,6 +12,7 @@ class MistralSummarization(DefaultSummarizationCapability):
         config: DefaultSummarizationOptions,
         chat_completions: MistralChatCompletions,
         message_list_builder: MessageListBuilder,
+        system_message_builder: SystemMessageBuilder,
         cache_key: str | None,
     ):
         if cache_key is not None and config.thought_condensation is not None:
@@ -21,4 +22,6 @@ class MistralSummarization(DefaultSummarizationCapability):
                 config.thought_condensation.model_options["prompt_cache_key"] = (
                     cache_key
                 )
-        super().__init__(config, chat_completions, message_list_builder)
+        super().__init__(
+            config, chat_completions, message_list_builder, system_message_builder
+        )

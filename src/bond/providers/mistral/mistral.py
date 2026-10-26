@@ -1,14 +1,15 @@
 import os
 from typing import TYPE_CHECKING, Any, Type
 
-from bond.capabilities.generation import GenerationCapability
 from bond.providers.general.generation import (
     DefaultGenerationOptions,
 )
 from bond.providers.general.memory import DefaultMemoryCapability, DefaultMemoryOptions
 from bond.providers.general.summarization import DefaultSummarizationOptions
 from bond.providers.general.tts import DefaultTTSCapability, DefaultTTSOptions
-from bond.providers.general.util import DefaultMessageListBuilder
+from bond.providers.general.util.default_system_message_builder import (
+    DefaultSystemMessageBuilder,
+)
 from bond.providers.mistral.chat_completions import MistralChatCompletions
 from bond.providers.mistral.config import MistralConfig
 from bond.providers.mistral.embeddings import MistralEmbeddings
@@ -18,6 +19,7 @@ from bond.providers.mistral.summarization import (
     MistralSummarization,
 )
 from bond.providers.mistral.tts import MistralTTS
+from bond.providers.mistral.util.message_list_builder import MistralMessageListBuilder
 from bond.providers.mistral.voices import MistralVoices
 from bond.tools.toolbox import Toolbox
 
@@ -33,7 +35,10 @@ class Mistral:
         self._models = MistralModels(self.config)
         self._tts = MistralTTS(self.config)
         self._voices = MistralVoices(self.config)
-        self._build_message_list = DefaultMessageListBuilder()
+        self._build_message_list = MistralMessageListBuilder()
+        self._build_system_message = DefaultSystemMessageBuilder(
+            include_prefix_summary=True, include_task_list=True
+        )
 
     def chat_completions(self) -> MistralChatCompletions:
         return self._chat_completions
@@ -60,7 +65,12 @@ class Mistral:
         return MistralSummarization(
             options,
             self.chat_completions(),
-            self._build_message_list,
+            MistralMessageListBuilder(
+                condensed=True,
+                mock_starting_assistant_message=True,
+                mock_ending_tool_calls=True,
+            ),
+            DefaultSystemMessageBuilder(include_prefix_summary=True),
             (
                 str(hash(options.thought_condensation.prompt))
                 if options.thought_condensation
@@ -83,7 +93,8 @@ class Mistral:
             toolbox.tool_descriptions,
             self.chat_completions(),
             10,
-            self._build_message_list,
+            DefaultSystemMessageBuilder(include_prefix_summary=True),
+            MistralMessageListBuilder(mock_starting_assistant_message=True),
         )
 
     def tts(

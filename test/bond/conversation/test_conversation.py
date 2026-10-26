@@ -42,8 +42,8 @@ def make_turn(
         assistant_response=AssistantConversationMessage(
             message=AssistantMessage(content=[TextChunk(text=assistant_text)]),
             name="assistant",
-            usage=make_usage(total_tokens),
         ),
+        usage=make_usage(total_tokens),
     )
 
 
@@ -64,8 +64,8 @@ def make_turn_with_tool_calls() -> Turn:
                 ],
             ),
             name="assistant",
-            usage=make_usage(),
         ),
+        usage=make_usage(),
     )
 
 
@@ -314,7 +314,7 @@ class TestConversationDeleteTurns:
         for i in range(3):
             conv.add_turn(make_turn(f"Turn {i}"))
         # Archive to create a second episode
-        conv.archive_turns(None, "Summary", "Prefix", condense_kept_turns=False)
+        conv.archive_turns(None, "Summary", "Prefix")
         # Add 2 turns to second episode
         conv.add_turn(make_turn("Turn 3"))
         conv.add_turn(make_turn("Turn 4"))
@@ -334,11 +334,11 @@ class TestConversationDeleteTurns:
         # Episode 1: 2 turns
         conv.add_turn(make_turn("1"))
         conv.add_turn(make_turn("2"))
-        conv.archive_turns(None, "Summary 1", "Prefix", condense_kept_turns=False)
+        conv.archive_turns(None, "Summary 1", "Prefix")
         # Episode 2: 2 turns
         conv.add_turn(make_turn("3"))
         conv.add_turn(make_turn("4"))
-        conv.archive_turns(None, "Summary 2", "Prefix", condense_kept_turns=False)
+        conv.archive_turns(None, "Summary 2", "Prefix")
         # Episode 3: 1 turn
         conv.add_turn(make_turn("5"))
 
@@ -368,47 +368,6 @@ class TestConversationDeleteTurns:
 
 
 # ---------------------------------------------------------------------------
-# condense_turns
-# ---------------------------------------------------------------------------
-
-
-class TestConversationCondenseTurns:
-    def test_condense_turns_raises_for_negative(self):
-        conv = Conversation()
-        with pytest.raises(ValueError, match="non-negative"):
-            conv.condense_turns(-1)
-
-    def test_condense_turns_zero_keeps_none(self):
-        conv = Conversation()
-        conv.add_turn(make_turn("1"))
-        conv.add_turn(make_turn("2"))
-        conv.condense_turns(0)
-        # All turns should be condensed
-        assert all(t.condensed for t in conv.last_episode.turns)
-
-    def test_condense_turns_keeps_last_n(self):
-        conv = Conversation()
-        for i in range(5):
-            conv.add_turn(make_turn(f"Turn {i}"))
-        conv.condense_turns(2)
-        turns = conv.last_episode.turns
-        # First 3 should be condensed, last 2 should not
-        assert turns[0].condensed is True
-        assert turns[1].condensed is True
-        assert turns[2].condensed is True
-        assert turns[3].condensed is False
-        assert turns[4].condensed is False
-
-    def test_condense_turns_more_than_available(self):
-        """If kept_turns >= len(turns), nothing should be condensed."""
-        conv = Conversation()
-        conv.add_turn(make_turn("1"))
-        conv.add_turn(make_turn("2"))
-        conv.condense_turns(5)
-        assert all(not t.condensed for t in conv.last_episode.turns)
-
-
-# ---------------------------------------------------------------------------
 # archive_turns
 # ---------------------------------------------------------------------------
 
@@ -418,28 +377,26 @@ class TestConversationArchiveTurns:
         conv = Conversation()
         # last_episode is empty by default
         with pytest.raises(ValueError, match="empty episode"):
-            conv.archive_turns(1, "summary", "prefix", condense_kept_turns=False)
+            conv.archive_turns(1, "summary", "prefix")
 
     def test_archive_raises_for_zero_turns(self):
         conv = Conversation()
         conv.add_turn(make_turn("1"))
         with pytest.raises(ValueError, match="must be positive"):
-            conv.archive_turns(0, "summary", "prefix", condense_kept_turns=False)
+            conv.archive_turns(0, "summary", "prefix")
 
     def test_archive_raises_for_too_many_turns(self):
         conv = Conversation()
         conv.add_turn(make_turn("1"))
         with pytest.raises(ValueError, match="Cannot archive"):
-            conv.archive_turns(5, "summary", "prefix", condense_kept_turns=False)
+            conv.archive_turns(5, "summary", "prefix")
 
     def test_archive_creates_finished_episode(self):
         conv = Conversation()
         conv.add_turn(make_turn("1"))
         conv.add_turn(make_turn("2"))
 
-        finished = conv.archive_turns(
-            1, "Episode summary", "New prefix", condense_kept_turns=False
-        )
+        finished = conv.archive_turns(1, "Episode summary", "New prefix")
 
         assert finished.is_finished is True
         assert finished.episode_summary == "Episode summary"
@@ -450,7 +407,7 @@ class TestConversationArchiveTurns:
         conv.add_turn(make_turn("1"))
         conv.add_turn(make_turn("2"))
 
-        conv.archive_turns(1, "Summary", "New prefix", condense_kept_turns=False)
+        conv.archive_turns(1, "Summary", "New prefix")
 
         assert len(conv.episodes) == 2
         new_episode = conv.episodes[-1]
@@ -463,7 +420,7 @@ class TestConversationArchiveTurns:
         conv.add_turn(make_turn("1"))
         conv.add_turn(make_turn("2"))
 
-        finished = conv.archive_turns(None, "All", "Prefix", condense_kept_turns=False)
+        finished = conv.archive_turns(None, "All", "Prefix")
 
         assert len(finished.turns) == 2
         assert len(conv.episodes[-1].turns) == 0
@@ -473,7 +430,7 @@ class TestConversationArchiveTurns:
         original_id = conv.last_episode.episode_id
         conv.add_turn(make_turn("1"))
 
-        finished = conv.archive_turns(1, "Summary", "Prefix", condense_kept_turns=False)
+        finished = conv.archive_turns(1, "Summary", "Prefix")
 
         assert finished.episode_id == original_id
 
@@ -520,7 +477,7 @@ class TestConversationRollbackToTurn:
         turn1 = make_turn("1")
         conv.add_turn(turn1)
         # Archive to create a second episode
-        conv.archive_turns(1, "Summary", "Prefix", condense_kept_turns=False)
+        conv.archive_turns(1, "Summary", "Prefix")
         # Now add a turn to the new episode
         turn2 = make_turn("2")
         conv.add_turn(turn2)

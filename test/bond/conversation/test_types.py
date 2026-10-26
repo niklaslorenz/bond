@@ -69,8 +69,8 @@ def make_turn(
         assistant_response=AssistantConversationMessage(
             message=make_assistant_message(assistant_text, tool_calls),
             name="assistant",
-            usage=make_usage(),
         ),
+        usage=make_usage(),
     )
 
 
@@ -392,103 +392,6 @@ class TestBaseConversationMessage:
         assert msg.message_id == "custom-id-123"
 
 
-class TestUserConversationMessage:
-    def test_render(self):
-        msg = UserConversationMessage(
-            message=make_user_message("Hello"),
-            name="user",
-        )
-        rendered = msg.render()
-        assert isinstance(rendered, UserMessage)
-        assert rendered.content is not None
-        assert isinstance(rendered.content[0], TextChunk)
-        assert rendered.content[0].text == "Hello"
-
-
-class TestAssistantConversationMessage:
-    def test_render_without_condense(self):
-        """Without condense and without condensed_thoughts, returns original message."""
-        msg = AssistantConversationMessage(
-            message=make_assistant_message("Hello"),
-            name="assistant",
-            usage=make_usage(),
-        )
-        rendered = msg.render(condense=False)
-        assert rendered.content is not None
-        assert len(rendered.content) == 1
-
-    def test_render_with_condense_removes_think_chunks(self):
-        """Condensing should remove ThinkChunks from content."""
-        msg = AssistantConversationMessage(
-            message=AssistantMessage(
-                content=[
-                    ThinkChunk(thinking=[TextChunk(text="internal thought")]),
-                    TextChunk(text="Hello"),
-                ],
-            ),
-            name="assistant",
-            usage=make_usage(),
-        )
-        rendered = msg.render(condense=True)
-        assert rendered.content is not None
-        # Only the TextChunk should remain
-        assert len(rendered.content) == 1
-        assert isinstance(rendered.content[0], TextChunk)
-        assert rendered.content[0].text == "Hello"
-
-    def test_render_with_condensed_thoughts(self):
-        """Without condense but with condensed_thoughts, a ThinkChunk with the summary is prepended."""
-        msg = AssistantConversationMessage(
-            message=AssistantMessage(
-                content=[
-                    ThinkChunk(thinking=[TextChunk(text="long internal thought")]),
-                    TextChunk(text="Hello"),
-                ],
-            ),
-            name="assistant",
-            usage=make_usage(),
-            condensed_thoughts="Summary of thoughts",
-        )
-        rendered = msg.render(condense=False)
-        assert rendered.content is not None
-        assert len(rendered.content) == 2
-        # First should be a ThinkChunk with the condensed thoughts
-        assert isinstance(rendered.content[0], ThinkChunk)
-        assert isinstance(rendered.content[0].thinking[0], TextChunk)
-        assert rendered.content[0].thinking[0].text == "Summary of thoughts"
-        # Second should be the TextChunk
-        assert isinstance(rendered.content[1], TextChunk)
-
-    def test_render_none_content(self):
-        """If message content is None, render returns the message as-is."""
-        msg = AssistantConversationMessage(
-            message=AssistantMessage(content=None),
-            name="assistant",
-            usage=make_usage(),
-        )
-        rendered = msg.render(condense=True)
-        assert rendered.content is None
-
-    def test_render_preserves_tool_calls(self):
-        """Tool calls should be preserved during rendering."""
-        msg = AssistantConversationMessage(
-            message=make_assistant_message(
-                "Let me search",
-                tool_calls=[
-                    ToolCall(
-                        id="call_1",
-                        function=FunctionCall(name="search", arguments={"q": "test"}),
-                    )
-                ],
-            ),
-            name="assistant",
-            usage=make_usage(),
-        )
-        rendered = msg.render(condense=True)
-        assert rendered.tool_calls is not None
-        assert len(rendered.tool_calls) == 1
-
-
 class TestToolConversationMessage:
     def test_name_property(self):
         msg = ToolConversationMessage(
@@ -499,62 +402,6 @@ class TestToolConversationMessage:
             ),
         )
         assert msg.name == "get_weather"
-
-    def test_render_without_condense(self):
-        msg = ToolConversationMessage(
-            message=ToolMessage(
-                name="search",
-                tool_call_id="call_1",
-                content=[TextChunk(text="full result data")],
-            ),
-            tool_call_summary="Brief summary",
-        )
-        rendered = msg.render(condense=False)
-        # Without condense, should return original message
-        assert rendered.content is not None
-        assert isinstance(rendered.content[0], TextChunk)
-        assert rendered.content[0].text == "full result data"
-
-    def test_render_with_condense_uses_summary(self):
-        msg = ToolConversationMessage(
-            message=ToolMessage(
-                name="search",
-                tool_call_id="call_1",
-                content=[TextChunk(text="full result data")],
-            ),
-            tool_call_summary="Brief summary",
-        )
-        rendered = msg.render(condense=True)
-        assert rendered.content is not None
-        assert len(rendered.content) == 1
-        assert isinstance(rendered.content[0], TextChunk)
-        assert rendered.content[0].text == "Brief summary"
-
-    def test_render_with_condense_no_summary_uses_placeholder(self):
-        msg = ToolConversationMessage(
-            message=ToolMessage(
-                name="search",
-                tool_call_id="call_1",
-                content=[TextChunk(text="full result data")],
-            ),
-            tool_call_summary=None,
-        )
-        rendered = msg.render(condense=True)
-        assert rendered.content is not None
-        assert isinstance(rendered.content[0], TextChunk)
-        assert rendered.content[0].text == "<tool output truncated>"
-
-    def test_render_with_condense_preserves_name_and_tool_call_id(self):
-        msg = ToolConversationMessage(
-            message=ToolMessage(
-                name="search",
-                tool_call_id="call_1",
-                content=[TextChunk(text="data")],
-            ),
-        )
-        rendered = msg.render(condense=True)
-        assert rendered.name == "search"
-        assert rendered.tool_call_id == "call_1"
 
 
 # ---------------------------------------------------------------------------
@@ -583,8 +430,8 @@ class TestTurn:
             assistant_response=AssistantConversationMessage(
                 message=make_assistant_message("Based on the results..."),
                 name="assistant",
-                usage=make_usage(),
             ),
+            usage=make_usage(),
         )
         assert turn.user_message is None
         assert turn.tool_messages is not None
@@ -599,8 +446,8 @@ class TestTurn:
                 assistant_response=AssistantConversationMessage(
                     message=make_assistant_message(),
                     name="assistant",
-                    usage=make_usage(),
                 ),
+                usage=make_usage(),
             )
 
     def test_turn_id_generated(self):
@@ -611,21 +458,6 @@ class TestTurn:
     def test_completed_at(self):
         turn = make_turn()
         assert turn.completed_at == turn.assistant_response.timestamp
-
-    def test_ends_run_true_when_no_tool_calls(self):
-        turn = make_turn(tool_calls=None)
-        assert turn.ends_run is True
-
-    def test_ends_run_false_when_tool_calls_present(self):
-        turn = make_turn(
-            tool_calls=[
-                ToolCall(
-                    id="call_1",
-                    function=FunctionCall(name="search", arguments={"q": "test"}),
-                )
-            ]
-        )
-        assert turn.ends_run is False
 
     def test_is_user_triggered_true(self):
         turn = make_turn()
@@ -645,60 +477,14 @@ class TestTurn:
             assistant_response=AssistantConversationMessage(
                 message=make_assistant_message("Response"),
                 name="assistant",
-                usage=make_usage(),
             ),
+            usage=make_usage(),
         )
         assert turn.is_user_triggered is False
 
     def test_usage_property(self):
         turn = make_turn()
         assert turn.usage.total_tokens == 30
-
-    def test_condensed_default_false(self):
-        turn = make_turn()
-        assert turn.condensed is False
-
-    def test_condense_sets_flag(self):
-        turn = make_turn()
-        turn.condense()
-        assert turn.condensed is True
-
-    def test_render_user_triggered(self):
-        turn = make_turn(user_text="Hello", assistant_text="Hi there")
-        messages = turn.render()
-        # Should have user message + assistant message
-        assert len(messages) == 2
-        assert isinstance(messages[0], UserMessage)
-        assert isinstance(messages[1], AssistantMessage)
-
-    def test_render_tool_triggered(self):
-        turn = Turn(
-            tool_messages=[
-                ToolConversationMessage(
-                    message=ToolMessage(
-                        name="search",
-                        tool_call_id="call_1",
-                        content=[TextChunk(text="search results")],
-                    ),
-                )
-            ],
-            assistant_response=AssistantConversationMessage(
-                message=make_assistant_message("Here are the results"),
-                name="assistant",
-                usage=make_usage(),
-            ),
-        )
-        messages = turn.render()
-        # Should have tool message + assistant message
-        assert len(messages) == 2
-        assert isinstance(messages[0], ToolMessage)
-        assert isinstance(messages[1], AssistantMessage)
-
-    def test_render_with_condensed(self):
-        turn = make_turn()
-        turn.condense()
-        messages = turn.render()
-        assert len(messages) == 2
 
     def test_flatten_user_triggered(self):
         turn = make_turn()
@@ -721,8 +507,8 @@ class TestTurn:
             assistant_response=AssistantConversationMessage(
                 message=make_assistant_message("Response"),
                 name="assistant",
-                usage=make_usage(),
             ),
+            usage=make_usage(),
         )
         flattened = turn.flatten()
         assert len(flattened) == 2
@@ -761,25 +547,6 @@ class TestEpisode:
         turn2 = make_turn(user_text="Second")
         ep = Episode(turns=[turn1, turn2])
         assert ep.last_turn is turn2
-
-    def test_render_empty_episode(self):
-        ep = Episode()
-        messages = ep.render()
-        assert messages == []
-
-    def test_render_with_turns(self):
-        turn = make_turn(user_text="Hello", assistant_text="Hi")
-        ep = Episode(turns=[turn])
-        messages = ep.render()
-        assert len(messages) == 2  # user + assistant
-
-    def test_render_with_turns_limit(self):
-        turn1 = make_turn(user_text="First")
-        turn2 = make_turn(user_text="Second")
-        ep = Episode(turns=[turn1, turn2])
-        # Only render first turn
-        messages = ep.render(turns=1)
-        assert len(messages) == 2  # only first turn's messages
 
     def test_flatten_empty_episode(self):
         ep = Episode()

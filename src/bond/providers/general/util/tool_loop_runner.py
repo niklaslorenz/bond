@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 
-from bond.capabilities.types import MessageListBuilder
+from bond.capabilities.types import MessageListBuilder, SystemMessageBuilder
 from bond.conversation.conversation import Conversation
 from bond.endpoints.chat_completions import ChatCompletionsEndpoint
 from bond.providers.general.util import ToolCallLoop
@@ -36,17 +36,22 @@ class ToolLoopRunner:
         self,
         options: ToolLoopRunnerOptions,
         chat_completions: ChatCompletionsEndpoint,
+        system_message_builder: SystemMessageBuilder,
         message_list_builder: MessageListBuilder,
     ):
         self._options = options
         self._chat_completions = chat_completions
+        self._system_message_builder = system_message_builder
         self._message_list_builder = message_list_builder
         self._toolbox = Toolbox([task_list_toolset])
         self._tool_call_loop = ToolCallLoop(self._toolbox, self._chat_completions)
 
     def run(self, conversation: Conversation, turns: int | None):
-        system_message, message_list = self._message_list_builder(
-            conversation, self._options.system_prompt, turns
+        system_message = self._system_message_builder.render_system_message(
+            conversation, self._options.system_prompt
+        )
+        message_list = self._message_list_builder.render_conversation(
+            conversation, turns
         )
         assert (
             system_message is not None

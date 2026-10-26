@@ -17,7 +17,6 @@ from bond.conversation.types import (
     UserMessage,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -44,8 +43,8 @@ def make_turn(user_text: str = "Hello", assistant_text: str = "Hi") -> Turn:
         assistant_response=AssistantConversationMessage(
             message=AssistantMessage(content=[TextChunk(text=assistant_text)]),
             name="assistant",
-            usage=UsageInfo(completion_tokens=5, prompt_tokens=10, total_tokens=15),
         ),
+        usage=UsageInfo(completion_tokens=5, prompt_tokens=10, total_tokens=15),
     )
 
 
@@ -101,7 +100,9 @@ class TestFileMappedCacheMarkDirty:
         assert cache._dirty is True
 
     def test_mark_dirty_multiple_times(self, tmp_path):
-        cache = FileMappedEpisodeCache(tmp_path, "test", [make_episode(), make_episode()])
+        cache = FileMappedEpisodeCache(
+            tmp_path, "test", [make_episode(), make_episode()]
+        )
         cache.mark_dirty(0)
         cache.mark_dirty(1)
         assert cache._dirty is True
@@ -264,6 +265,8 @@ class TestFileMappedCacheLoad:
         assert len(loaded) == 1
         assert len(loaded[0].turns) == 1
         assert loaded[0].turns[0].user_message is not None
+        assert loaded[0].turns[0].user_message.message.content is not None
+        assert isinstance(loaded[0].turns[0].user_message.message.content[0], TextChunk)
         assert loaded[0].turns[0].user_message.message.content[0].text == "User message"
 
 
@@ -381,6 +384,9 @@ class TestFileMappedCacheRoundTrip:
         loaded = FileMappedEpisodeCache.load("test", tmp_path)
         assert len(loaded) == 3
         assert loaded[0].prefix_summary == "Context"
+        assert loaded[1].turns[0].user_message is not None
+        assert loaded[1].turns[0].user_message.message.content is not None
+        assert isinstance(loaded[1].turns[0].user_message.message.content[0], TextChunk)
         assert loaded[1].turns[0].user_message.message.content[0].text == "Hello"
         assert loaded[2].episode_summary == "Done"
 
@@ -393,7 +399,9 @@ class TestFileMappedCacheRoundTrip:
 
     def test_roundtrip_after_modifications(self, tmp_path):
         """Save, modify, save again, load - should get latest state."""
-        cache = FileMappedEpisodeCache(tmp_path, "test", [make_episode(prefix_summary="v1")])
+        cache = FileMappedEpisodeCache(
+            tmp_path, "test", [make_episode(prefix_summary="v1")]
+        )
         cache.save_as("test", tmp_path)
 
         # Modify
@@ -425,7 +433,9 @@ class TestFileMappedCacheInheritedOps:
         assert cache[0].prefix_summary == "Test"
 
     def test_truncate_works(self, tmp_path):
-        cache = FileMappedEpisodeCache(tmp_path, "test", [make_episode(), make_episode()])
+        cache = FileMappedEpisodeCache(
+            tmp_path, "test", [make_episode(), make_episode()]
+        )
         cache.truncate(1)
         assert len(cache) == 1
 

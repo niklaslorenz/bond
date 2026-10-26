@@ -6,7 +6,8 @@ from typing import Literal, Protocol
 from pydantic import BaseModel
 from returns.result import Result
 
-from bond.conversation.types import UserConversationMessage
+from bond.capabilities.generation import GenerationTriggers
+from bond.conversation.types import ToolConversationMessage, UserConversationMessage
 
 logger = logging.getLogger(__name__)
 
@@ -41,28 +42,19 @@ class PauseRequest:
 
 
 @dataclass
-class InputSignal:
-    message: UserConversationMessage
-
-
-@dataclass
-class ContinueSignal:
-    pass
-
-
-@dataclass
 class StopSignal:
     pass
 
 
-AsyncLoopSignal = InputSignal | PauseRequest | ContinueSignal | StopSignal
+AsyncLoopSignal = GenerationTriggers | PauseRequest | StopSignal
 
 
 class AsyncLoopSignalBuffer:
     def __init__(self):
         self._user_input: UserConversationMessage | None = None
+        self._tool_outputs: list[ToolConversationMessage] | None = None
+
         self._pause_requests: list[PauseRequest] = []
-        self._continue: bool = False
         self._stop: bool = False
         self._stop_immediate: bool = False
         self._interrupt: bool = False
@@ -78,15 +70,18 @@ class AsyncLoopSignalBuffer:
         if self._user_input is not None:
             return Result.from_failure("Pending User Input")
         self._user_input = user_input
+        self._interrupt = False
         self._check_waiter()
         return Result.from_value(None)
 
-    def signal_continue(self):
-        if self._interrupt:
-            self._interrupt = False
-            return
-        self._continue = True
+    def signal_tool_outputs(
+        self, tool_outputs: list[ToolConversationMessage]
+    ) -> Result[None, str]:
+        if self._tool_outputs is not None:
+            return Result.from_failure("Pending Tool Outputs")
+        self._tool_outputs = tool_outputs
         self._check_waiter()
+        return Result.from_value(None)
 
     def request_pause(self, request: PauseRequest):
         self._pause_requests.append(request)
@@ -98,18 +93,15 @@ class AsyncLoopSignalBuffer:
             self._stop_immediate = True
         self._check_waiter()
 
-    def clear(self):
-        """Clear the Input Signals (Stopping signals and pause requests are kept)"""
-        self._user_input = None
-        self._continue = False
-        self._interrupt = False
-
     def interrupt(self):
-        """Interrupt the loop, absorbing a following continue signal"""
-        if self._continue:
-            self._continue = False
-        else:
-            self._interrupt = True
+        """Interrupt the loop and not continue on tool outputs"""
+        self._interrupt = True
+
+    def resume(self):
+        """Resume the loop and continue relaying tool outputs"""
+        if self._interrupt:
+            self._interrupt = False
+            self._check_waiter()
 
     async def pull(self) -> AsyncLoopSignal:
         if (signal := self._build_signal()) is not None:
@@ -147,8 +139,9 @@ class AsyncLoopSignalBuffer:
 
     def _build_signal(self) -> AsyncLoopSignal | None:
         if self._stop_immediate:
-            self.clear()
+            self._clear()
             self._stop = False
+            self._stop_immediate = False
             for request in self._pause_requests:
                 request.cancel()
             self._pause_requests.clear()
@@ -158,34 +151,19 @@ class AsyncLoopSignalBuffer:
             self._pause_requests.remove(request)
             return request
         if self._stop:
-            self.clear()
+            self._clear()
             self._stop = False
             return StopSignal()
-        if self._user_input is not None:
-            signal = InputSignal(self._user_input)
-            self.clear()
+        if self._user_input is not None or (
+            self._tool_outputs is not None and not self._interrupt
+        ):
+            signal = GenerationTriggers(self._user_input, self._tool_outputs)
+            self._clear()
             return signal
-        if self._continue:
-            self.clear()
-            return ContinueSignal()
         return None
 
-
-# TODO: clean up old syncronous event types
-
-
-class BehaviourEvent(BaseModel):
-    type: str
-
-
-class BehaviourSignal(BaseModel):
-    type: str
-
-
-class IBehaviourEventHandler(Protocol):
-    def __call__(self, event: BehaviourEvent) -> None: ...
-
-
-class IBehaviourSignalReceiver(Protocol):
-    def get(self) -> BehaviourSignal: ...
-    def peek(self) -> BehaviourSignal | None: ...
+    def _clear(self):
+        """Clear the Input Signals (Stopping signals and pause requests are kept)"""
+        self._user_input = None
+        self._tool_outputs = None
+        self._interrupt = False

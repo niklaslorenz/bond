@@ -65,17 +65,18 @@ class AsyncAgentTurn:
                 response_result = await self._prompt_response(conversation, triggers)
                 if isinstance(response_result, Failure):
                     return response_result
-                response = response_result.unwrap()
-                await self._play_tts(response)
+                message, usage = response_result.unwrap()
+                await self._play_tts(message)
                 turn = Turn(
                     tool_messages=triggers.tool_messages,
                     user_message=triggers.user_message,
-                    assistant_response=response,
+                    assistant_response=message,
+                    usage=usage,
                 )
                 conversation.add_turn(turn)
                 self._turn_status.value = "Summarizing"
                 condensed_thoughts = await self._condense_thoughts(conversation)
-                response.condensed_thoughts = condensed_thoughts
+                message.condensed_thoughts = condensed_thoughts
                 await self.summarize(conversation, False)
                 logger.debug("Finished Agent Turn")
                 return Success(turn)
@@ -117,7 +118,7 @@ class AsyncAgentTurn:
 
     async def _prompt_response(
         self, conversation: Conversation, triggers: GenerationTriggers
-    ) -> Result[AssistantConversationMessage, str]:
+    ) -> Result[tuple[AssistantConversationMessage, UsageInfo], str]:
         if self._stream:
             await self._event_queue.put(
                 AsyncTurnResponseStartEvent(author=self._persona.name, role="assistant")
@@ -138,14 +139,15 @@ class AsyncAgentTurn:
         )
         if isinstance(response, Failure):
             await self._event_queue.put(AsyncTurnErrorEvent(response.failure()))
+            return response
         else:
-            message = response.unwrap()
+            message, usage = response.unwrap()
             await self._event_queue.put(
-                AsyncTurnResponseEndEvent(message.usage)
+                AsyncTurnResponseEndEvent(usage)
                 if self._stream
                 else AsyncTurnFullResponseEvent(message=message)
             )
-        return response
+            return Success((message, usage))
 
     async def summarize(
         self, conversation: Conversation, force: bool

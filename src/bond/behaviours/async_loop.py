@@ -13,8 +13,6 @@ from bond.behaviours.async_turn_event import (
 )
 from bond.behaviours.types import (
     AsyncLoopSignalBuffer,
-    ContinueSignal,
-    InputSignal,
     LoopStatus,
     PauseRequest,
     StopSignal,
@@ -94,13 +92,13 @@ class AsyncAgentLoop:
         async with self.pause():
             self._conversation.persona = persona_id
             self._agent_turn, self._persona = self._build_turn()
-            self._signal_buffer.clear()
+            self._signal_buffer._clear()
 
     async def set_conversation(self, conversation: Conversation):
         async with self.pause():
             self._conversation = conversation
             self._agent_turn, self._persona = self._build_turn()
-            self._signal_buffer.clear()
+            self._signal_buffer._clear()
 
     @property
     def is_idle(self):
@@ -189,25 +187,16 @@ class AsyncAgentLoop:
                     finally:
                         self._is_paused = False
                     continue
-                if not isinstance(signal, InputSignal) and not isinstance(
-                    signal, ContinueSignal
-                ):
+                if not isinstance(signal, GenerationTriggers):
                     raise RuntimeError(f"Invalid signal type: {type(signal)}")
 
                 self._loop_status.value = "Waiting"
-                user_message = (
-                    signal.message if isinstance(signal, InputSignal) else None
-                )
-                tool_messages = self._build_previous_tool_returns()
-                triggers = GenerationTriggers(
-                    user_message=user_message, tool_messages=tool_messages
-                )
-                if user_message is not None:
+                if signal.user_message is not None:
                     await self._event_queue.put(
-                        AsyncTurnMessageInsertedEvent(message=user_message)
+                        AsyncTurnMessageInsertedEvent(message=signal.user_message)
                     )
 
-                turn = await self._agent_turn.run(self.conversation, triggers)
+                turn = await self._agent_turn.run(self.conversation, signal)
                 if isinstance(turn, Failure):
                     logger.error(f"Error during agent turn: {turn.failure()}")
                     await self._event_queue.put(
@@ -223,11 +212,8 @@ class AsyncAgentLoop:
                 tool_calls = turn.assistant_response.message.tool_calls
                 self._loop_status.value = "Tool Call"
                 if tool_calls is not None:
-                    tool_messages, tool_results = await self._handle_tool_calls(
-                        tool_calls
-                    )
-                    turn.assistant_response.tool_returns = tool_results
-                    self._signal_buffer.signal_continue()
+                    tool_messages, _ = await self._handle_tool_calls(tool_calls)
+                    self._signal_buffer.signal_tool_outputs(tool_messages)
         finally:
             self._loop_status.value = "Stopped"
             self._task = None
@@ -237,23 +223,6 @@ class AsyncAgentLoop:
     async def summarize(self) -> Result[int, str] | None:
         async with self.pause():
             return await self._agent_turn.summarize(self.conversation, True)
-
-    def _build_previous_tool_returns(self) -> list[ToolConversationMessage] | None:
-        episode = self.conversation.last_episode
-        if not episode.turns:
-            return None
-        assistant_response = episode.turns[-1].assistant_response
-        if (
-            assistant_response.message.tool_calls is None
-            or assistant_response.tool_returns is None
-        ):
-            return None
-        return [
-            _build_tool_message(tool_call, tool_return)
-            for tool_call, tool_return in zip(
-                assistant_response.message.tool_calls, assistant_response.tool_returns
-            )
-        ]
 
     def _on_turn_status_update(self, status: TurnStatus):
         if status == "Stopped":

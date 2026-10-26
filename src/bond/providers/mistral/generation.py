@@ -6,9 +6,9 @@ from uuid import uuid4
 from returns.result import Result
 
 from bond.capabilities.generation import GenerationTriggers
-from bond.capabilities.types import MessageListBuilder
+from bond.capabilities.types import MessageListBuilder, SystemMessageBuilder
 from bond.conversation.conversation import Conversation
-from bond.conversation.types import AssistantConversationMessage
+from bond.conversation.types import AssistantConversationMessage, UsageInfo
 from bond.endpoints.chat_completions import CompletionChunk
 from bond.providers.general.generation import (
     DefaultGenerationCapability,
@@ -34,10 +34,17 @@ class MistralGeneration(DefaultGenerationCapability):
         tools: list[Tool],
         chat_completions: MistralChatCompletions,
         max_retries: int,
+        system_message_builder: SystemMessageBuilder,
         message_list_builder: MessageListBuilder,
     ):
         super().__init__(
-            name, options, tools, chat_completions, max_retries, message_list_builder
+            name,
+            options,
+            tools,
+            chat_completions,
+            max_retries,
+            system_message_builder,
+            message_list_builder,
         )
 
     def generate(
@@ -46,7 +53,7 @@ class MistralGeneration(DefaultGenerationCapability):
         triggers: GenerationTriggers,
         callback: Callable[[CompletionChunk], None] | None,
         model_options: dict[str, Any] | None = None,
-    ) -> Result[AssistantConversationMessage, str]:
+    ) -> Result[tuple[AssistantConversationMessage, UsageInfo], str]:
         # Get or generate the cache key
         cache_key = conversation.metadata.mistral_cache_key
         if cache_key is None:

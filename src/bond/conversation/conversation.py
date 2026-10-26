@@ -74,7 +74,7 @@ class Conversation(BaseModel):
         last_turn = self.last_episode.last_turn
         if last_turn is None:
             return 0
-        return last_turn.assistant_response.usage.total_tokens
+        return last_turn.usage.total_tokens
 
     @storage_path.setter
     def storage_path(self, new_value: Path | None):
@@ -126,20 +126,11 @@ class Conversation(BaseModel):
         if len(self.episodes) == 0:
             self.episodes.append(Episode())
 
-    def condense_turns(self, kept_turns: int):
-        if kept_turns < 0:
-            raise ValueError("kept_turns must be non-negative")
-        split = max(0, len(self.last_episode.turns) - kept_turns)
-        for turn in self.last_episode.turns[:split]:
-            turn.condense()
-
     def archive_turns(
         self,
         num_turns: int | None,
         episode_summary: str,
         prefix_summary: str,
-        *,
-        condense_kept_turns: bool,
     ) -> Episode:
         """Archive the oldest N turns from the current unfinished episode.
 
@@ -182,9 +173,6 @@ class Conversation(BaseModel):
             prefix_summary=prefix_summary,
             turns=remaining_turns,
         )
-        if condense_kept_turns:
-            for turn in remaining_turns:
-                turn.condense()
         self.episodes.append(new_episode)
 
         return finished
