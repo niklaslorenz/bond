@@ -2,6 +2,7 @@ from bond.capabilities.types import ConversationRenderer
 from bond.conversation.types import (
     AssistantConversationMessage,
     AssistantMessageChunk,
+    FrameworkConversationMessage,
     TextChunk,
     ThinkChunk,
     ToolCall,
@@ -62,6 +63,18 @@ class MarkdownRenderer(ConversationRenderer[str]):
                 for chunk in tool_message.message.content or []
                 if isinstance(chunk, TextChunk)
             )
+        return "".join(content)
+
+    def render_framework_message(
+        self, framework_message: FrameworkConversationMessage
+    ) -> str:
+        content = [f"## {framework_message.name} (Framework):\n"]
+        if self._condensed:
+            content.append(
+                framework_message.summary or "<framework message content unavailable>"
+            )
+        else:
+            content.append(framework_message.content)
         return "".join(content)
 
 

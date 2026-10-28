@@ -6,4 +6,5 @@ from pydantic import BaseModel
 class MistralConfig(BaseModel):
     type: Literal["mistral"] = "mistral"
     api_key: str
+    enable_framework_messages: bool = False
     models: list[str] | None = None

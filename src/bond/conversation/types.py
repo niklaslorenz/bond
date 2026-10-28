@@ -145,9 +145,15 @@ class ToolConversationMessage(BaseConversationMessage):
     def name(self):
         return self.message.name
 
+class FrameworkConversationMessage(BaseConversationMessage):
+    content: str
+    summary: str | None = None
+    name: str = "Framework"
+
+
 
 ConversationMessage = (
-    UserConversationMessage | AssistantConversationMessage | ToolConversationMessage
+    UserConversationMessage | AssistantConversationMessage | ToolConversationMessage | FrameworkConversationMessage
 )
 
 

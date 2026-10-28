@@ -42,10 +42,6 @@ class Mistral:
         self._models = MistralModels(self.config)
         self._tts = MistralTTS(self.config)
         self._voices = MistralVoices(self.config)
-        self._build_message_list = MistralMessageListBuilder()
-        self._build_system_message = DefaultSystemMessageBuilder(
-            include_prefix_summary=True, include_task_list=True
-        )
 
     def chat_completions(self) -> MistralChatCompletions:
         return self._chat_completions
@@ -74,6 +70,7 @@ class Mistral:
             self.chat_completions(),
             MistralMessageListBuilder(
                 condensed=True,
+                include_framework_messages=self.config.enable_framework_messages,
                 mock_starting_assistant_message=True,
                 mock_ending_tool_calls=True,
             ),
@@ -97,15 +94,16 @@ class Mistral:
             self.chat_completions(),
             10,
             DefaultSystemMessageBuilder(include_prefix_summary=True),
-            MistralMessageListBuilder(mock_starting_assistant_message=True),
+            MistralMessageListBuilder(
+                include_framework_messages=self.config.enable_framework_messages,
+                mock_starting_assistant_message=True,
+            ),
         )
 
     def thought_condensation(
         self, config: dict[str, Any], runtime: "BondRuntime | None" = None
     ):
-        options = DefaultThoughtCondensationOptions.model_validate(
-            config
-        )
+        options = DefaultThoughtCondensationOptions.model_validate(config)
         options.resolve(runtime)
         return MistralThoughtCondensation(
             options, self._chat_completions, str(hash(options.prompt))

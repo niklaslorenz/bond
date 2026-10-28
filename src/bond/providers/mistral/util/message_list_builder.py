@@ -22,10 +22,13 @@ class MistralMessageListBuilder(DefaultMessageListBuilder):
         self,
         *,
         condensed: bool = False,
+        include_framework_messages: bool = False,
         mock_starting_assistant_message: bool = False,
         mock_ending_tool_calls: bool = False,
     ):
-        super().__init__(condensed=condensed)
+        super().__init__(
+            condensed=condensed, include_framework_messages=include_framework_messages
+        )
         self._mock_starting_assistant_message = mock_starting_assistant_message
         self._mock_ending_tool_calls = mock_ending_tool_calls
 

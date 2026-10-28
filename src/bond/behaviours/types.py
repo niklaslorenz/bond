@@ -157,7 +157,9 @@ class AsyncLoopSignalBuffer:
         if self._user_input is not None or (
             self._tool_outputs is not None and not self._interrupt
         ):
-            signal = GenerationTriggers(self._user_input, self._tool_outputs)
+            signal = GenerationTriggers(
+                user_message=self._user_input, tool_messages=self._tool_outputs
+            )
             self._clear()
             return signal
         return None

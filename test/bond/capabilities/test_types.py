@@ -13,6 +13,7 @@ from bond.conversation.conversation import Conversation
 from bond.conversation.types import (
     AssistantConversationMessage,
     AssistantMessage,
+    FrameworkConversationMessage,
     Message,
     SystemMessage,
     TextChunk,
@@ -75,6 +76,16 @@ def make_tool_conversation_message(
     )
 
 
+def make_framework_conversation_message(
+    content: str = "Framework message",
+    name: str = "Framework",
+) -> FrameworkConversationMessage:
+    return FrameworkConversationMessage(
+        content=content,
+        name=name,
+    )
+
+
 def make_turn(
     user_text: str = "Hello",
     assistant_text: str = "Hi there",
@@ -133,6 +144,11 @@ class StringRenderer(ConversationRenderer[str]):
         texts = [c.text for c in chunks if isinstance(c, TextChunk)]
         return f"Tool({tool_message.name}): {' '.join(texts)}"
 
+    def render_framework_message(
+        self, framework_message: FrameworkConversationMessage
+    ) -> str:
+        return f"Framework({framework_message.name}): {framework_message.content}"
+
 
 class ListRenderer(ConversationRenderer[list[Message]]):
     """A renderer that converts messages to a list of Message objects."""
@@ -151,6 +167,13 @@ class ListRenderer(ConversationRenderer[list[Message]]):
         self, tool_message: ToolConversationMessage
     ) -> list[Message]:
         return [tool_message.message]
+
+    def render_framework_message(
+        self, framework_message: FrameworkConversationMessage
+    ) -> list[Message]:
+        # Framework messages don't have a direct Message equivalent,
+        # so we wrap the content in a UserMessage
+        return [UserMessage.create(framework_message.content)]
 
 
 def join_strings(items: Iterable[str]) -> str:
@@ -185,13 +208,14 @@ class TestConversationRendererAbstract:
             ) -> str:
                 return "user"
 
-            # Missing render_assistant_message and render_tool_message
+            # Missing render_assistant_message, render_tool_message,
+            # and render_framework_message
 
         with pytest.raises(TypeError):
             IncompleteRenderer(join_strings)  # pyright: ignore[reportAbstractUsage]
 
     def test_subclass_with_only_two_methods_cannot_instantiate(self):
-        """Even with two of three methods, instantiation should fail."""
+        """Even with two of four methods, instantiation should fail."""
 
         class PartialRenderer(ConversationRenderer[str]):
             def render_user_message(
@@ -204,10 +228,34 @@ class TestConversationRendererAbstract:
             ) -> str:
                 return "assistant"
 
-            # Missing render_tool_message
+            # Missing render_tool_message and render_framework_message
 
         with pytest.raises(TypeError):
             PartialRenderer(join_strings)  # pyright: ignore[reportAbstractUsage]
+
+    def test_subclass_with_only_three_methods_cannot_instantiate(self):
+        """Even with three of four methods, instantiation should fail."""
+
+        class AlmostCompleteRenderer(ConversationRenderer[str]):
+            def render_user_message(
+                self, user_message: UserConversationMessage
+            ) -> str:
+                return "user"
+
+            def render_assistant_message(
+                self, assistant_message: AssistantConversationMessage
+            ) -> str:
+                return "assistant"
+
+            def render_tool_message(
+                self, tool_message: ToolConversationMessage
+            ) -> str:
+                return "tool"
+
+            # Missing render_framework_message
+
+        with pytest.raises(TypeError):
+            AlmostCompleteRenderer(join_strings)  # pyright: ignore[reportAbstractUsage]
 
 
 # ---------------------------------------------------------------------------
@@ -251,6 +299,14 @@ class TestRenderMessage:
         msg = make_tool_conversation_message(name="get_weather", content="sunny")
         result = renderer.render_message(msg)
         assert result == "Tool(get_weather): sunny"
+
+    def test_render_framework_message(self):
+        renderer = StringRenderer(join_strings)
+        msg = make_framework_conversation_message(
+            content="System initialized", name="System"
+        )
+        result = renderer.render_message(msg)
+        assert result == "Framework(System): System initialized"
 
     def test_render_message_returns_correct_type(self):
         """The return type should match the generic parameter T."""
@@ -489,6 +545,14 @@ class TestListRenderer:
         assert isinstance(result[2], ToolMessage)
         assert isinstance(result[3], AssistantMessage)
 
+    def test_render_framework_message_returns_list(self):
+        renderer = ListRenderer(concat_lists)
+        msg = make_framework_conversation_message(content="System ready")
+        result = renderer.render_message(msg)
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert isinstance(result[0], UserMessage)
+
 
 # ---------------------------------------------------------------------------
 # SystemMessageBuilder - abstract behavior
@@ -584,6 +648,11 @@ class TestMessageListBuilder:
                 self, tool_message: ToolConversationMessage
             ) -> list[Message]:
                 return [tool_message.message]
+
+            def render_framework_message(
+                self, framework_message: FrameworkConversationMessage
+            ) -> list[Message]:
+                return [UserMessage.create(framework_message.content)]
 
         builder = MyMessageListBuilder(concat_lists)
         turn = make_turn("Hello", "Hi")

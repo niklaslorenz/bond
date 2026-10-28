@@ -5,6 +5,7 @@ from bond.conversation.conversation import Conversation
 from bond.conversation.types import (
     AssistantConversationMessage,
     ConversationMessage,
+    FrameworkConversationMessage,
     Message,
     SystemMessage,
     ToolConversationMessage,
@@ -29,6 +30,11 @@ class ConversationRenderer[T](ABC):
     @abstractmethod
     def render_tool_message(self, tool_message: ToolConversationMessage) -> T: ...
 
+    @abstractmethod
+    def render_framework_message(
+        self, framework_message: FrameworkConversationMessage
+    ) -> T: ...
+
     def render_message(self, message: ConversationMessage) -> T:
         if isinstance(message, UserConversationMessage):
             return self.render_user_message(message)
@@ -36,6 +42,8 @@ class ConversationRenderer[T](ABC):
             return self.render_assistant_message(message)
         if isinstance(message, ToolConversationMessage):
             return self.render_tool_message(message)
+        if isinstance(message, FrameworkConversationMessage):
+            return self.render_framework_message(message)
 
     def render_turn(self, turn: Turn) -> T:
         return self._compose([self.render_message(msg) for msg in turn.flatten()])

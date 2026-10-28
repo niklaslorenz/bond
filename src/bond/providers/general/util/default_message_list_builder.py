@@ -1,26 +1,47 @@
+import html
+
 from bond.capabilities.types import MessageListBuilder
 from bond.conversation.types import (
     AssistantConversationMessage,
     AssistantMessage,
     AssistantMessageChunk,
+    FrameworkConversationMessage,
     Message,
     TextChunk,
     ThinkChunk,
     ToolConversationMessage,
     ToolMessage,
     UserConversationMessage,
+    UserMessage,
 )
 
 
 class DefaultMessageListBuilder(MessageListBuilder):
-    def __init__(self, *, condensed: bool = False):
+    def __init__(
+        self, *, condensed: bool = False, include_framework_messages: bool = False
+    ):
         super().__init__(lambda x: sum(x, []))
         self._condensed = condensed
+        self._include_framework_messages = include_framework_messages
 
     def render_user_message(
         self, user_message: UserConversationMessage
     ) -> list[Message]:
-        return [user_message.message]
+        if not self._include_framework_messages:
+            return [user_message.message]
+        content = (
+            "<user-message>\n"
+            + html.escape(
+                "".join(
+                    chunk.text
+                    for chunk in user_message.message.content or []
+                    if isinstance(chunk, TextChunk)
+                ),
+                quote=False,
+            )
+            + "\n</user-message>\n"
+        )
+        return [UserMessage(content=[TextChunk(text=content)])]
 
     def render_tool_message(
         self, tool_message: ToolConversationMessage
@@ -67,3 +88,15 @@ class DefaultMessageListBuilder(MessageListBuilder):
                 tool_calls=assistant_message.message.tool_calls, content=content
             )
         ]
+
+    def render_framework_message(
+        self, framework_message: FrameworkConversationMessage
+    ) -> list[Message]:
+        if not self._include_framework_messages:
+            return []
+        content = (
+            "<framework-message>\n"
+            + html.escape(framework_message.content, quote=False)
+            + "\n</framework-message>\n"
+        )
+        return [UserMessage(content=[TextChunk(text=content)])]
