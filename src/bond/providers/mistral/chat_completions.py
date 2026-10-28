@@ -34,7 +34,7 @@ class MistralChatCompletions:
         tools: list[Tool],
         system_message: SystemMessage | None = None,
         options: dict[str, Any] | None = None,
-        max_retries: int = 3,
+        max_retries: int = 7,
     ) -> CompletionResponse:
         if self.config.models is not None and model not in self.config.models:
             raise ValueError(f"This model is not whitelisted: {model}")
