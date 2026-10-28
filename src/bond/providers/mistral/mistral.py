@@ -9,6 +9,9 @@ from bond.providers.general.summarization import (
     DefaultSummarizationCapability,
     DefaultSummarizationOptions,
 )
+from bond.providers.general.summarization_strategies.bulk_markdown import (
+    BulkMarkdownSummarizationStrategy,
+)
 from bond.providers.general.thought_condensation import (
     DefaultThoughtCondensationOptions,
 )
@@ -75,6 +78,7 @@ class Mistral:
                 mock_ending_tool_calls=True,
             ),
             DefaultSystemMessageBuilder(include_prefix_summary=True),
+            BulkMarkdownSummarizationStrategy(),
         )
 
     def generation(
@@ -99,9 +103,12 @@ class Mistral:
     def thought_condensation(
         self, config: dict[str, Any], runtime: "BondRuntime | None" = None
     ):
-        options = DefaultThoughtCondensationOptions.model_validate(config)
+        options = DefaultThoughtCondensationOptions.model_validate(
+            config
+        )
+        options.resolve(runtime)
         return MistralThoughtCondensation(
-            options, self._chat_completions, str(hash(options.prompt)), runtime
+            options, self._chat_completions, str(hash(options.prompt))
         )
 
     def tts(

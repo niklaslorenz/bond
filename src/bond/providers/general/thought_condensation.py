@@ -30,11 +30,9 @@ class DefaultThoughtCondensationCapability:
         self,
         config: DefaultThoughtCondensationOptions,
         chat_completions: ChatCompletionsEndpoint,
-        runtime: "BondRuntime | None" = None,
     ):
         self._config = config
         self._chat_completions = chat_completions
-        self._config.resolve(runtime)
 
     def condense_thoughts(
         self, conversation: Conversation, force: bool

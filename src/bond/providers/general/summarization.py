@@ -1,5 +1,5 @@
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol
 
 from pydantic import BaseModel
 from returns.result import Failure, Result, Success
@@ -26,11 +26,20 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+class SummarizationStrategy(Protocol):
+    def __call__(
+        self,
+        conversation: Conversation,
+        turns: int | None,
+        chat_completions: ChatCompletionsEndpoint,
+        options: "SummaryHandlerOptions",
+    ) -> Result[str, str]: ...
+
+
 class SummaryHandlerOptions(BaseModel):
     model: str
     model_options: dict[str, Any] | None = None
     prompt: str
-    instruction: str
 
     def resolve(self, runtime: "BondRuntime | None"):
         self.prompt = resolve_skills(self.prompt, runtime)
@@ -60,30 +69,34 @@ class DefaultSummarizationCapability:
         chat_completions: ChatCompletionsEndpoint,
         message_list_builder: MessageListBuilder,
         system_message_builder: SystemMessageBuilder,
+        summarization_strategy: SummarizationStrategy,
     ):
         self._config = config
         self._chat_completions = chat_completions
         self._message_list_builder = message_list_builder
         self._system_message_builder = system_message_builder
+        self._summarization_strategy = summarization_strategy
 
-        if (opts := self._config.episode_summarization) is not None:
-            self._task_list_handler = (
-                ToolLoopRunner(
-                    opts.task_list_handler, chat_completions, message_list_builder
-                )
-                if opts.task_list_handler is not None
-                else None
+        self._task_list_handler = (
+            ToolLoopRunner(
+                self._config.task_list_handler,
+                chat_completions,
+                system_message_builder,
+                message_list_builder,
             )
-            self._working_set_handler = (
-                ToolLoopRunner(
-                    opts.working_set_handler, chat_completions, message_list_builder
-                )
-                if opts.working_set_handler is not None
-                else None
+            if self._config.task_list_handler is not None
+            else None
+        )
+        self._working_set_handler = (
+            ToolLoopRunner(
+                self._config.working_set_handler,
+                chat_completions,
+                system_message_builder,
+                message_list_builder,
             )
-        else:
-            self._task_list_handler = None
-            self._working_set_handler = None
+            if self._config.working_set_handler is not None
+            else None
+        )
 
     def summarize_episode(
         self, conversation: Conversation, force: bool
@@ -104,7 +117,12 @@ class DefaultSummarizationCapability:
         ):
             return Success(0)
 
-        summary = self._run_rendered_summarization(conversation, n_summarized_turns)
+        summary = self._summarization_strategy(
+            conversation,
+            n_summarized_turns,
+            self._chat_completions,
+            self._config.summary_handler,
+        )
         if isinstance(summary, Failure):
             return summary
         summary = summary.unwrap()

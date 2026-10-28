@@ -11,3 +11,8 @@ name = "python"
 language-servers = ["basedpyright"]
 formatter = { command = "sh", args = ["-c", "isort - | black -"] }
 auto-format = true
+
+[[language]]
+name = "markdown"
+soft-wrap.enable = true
+soft-wrap.wrap-at-text-width = true
