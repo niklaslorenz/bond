@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from bond.behaviours.async_turn_event import *
 from bond.behaviours.async_turn_event_handler import AsyncTurnEventHandler
-from bond.conversation.types import TextChunk, ThinkChunk
+from bond.conversation.types import FrameworkConversationMessage, TextChunk, ThinkChunk
 from bond.tui.widgets.chat_log import ChatMessage
 
 from . import logger
@@ -74,7 +74,7 @@ class TuiEventHandler(AsyncTurnEventHandler):
 
     async def handle_message_inserted_event(self, event: AsyncTurnMessageInsertedEvent):
         logger.debug(
-            f"Inserted message for {event.message.name} ({event.message.message.role})"
+            f"Inserted message for {event.message.name} ({event.message.message.role if not isinstance(event.message, FrameworkConversationMessage) else 'Framework'})"
         )
         self._get_app().chat_view.add_conversation_message(event.message)
         self._get_app().chat_view.chat_log.scroll_end()

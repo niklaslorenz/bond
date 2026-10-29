@@ -22,6 +22,8 @@ To see which options a specific provider expects, view the [provider specific co
 | summary_handler.model         | str           | no       | The model id                                                                                                            |
 | summary_handler.model_options | dict[str,Any] | yes      | Provider specific options that are passed directly to the chat completions endpoint                                     |
 | summary_handler.prompt        | str           | no       | The system prompt for the summarization tasks (supports macros)                                                         |
+| summary_handler.instruction   | str           | yes      | The user-level instruction that is appended to the summarization call's message list, if the strategy supports it       |
+| summary_handler.chunk_size    | int           | yes      | The chunk size that the conversation is chunked into when summarizing, if the strategy supports it                      |
 | task_list_handler             | object        | yes      | Configuration for updating the task list                                                                                |
 | working_set_handler           | object        | yes      | Configuration for updating the working set                                                                              |
 

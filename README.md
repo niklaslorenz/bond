@@ -78,9 +78,31 @@ for example this would be `"base_url": "http://localhost:11434/"`
 
 ## TODO
 
-- create mistral version of generation capability and use this to inject cache key into model options
-- remove conversation metadata from chat completions endpoint
+### Summarization
+
+- Add a way for the working set handler and task list handler to actually see what they have to edit!
+
+### TUI
+
+- Reintroduce chat log scrolling with ctrl + j/k
+- (Prevent scrolling when new message is already on top)
 
 ## Known Issues
 
 - Deleting messages can result a message list that is shorter than the amount of specified kept turns in the summary configuration
+
+- Task List and Working Set are not used yet
+
+- Saving a conversation as last conv and loading it leads to a broken state in the saved conversation because the cache
+  is constructed from the last conv file and is unaware of the status of the actual conversation file
+  => fix: let the last-conv be just the path and name of the last conversation (reference like) and store a temporary
+  conversation in cache_path / temp and let the last conv point there. On a rename, move the conversation to
+  the conversations dir and change the reference in last_conv
+
+- Hit rate is off when loading a conversation
+
+- Errors in command execution lead to a textual crash somehow
+
+  ## Packages with extensive tests
+
+  - conversation

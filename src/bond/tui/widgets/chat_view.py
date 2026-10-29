@@ -6,6 +6,7 @@ from bond.conversation.conversation import Conversation
 from bond.conversation.types import (
     AssistantMessage,
     ConversationMessage,
+    FrameworkConversationMessage,
     TextChunk,
     ThinkChunk,
     ToolMessage,
@@ -44,6 +45,14 @@ class ChatView(Container):
         self.input_bar.clear()
 
     def add_conversation_message(self, message: ConversationMessage):
+        if isinstance(message, FrameworkConversationMessage):
+            if self.last_message is not None and self.last_message.role == "system":
+                _append_chunks(self.last_message, [TextChunk(text=message.content)])
+            else:
+                msg = ChatMessage("Framework", "system")
+                self.chat_log.add_message(msg)
+                msg.add_markdown_block(message.content)
+            return
         if (
             self.last_message is not None
             and message.message.role == self.last_message.role

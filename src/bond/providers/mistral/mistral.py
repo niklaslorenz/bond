@@ -9,9 +9,7 @@ from bond.providers.general.summarization import (
     DefaultSummarizationCapability,
     DefaultSummarizationOptions,
 )
-from bond.providers.general.summarization_strategies.bulk_markdown import (
-    BulkMarkdownSummarizationStrategy,
-)
+from bond.providers.general.summarization_fns import chunked_markdown_summary
 from bond.providers.general.thought_condensation import (
     DefaultThoughtCondensationOptions,
 )
@@ -75,7 +73,7 @@ class Mistral:
                 mock_ending_tool_calls=True,
             ),
             DefaultSystemMessageBuilder(include_prefix_summary=True),
-            BulkMarkdownSummarizationStrategy(),
+            chunked_markdown_summary,
         )
 
     def generation(

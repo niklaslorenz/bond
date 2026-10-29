@@ -1,4 +1,5 @@
 import html
+import logging
 
 from bond.capabilities.types import MessageListBuilder
 from bond.conversation.types import (
@@ -14,6 +15,8 @@ from bond.conversation.types import (
     UserConversationMessage,
     UserMessage,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class DefaultMessageListBuilder(MessageListBuilder):
@@ -93,6 +96,7 @@ class DefaultMessageListBuilder(MessageListBuilder):
         self, framework_message: FrameworkConversationMessage
     ) -> list[Message]:
         if not self._include_framework_messages:
+            logger.warning("Framework messages are not enabled and will be skipped")
             return []
         content = (
             "<framework-message>\n"

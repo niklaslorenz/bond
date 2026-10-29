@@ -1,19 +1,13 @@
 import logging
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 from returns.result import Failure, Result, Success
 
 from bond.capabilities.types import MessageListBuilder, SystemMessageBuilder
 from bond.conversation.conversation import Conversation
-from bond.conversation.types import (
-    Message,
-    SystemMessage,
-    TextChunk,
-    UserMessage,
-)
 from bond.endpoints.chat_completions import ChatCompletionsEndpoint
-from bond.providers.general.util.markdown_renderer import MarkdownRenderer
+from bond.providers.general.summarization_fns import SummarizerFn
 from bond.providers.general.util.tool_loop_runner import (
     ToolLoopRunner,
     ToolLoopRunnerOptions,
@@ -26,20 +20,12 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class SummarizationStrategy(Protocol):
-    def __call__(
-        self,
-        conversation: Conversation,
-        turns: int | None,
-        chat_completions: ChatCompletionsEndpoint,
-        options: "SummaryHandlerOptions",
-    ) -> Result[str, str]: ...
-
-
 class SummaryHandlerOptions(BaseModel):
     model: str
     model_options: dict[str, Any] | None = None
     prompt: str
+    instruction: str | None = None
+    chunk_size: int | None = None
 
     def resolve(self, runtime: "BondRuntime | None"):
         self.prompt = resolve_skills(self.prompt, runtime)
@@ -69,7 +55,7 @@ class DefaultSummarizationCapability:
         chat_completions: ChatCompletionsEndpoint,
         message_list_builder: MessageListBuilder,
         system_message_builder: SystemMessageBuilder,
-        summarization_strategy: SummarizationStrategy,
+        summarization_strategy: SummarizerFn,
     ):
         self._config = config
         self._chat_completions = chat_completions
@@ -121,6 +107,7 @@ class DefaultSummarizationCapability:
             conversation,
             n_summarized_turns,
             self._chat_completions,
+            self._system_message_builder,
             self._config.summary_handler,
         )
         if isinstance(summary, Failure):
@@ -142,78 +129,3 @@ class DefaultSummarizationCapability:
             conversation.working_set.update()
         conversation.archive_turns(n_summarized_turns, "", summary)
         return Success(n_summarized_turns)
-
-    def _run_rendered_summarization(
-        self, conversation: Conversation, turns: int | None
-    ) -> Result[str, str]:
-        options = self._config.episode_summarization
-        assert options is not None
-        options = options.summary_handler
-        renderer = MarkdownRenderer()
-
-        rendered = renderer.render_conversation(conversation, turns)
-
-        system_message = SystemMessage(content=[TextChunk(text=options.prompt)])
-        message_list: list[Message] = [
-            UserMessage(content=[TextChunk(text=rendered)]),
-        ]
-
-        response = self._chat_completions.chat_completion(
-            options.model, message_list, [], system_message, options.model_options
-        )
-        if response.choices[0].message.tool_calls is not None:
-            logger.warning(
-                "Episode summarization call generated tool calls which is unexpected.\n"
-                + "\n".join(
-                    f"Function: {tool_call.function.name}\nParameters: {tool_call.function.arguments}"
-                    for tool_call in response.choices[0].message.tool_calls
-                )
-            )
-        if (content := response.choices[0].message.content) is None:
-            return Failure("Model returned with no content")
-        summary = "".join(
-            [chunk.text for chunk in content if isinstance(chunk, TextChunk)]
-        )
-        if summary == "":
-            return Failure("Model returned with no content")
-        return Success(summary)
-
-    def _run_summarization(
-        self, conversation: Conversation, turns: int | None
-    ) -> Result[str, str]:
-        options = self._config.episode_summarization
-        assert options is not None
-        options = options.summary_handler
-
-        message_list = self._message_list_builder.render_conversation(
-            conversation, turns
-        )
-        system_msg = self._system_message_builder.render_system_message(
-            conversation,
-            options.prompt,
-        )
-        instruction_msg = UserMessage(content=[TextChunk(text=options.instruction)])
-        message_list.append(instruction_msg)
-        response = self._chat_completions.chat_completion(
-            options.model,
-            message_list,
-            [],
-            system_msg,
-            options.model_options,
-        )
-        if response.choices[0].message.tool_calls is not None:
-            logger.warning(
-                "Episode summarization call generated tool calls which is unexpected.\n"
-                + "\n".join(
-                    f"Function: {tool_call.function.name}\nParameters: {tool_call.function.arguments}"
-                    for tool_call in response.choices[0].message.tool_calls
-                )
-            )
-        if (content := response.choices[0].message.content) is None:
-            return Failure("Model returned with no content")
-        summary = "".join(
-            [chunk.text for chunk in content if isinstance(chunk, TextChunk)]
-        )
-        if summary == "":
-            return Failure("Model returned with no content")
-        return Success(summary)

@@ -2,6 +2,8 @@ import re
 import sys
 from argparse import ArgumentParser, Namespace
 
+from returns.result import Failure
+
 from bond.endpoints.voices import find_voice, list_all
 from bond.runtime import BondRuntime
 
@@ -50,6 +52,36 @@ def list_personas(_: Namespace):
         print("No personas configured")
         return
     print("Personas:\n  " + "\n  ".join(personas))
+
+
+def validate_personas(_: Namespace):
+    runtime = BondRuntime.get_instance()
+    runtime.initialize_dynamic()
+    personas = runtime.list_personas()
+    if len(personas) == 0:
+        print("No personas configured")
+        return
+    errors: list[tuple[str, str]] = []
+    for name in personas:
+        result = runtime.get_persona(name)
+        if isinstance(result, Failure):
+            errors.append((name, f"Failed to load config: {result.failure()}"))
+            continue
+        config = result.unwrap()
+        try:
+            persona = config.instantiate(runtime)
+            persona.release()
+        except Exception as e:
+            errors.append((name, f"Failed to instantiate: {e}"))
+            continue
+        print(f"  ✓ {name}")
+    if errors:
+        print(f"\n{len(errors)} of {len(personas)} persona(s) have problems:")
+        for name, error in errors:
+            print(f"  ✗ {name}: {error}")
+        return 1
+    print(f"\nAll {len(personas)} persona(s) validated successfully")
+    return 0
 
 
 def list_plugins(_: Namespace):
@@ -101,6 +133,12 @@ def main():
     personas_parser = subparsers.add_parser("personas")
     personas_parser.set_defaults(callback=list_personas)
 
+    validate_personas_parser = subparsers.add_parser(
+        "validate-personas",
+        help="Validate all persona configs by loading and instantiating them",
+    )
+    validate_personas_parser.set_defaults(callback=validate_personas)
+
     toolsets_parser = subparsers.add_parser("toolsets")
     toolsets_parser.set_defaults(callback=list_toolsets)
 
@@ -115,8 +153,8 @@ def main():
     if not hasattr(args, "callback"):
         print("Missing command")
         return 1
-    args.callback(args)
-    return 0
+    result = args.callback(args)
+    return result if isinstance(result, int) else 0
 
 
 if __name__ == "__main__":
