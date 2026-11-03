@@ -97,7 +97,7 @@ class ChatView(Container):
                 turns += 1
                 if (
                     turn.usage.num_cached_tokens is not None
-                    and turn.usage.num_cached_tokens == 0
+                    and turn.usage.num_cached_tokens > 0
                 ):
                     cache_hits += 1
 
