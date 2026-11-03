@@ -1,76 +1,47 @@
+import asyncio
 from argparse import ArgumentParser
 from pathlib import Path
 
 from bond import util
-from bond.behaviours.loop import LoopBehaviour
-from bond.config import get_default_persona
-from bond.conversation.conversation import Conversation
-from bond.environment.std_command_handler import StdCommandHandler
-from bond.environment.std_event_handler import StdEventHandler
-from bond.environment.std_signal_receiver import StdSignalReceiver
-from bond.runtime import BondRuntime
-from bond.tools.tool import ToolCallContext
+
+from ._interactive import run_interactive_session
+
+
+def build_parser():
+    parser = ArgumentParser("Follow up on the last ask")
+    parser.add_argument("--show-thoughts", action="store_true")
+    parser.add_argument("--show-tool-output", action="store_true")
+    parser.add_argument("--non-interactive", action="store_true")
+    parser.add_argument("--no-stream", action="store_true")
+    parser.add_argument("--debug", action="store_true")
+
+    return parser
 
 
 def main():
-    show_thoughts = False
-    show_tool_output = False
+    args = build_parser().parse_args()
+    util.setup_logger(args.debug, "followup.log")
 
-    parser = ArgumentParser()
-    parser.add_argument("--debug", action="store_true")
-
-    args = parser.parse_args()
-    util.setup_logger(args.debug, "chat.log")
+    show_thoughts: bool = args.show_thoughts
+    stream: bool = not args.no_stream if not show_thoughts else False
 
     conv_path = Path("~/.local/share/bond").expanduser().absolute()
     env_path = Path("~/.config/bond/").expanduser().absolute()
-    runtime = BondRuntime.get_instance()
-    runtime.initialize_dynamic(env_path)
-    config = runtime.get_bond_config()
 
-    persona_id = get_default_persona(config.chat)
-
-    last_ask_path = conv_path / "last-ask.json"
-    last_conv_path = conv_path / "last-conv.json"
-    conversation = (
-        Conversation.model_validate_json(last_ask_path.read_text())
-        if last_ask_path.is_file()
-        else Conversation()
+    asyncio.run(
+        run_interactive_session(
+            conv_path=conv_path,
+            env_path=env_path,
+            # Continue the conversation that `ask` saved
+            conv_name="last-ask",
+            config_section="chat",
+            show_thoughts=show_thoughts,
+            show_tool_output=args.show_tool_output,
+            stream=stream,
+            is_interactive=not args.non_interactive,
+            save_after_turn=True,
+        )
     )
-    tool_call_context = ToolCallContext.default(None, True, conversation)
-    if len(conversation.history) == 0:
-        print("<New Conversation>")
-    else:
-        print(f"<Loaded {len(conversation.history)} messages>")
-
-    receiver = StdSignalReceiver()
-    event_handler = StdEventHandler(receiver, show_thoughts, show_tool_output)
-    cmd_handler = StdCommandHandler(
-        event_handler=event_handler,
-        signal_handler=receiver,
-        conversation_base_path=conv_path / "conversations",
-        last_conv_path=last_conv_path,
-        available_personas=config.chat.personas,
-        save_on_quit=False,
-        show_thoughts=show_thoughts,
-    )
-    loop = LoopBehaviour(
-        runtime=runtime,
-        conversation=conversation,
-        event_handler=event_handler,
-        signal_receiver=receiver,
-        command_handler=cmd_handler,
-        tool_call_context=tool_call_context,
-        persona_id=persona_id,
-        stream=True,
-        allow_shell_executions=True,
-        user_name=config.user_name,
-        allowed_personas=config.chat.personas,
-    )
-    cmd_handler.link(loop)
-    receiver.link(lambda: loop.persona.name)
-
-    loop.run()
 
 
 if __name__ == "__main__":

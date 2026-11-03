@@ -1,91 +1,51 @@
+import asyncio
 from argparse import ArgumentParser
 from pathlib import Path
 
 from bond import util
-from bond.behaviours.loop import LoopBehaviour
-from bond.config import get_default_persona
-from bond.conversation.conversation import Conversation
-from bond.environment.std_command_handler import StdCommandHandler
-from bond.environment.std_event_handler import StdEventHandler
-from bond.environment.std_signal_receiver import StdSignalReceiver
-from bond.runtime import BondRuntime
-from bond.tools.tool import ToolCallContext
+
+from ._interactive import run_interactive_session
 
 
 def build_parser():
-    parser = ArgumentParser()
+    parser = ArgumentParser("Chat with Bond")
     parser.add_argument("--conversation-path", type=str)
     parser.add_argument("--environment-path", type=str)
     parser.add_argument("--no-save-after-turn", action="store_true")
+    parser.add_argument("--show-thoughts", action="store_true")
+    parser.add_argument("--show-tool-output", action="store_true")
+    parser.add_argument("--non-interactive", action="store_true")
+    parser.add_argument("--no-stream", action="store_true")
     parser.add_argument("--debug", action="store_true")
 
     return parser
 
 
 def main():
-    show_thoughts = False
-    show_tool_output = False
-
-    parser = build_parser()
-    args = parser.parse_args()
+    args = build_parser().parse_args()
     util.setup_logger(args.debug, "chat.log")
 
-    save_after_turn = not args.no_save_after_turn
+    show_thoughts: bool = args.show_thoughts
+    stream: bool = not args.no_stream if not show_thoughts else False
 
     conv_path = (
         Path(args.conversation_path or "~/.local/share/bond").expanduser().absolute()
     )
-    conv_path.mkdir(exist_ok=True, parents=True)
     env_path = Path(args.environment_path or "~/.config/bond/").expanduser().absolute()
-    runtime = BondRuntime.get_instance()
-    runtime.initialize_dynamic(env_path)
-    config = runtime.get_bond_config()
 
-    last_conv_path = conv_path / "last-conv.json"
-    conversation = (
-        Conversation.model_validate_json(last_conv_path.read_text())
-        if last_conv_path.is_file()
-        else Conversation()
+    asyncio.run(
+        run_interactive_session(
+            conv_path=conv_path,
+            env_path=env_path,
+            conv_name="last-conv",
+            config_section="chat",
+            show_thoughts=show_thoughts,
+            show_tool_output=args.show_tool_output,
+            stream=stream,
+            is_interactive=not args.non_interactive,
+            save_after_turn=not args.no_save_after_turn,
+        )
     )
-    if len(conversation.history) == 0:
-        print("<New Conversation>")
-    else:
-        print(f"<Loaded {len(conversation.history)} messages>")
-    # TODO: Fix this persona mess. Get the default persona only if the conversation does not have one.
-    # Also, why does loop update the persona multiple times during construction? Either take the one from the conversation
-    # Or get the default yourself
-    persona_id = get_default_persona(config.chat)
-    tool_call_context = ToolCallContext.default(None, True, conversation)
-
-    receiver = StdSignalReceiver()
-    event_handler = StdEventHandler(receiver, show_thoughts, show_tool_output)
-    cmd_handler = StdCommandHandler(
-        event_handler=event_handler,
-        signal_handler=receiver,
-        conversation_base_path=conv_path / "conversations",
-        last_conv_path=last_conv_path,
-        available_personas=config.chat.personas,
-        save_on_quit=True,
-        show_thoughts=show_thoughts,
-    )
-    loop = LoopBehaviour(
-        runtime=runtime,
-        conversation=conversation,
-        event_handler=event_handler,
-        signal_receiver=receiver,
-        command_handler=cmd_handler,
-        tool_call_context=tool_call_context,
-        persona_id=persona_id,
-        stream=True,
-        allow_shell_executions=True,
-        user_name=config.user_name,
-        allowed_personas=config.chat.personas,
-        save_after_turn=save_after_turn,
-    )
-    receiver.link(lambda: loop.persona.name)
-    cmd_handler.link(loop)
-
-    loop.run()
 
 
 if __name__ == "__main__":
