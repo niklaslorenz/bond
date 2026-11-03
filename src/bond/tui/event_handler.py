@@ -66,7 +66,9 @@ class TuiEventHandler(AsyncTurnEventHandler):
 
     async def handle_error_event(self, event: AsyncTurnErrorEvent):
         # TODO: Show error popup instead
-        self._get_app().notify(event.reason, severity="error")
+        # markup=False: the reason may contain square brackets which would
+        # raise MarkupError when rendering the toast and crash the app.
+        self._get_app().notify(event.reason, severity="error", markup=False)
 
     async def handle_full_response_event(self, event: AsyncTurnFullResponseEvent):
         self._get_app().chat_view.add_conversation_message(event.message)

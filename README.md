@@ -29,12 +29,6 @@ Currently supported providers are:
 - [Mistral](./docs/providers/mistral.md)
 - [Ollama](./docs/providers/ollama.md)
 
-## TODO
-
-## Known Issues
-
-- Errors in command execution lead to a textual crash somehow
-
 ## Packages with extensive tests
 
 - conversation

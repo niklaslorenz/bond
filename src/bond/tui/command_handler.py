@@ -6,6 +6,7 @@ import subprocess
 from argparse import ArgumentParser, Namespace, _SubParsersAction
 
 from returns.result import Failure
+from textual.notifications import SeverityLevel
 
 from bond.behaviours.async_turn import TYPE_CHECKING
 from bond.conversation.conversation import Conversation
@@ -219,8 +220,12 @@ class TuiCommandHandler:
 
     # Helper methods
 
-    def _notify(self, text: str):
-        self._app.notify(text)
+    def _notify(self, text: str, severity: SeverityLevel = "information"):
+        # markup=False: messages (esp. error texts) may contain square
+        # brackets (e.g. "[Errno 2] ..."), which would otherwise be parsed
+        # as markup and raise MarkupError while rendering the toast,
+        # crashing the whole app.
+        self._app.notify(text, markup=False, severity=severity)
 
     def _handle_shell_command(
         self, cmd: str, stdin=None, stdout=None, stderr=None
@@ -283,7 +288,10 @@ class TuiCommandHandler:
                     return await args.callback(args)
             except Exception as e:
                 logger.error(f"error while executing command '{cmd}' ({type(e)}): {e}")
-                self._notify(f"error while executing command '{cmd}' ({type(e)}): {e}")
+                self._notify(
+                    f"error while executing command '{cmd}' ({type(e)}): {e}",
+                    severity="error",
+                )
         return True
 
     def _build_parser(self, subparsers: _SubParsersAction):
