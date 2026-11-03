@@ -84,7 +84,6 @@ for example this would be `"base_url": "http://localhost:11434/"`
 
 ### TUI
 
-- Reintroduce chat log scrolling with ctrl + j/k
 - (Prevent scrolling when new message is already on top)
 
 ## Known Issues

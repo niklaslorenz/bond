@@ -70,14 +70,14 @@ class TuiEventHandler(AsyncTurnEventHandler):
 
     async def handle_full_response_event(self, event: AsyncTurnFullResponseEvent):
         self._get_app().chat_view.add_conversation_message(event.message)
-        self._get_app().chat_view.chat_log.scroll_end()
+        self._get_app().chat_view.chat_log.auto_scroll_end()
 
     async def handle_message_inserted_event(self, event: AsyncTurnMessageInsertedEvent):
         logger.debug(
             f"Inserted message for {event.message.name} ({event.message.message.role if not isinstance(event.message, FrameworkConversationMessage) else 'Framework'})"
         )
         self._get_app().chat_view.add_conversation_message(event.message)
-        self._get_app().chat_view.chat_log.scroll_end()
+        self._get_app().chat_view.chat_log.auto_scroll_end()
 
     async def handle_request_confirmation_event(
         self, event: AsyncTurnRequestConfirmationEvent
@@ -106,7 +106,7 @@ class TuiEventHandler(AsyncTurnEventHandler):
                 )
                 logger.debug(f"Thinking: {text}")
                 msg.append_thinking(text)
-        self._get_app().chat_view.chat_log.scroll_end()
+        self._get_app().chat_view.chat_log.auto_scroll_end()
 
     async def handle_response_end_event(self, event: AsyncTurnResponseEndEvent):
         status_bar = self._get_app().chat_view.status_bar
@@ -130,4 +130,4 @@ class TuiEventHandler(AsyncTurnEventHandler):
 
     async def handle_tool_return_event(self, event: AsyncTurnToolReturnEvent):
         self._get_app().chat_view.add_conversation_message(event.result)
-        self._get_app().chat_view.chat_log.scroll_end()
+        self._get_app().chat_view.chat_log.auto_scroll_end()

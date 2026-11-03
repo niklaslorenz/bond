@@ -210,6 +210,14 @@ class MultiLineInput(TextArea):
 
 class InputBar(TextArea):
 
+    def __init__(
+        self,
+        key_callbacks: dict[str, Callable[[], Any]] | None = None,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.key_callbacks: dict[str, Callable[[], Any]] = key_callbacks or {}
+
     class Submitted(Message):
         """Event emitted when Enter is pressed without Ctrl."""
 
@@ -229,7 +237,11 @@ class InputBar(TextArea):
 
     def on_key(self, event: Key) -> None:
         key = event.key
-        if key == "shift+enter":
+        if key in self.key_callbacks:
+            self.key_callbacks[key]()
+            event.prevent_default()
+            event.stop()
+        elif key == "shift+enter":
             self.insert("\n", self.cursor_location)
             event.prevent_default()
             event.stop()

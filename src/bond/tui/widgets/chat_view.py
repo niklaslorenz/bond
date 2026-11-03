@@ -114,7 +114,7 @@ class ChatView(Container):
             )
         else:
             self.status_bar.set_cached_prefix_portion(None)
-        self.chat_log.scroll_end(animate=False)
+        self.chat_log.scroll_to_end(animate=False)
 
     def ensure_current_author(
         self, role: Literal["user", "system", "assistant"], author: str | None

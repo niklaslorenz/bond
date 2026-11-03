@@ -5,6 +5,7 @@ from typing import Any
 
 from returns.result import Failure, Result, Success
 from textual.app import App, ComposeResult
+from textual.binding import Binding
 
 from bond.behaviours.async_loop import AsyncAgentLoop
 from bond.behaviours.types import LoopStatus
@@ -24,10 +25,15 @@ from bond.tui.widgets.popup import PopupManager
 
 from . import logger
 
-
 class BondTui(App):
 
     CSS_PATH = str(Path(__file__).with_name("tui.css"))
+
+    BINDINGS = [
+        Binding("ctrl+j", "scroll_down", "Scroll Down"),
+        Binding("ctrl+k", "scroll_up", "Scroll Up"),
+        Binding("ctrl+d", "scroll_to_end", "Scroll to End"),
+    ]
 
     def __init__(
         self,
@@ -44,6 +50,11 @@ class BondTui(App):
         self.task_registry = TaskRegistry()
         self.popup_manager = PopupManager(self)
         self.chat_view = ChatView()
+        self.chat_view.input_bar.key_callbacks = {
+            "ctrl+j": self.action_scroll_down,
+            "ctrl+k": self.action_scroll_up,
+            "ctrl+d": self.action_scroll_to_end,
+        }
         self._action_lock = asyncio.Lock()
         self._chat_lock = asyncio.Lock()
 
@@ -189,11 +200,26 @@ class BondTui(App):
                 event.accept()
         elif not self.action_lock.locked():
             async with self._action_lock:
+                self.chat_view.chat_log.scroll_to_end()
                 result = self.prompt(UserMessage(content=[TextChunk(text=event.value)]))
                 if isinstance(result, Success):
                     event.accept()
                 else:
                     logger.debug(f"Failed to prompt agent: {result.failure()}")
+
+    # Actions
+
+    def action_scroll_down(self):
+        """Scroll the chat log down by a few lines."""
+        self.chat_view.chat_log.scroll_relative(y=5, animate=False)
+
+    def action_scroll_up(self):
+        """Scroll the chat log up by a few lines."""
+        self.chat_view.chat_log.scroll_relative(y=-5, animate=False)
+
+    def action_scroll_to_end(self):
+        """Scroll the chat log to the end and re-enable auto-scroll."""
+        self.chat_view.chat_log.scroll_to_end()
 
     # Internals
 

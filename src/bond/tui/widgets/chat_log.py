@@ -127,6 +127,29 @@ class ChatLog(ScrollableContainer):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.messages: list[ChatMessage] = []
+        self.auto_scroll: bool = True
+
+    @property
+    def is_at_end(self) -> bool:
+        """Whether the scroll position is at (or very near) the bottom."""
+        return self.scroll_y >= self.max_scroll_y - 1
+
+    def watch_scroll_y(self, old_value: float, new_value: float) -> None:
+        super().watch_scroll_y(old_value, new_value)
+        if self.is_at_end:
+            self.auto_scroll = True
+        elif new_value < old_value:
+            self.auto_scroll = False
+
+    def auto_scroll_end(self, animate: bool = True) -> None:
+        """Scroll to the end only if auto-scroll is currently enabled."""
+        if self.auto_scroll:
+            self.scroll_end(animate=animate)
+
+    def scroll_to_end(self, animate: bool = False) -> None:
+        """Scroll to the end and re-enable auto-scroll."""
+        self.auto_scroll = True
+        self.scroll_end(animate=animate)
 
     def add_message(self, message: ChatMessage):
         self.messages.append(message)
