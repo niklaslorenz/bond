@@ -675,7 +675,7 @@ class TestRenderSystemMessageActiveSkills:
     def test_active_skills_render_full_content(self):
         runtime = make_mock_runtime({"pdf": SKILL_PDF})
         builder = DefaultSystemMessageBuilder(include_skills=True, runtime=runtime)
-        conv = Conversation(active_skills=["pdf"])
+        conv = Conversation(available_skills=["pdf"], active_skills=["pdf"])
 
         result = builder.render_system_message(conv, "prompt")
 
@@ -684,13 +684,14 @@ class TestRenderSystemMessageActiveSkills:
         assert render_skill_md(SKILL_PDF) in text
         assert "Use pdf tools when asked." in text
         assert "</active-skills>" in text
-        # nothing available -> no available section
-        assert "<available-skills>" not in text
+        assert "<available-skills>" in text
 
     def test_multiple_active_skills(self):
         runtime = make_mock_runtime({"pdf": SKILL_PDF, "git": SKILL_GIT})
         builder = DefaultSystemMessageBuilder(include_skills=True, runtime=runtime)
-        conv = Conversation(active_skills=["pdf", "git"])
+        conv = Conversation(
+            available_skills=["pdf", "git"], active_skills=["pdf", "git"]
+        )
 
         result = builder.render_system_message(conv, "prompt")
 
@@ -701,7 +702,9 @@ class TestRenderSystemMessageActiveSkills:
     def test_unknown_active_skill_is_skipped(self):
         runtime = make_mock_runtime({"pdf": SKILL_PDF})
         builder = DefaultSystemMessageBuilder(include_skills=True, runtime=runtime)
-        conv = Conversation(active_skills=["ghost", "pdf"])
+        conv = Conversation(
+            available_skills=["ghost", "pdf"], active_skills=["ghost", "pdf"]
+        )
 
         result = builder.render_system_message(conv, "prompt")
 
@@ -713,11 +716,66 @@ class TestRenderSystemMessageActiveSkills:
     def test_all_active_skills_unknown_renders_no_section(self):
         runtime = make_mock_runtime()
         builder = DefaultSystemMessageBuilder(include_skills=True, runtime=runtime)
-        conv = Conversation(active_skills=["ghost"])
+        conv = Conversation(available_skills=["ghost"], active_skills=["ghost"])
 
         result = builder.render_system_message(conv, "prompt")
 
         assert result.content[0].text == "prompt"
+
+
+class TestRenderSystemMessageActiveAvailabilityInvariant:
+    """active ⊆ available: active skills outside the effective available list
+    are skipped (state can diverge e.g. on persona switch while inheriting)."""
+
+    def test_active_skill_not_in_available_is_skipped(self):
+        runtime = make_mock_runtime({"pdf": SKILL_PDF, "git": SKILL_GIT})
+        builder = DefaultSystemMessageBuilder(include_skills=True, runtime=runtime)
+        # git is loadable but not available -> must not be rendered as active
+        conv = Conversation(available_skills=["pdf"], active_skills=["git", "pdf"])
+
+        result = builder.render_system_message(conv, "prompt")
+
+        text = result.content[0].text
+        assert "<active-skills>" in text
+        assert "Use pdf tools when asked." in text
+        assert "Use git helpers when asked." not in text
+        assert "git" not in text.split("<active-skills>")[1]
+
+    def test_all_active_not_in_available_renders_no_section(self):
+        runtime = make_mock_runtime({"git": SKILL_GIT})
+        builder = DefaultSystemMessageBuilder(include_skills=True, runtime=runtime)
+        conv = Conversation(available_skills=[], active_skills=["git"])
+
+        result = builder.render_system_message(conv, "prompt")
+
+        assert "<active-skills>" not in result.content[0].text
+
+    def test_active_inherited_from_persona_available(self):
+        runtime = make_mock_runtime(
+            {"pdf": SKILL_PDF}, persona_config=make_persona_config(["pdf"])
+        )
+        builder = DefaultSystemMessageBuilder(include_skills=True, runtime=runtime)
+        conv = Conversation(persona="p", active_skills=["pdf"])  # inherits available
+
+        result = builder.render_system_message(conv, "prompt")
+
+        text = result.content[0].text
+        assert "Use pdf tools when asked." in text
+
+    def test_persona_switch_divergence_is_filtered(self):
+        # conversation inherits, but the *current* persona (resolved here)
+        # has a different available list than what was active before
+        runtime = make_mock_runtime(
+            {"git": SKILL_GIT}, persona_config=make_persona_config(["git"])
+        )
+        builder = DefaultSystemMessageBuilder(include_skills=True, runtime=runtime)
+        conv = Conversation(persona="p", active_skills=["pdf", "git"])
+
+        result = builder.render_system_message(conv, "prompt")
+
+        text = result.content[0].text
+        assert "Use git helpers when asked." in text
+        assert "pdf" not in text.split("<active-skills>")[1]
 
     def test_skills_disabled_ignores_everything(self):
         runtime = make_mock_runtime({"pdf": SKILL_PDF})

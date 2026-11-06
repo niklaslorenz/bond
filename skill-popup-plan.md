@@ -1,5 +1,13 @@
 # Skills Popup — Implementation Plan
 
+> **Status: implemented.** `:skills` command + `SkillsPopup` widget, the
+> `prune_active_skills` helper, and the builder-side active ⊆ available
+> filter are in. Tests in `test/bond/tui/test_skills_popup.py`,
+> `test/bond/test_skill.py`, and the builder test module. Docs in
+> `docs/skills.md`. One deviation from the plan: the active toggle is bound to
+> `shift+enter` (and the `●`/`○` row button) instead of a printable key,
+> because a focused `Input` consumes all printable keys.
+
 Goal: a `:skills` TUI command that opens a popup to manage a conversation's
 skills — which skills are *available* and which are *active* — without
 touching the message history.

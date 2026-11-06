@@ -22,6 +22,7 @@ from bond.tui.widgets.confirmation_popup import ConfirmationPopup
 from bond.tui.widgets.conversation_selector_popup import ConversationSelectorPopup
 from bond.tui.widgets.input_bar import MultiLineInput
 from bond.tui.widgets.popup import PopupManager
+from bond.tui.widgets.skills_popup import SkillInfo, SkillsPopup, SkillsPopupResult
 
 from . import logger
 
@@ -167,6 +168,37 @@ class BondTui(App):
         self.popup_manager.show(popup)
         result = await popup.wait_for()
         logger.debug(f"Selected conversation: {result}")
+        return result
+
+    async def select_skills(
+        self,
+        skills: list[SkillInfo],
+        persona_name: str,
+        persona_available_skills: list[str],
+        conversation_available_skills: list[str] | None,
+        active_skills: list[str],
+    ) -> Result[SkillsPopupResult | None, None]:
+        """
+        Show the skills management popup.
+        Wait for the popup to close and return the selected skill configuration.
+
+        Returns:
+            Success[SkillsPopupResult | None]: the new configuration if Apply was
+                pressed (None result means the popup finished without a value),
+                None overall if cancelled
+            Failure[None]: if the popup was cancelled
+        """
+        logger.debug("Selecting skills")
+        popup = SkillsPopup(
+            skills=skills,
+            persona_name=persona_name,
+            persona_available_skills=persona_available_skills,
+            conversation_available_skills=conversation_available_skills,
+            active_skills=active_skills,
+        )
+        self.popup_manager.show(popup)
+        result = await popup.wait_for()
+        logger.debug(f"Skills popup result: {result}")
         return result
 
     async def ask_confirmation(self, prompt: str) -> bool:

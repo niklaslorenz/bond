@@ -42,12 +42,10 @@ overridden per conversation. See [Skills](./docs/skills.md) for the full documen
 
 ## Future Features
 
-- Skills popup in the TUI for searching and enabling skills
-  - Reset button (back to the persona's `available_skills`), clear (empty list),
-    select-all of the filtered skills
 - Skill directories with `tools/*.py` (`EXPORT_TOOLS`) -> `PythonToolset("skill:<name>")`,
   plus live toolbox enable/disable and skill-sync on persona switch
 - `requirements.txt` per skill for dependency installation
+- Status bar segment showing the conversation's active skills
 
 Implemented (see [Skills](./docs/skills.md)):
 
@@ -56,7 +54,10 @@ Implemented (see [Skills](./docs/skills.md)):
 - Per-conversation override (`available_skills`: `null` = inherit persona, `[]` = none,
   list = exactly these) and per-conversation `active_skills`
 - `load_skill` / `unload_skill` tools (builtin `skills` toolset) with allow-list enforcement
-- `<available-skills>` / `<active-skills>` sections in the system prompt
+- `<available-skills>` / `<active-skills>` sections in the system prompt, with the
+  `active ⊆ available` invariant enforced (popup + builder filter)
+- `:skills` popup in the TUI for managing available/active skills per conversation
+  (search, bulk actions, reset-to-persona, materialize-on-first-toggle)
 - The old prompt macros are now "prompts" (`{PROMPT:name}`)
 
 ## Free Form Memory

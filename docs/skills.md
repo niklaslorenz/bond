@@ -92,6 +92,30 @@ JSON) with tri-state semantics:
 | `[]`         | explicitly no skills available for this conversation           |
 | `["a", "b"]` | exactly these skills are available                             |
 
+## Managing skills in the TUI: `:skills`
+
+In the chat TUI, the `:skills` command (alias `:skill`) opens a popup to manage
+the current conversation's skills (only while the agent is idle):
+
+- One row per skill on disk, plus any skills referenced by the conversation
+  that are missing on disk (shown as `(missing)`).
+- Each row shows two states: **available** (`[x]` / `[ ]`) and **active**
+  (`●` / `○`). A mode line on top shows whether `available_skills` is currently
+  *inheriting from the persona* or a *custom* list.
+- Keys: `up`/`down` (or `ctrl+k`/`ctrl+j`, `tab`/`shift+tab`) move the
+  highlight, `enter` toggles **available**, `shift+enter` toggles **active**,
+  `escape` cancels. The search field filters rows (same fuzzy matching as the
+  conversation selector).
+- Buttons: **All** / **None** apply to the currently filtered rows, **Clear**
+  sets available to an explicit empty list, **Reset (persona)** goes back to
+  inherit mode (`available_skills = null`), **Apply** commits, **Cancel**
+  discards.
+- Clicking a row toggles its available state; clicking the `●`/`○` toggle
+  switches active (the toggle is disabled while the skill is not available).
+
+Changes take effect on the next generation (the system message is re-rendered
+every turn) and are persisted with the conversation metadata on save.
+
 ## Prompts vs. skills
 
 The old prompt macros live on as **prompts**: markdown files in

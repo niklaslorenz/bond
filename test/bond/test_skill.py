@@ -13,7 +13,12 @@ from bond.runtime import (
     DynamicRuntimeEnvironment,
     StaticRuntimeEnvironment,
 )
-from bond.skill import Skill, effective_available_skills, parse_skill_md
+from bond.skill import (
+    Skill,
+    effective_available_skills,
+    parse_skill_md,
+    prune_active_skills,
+)
 
 # ---------------------------------------------------------------------------
 # parse_skill_md
@@ -259,6 +264,43 @@ class TestEffectiveAvailableSkills:
         assert conv.available_skills is None
         assert conv.active_skills == []
         assert _persona_config().available_skills == []
+
+
+# ---------------------------------------------------------------------------
+# prune_active_skills
+# ---------------------------------------------------------------------------
+
+
+class TestPruneActiveSkills:
+    def test_removes_entries_not_in_available(self):
+        conv = Conversation(active_skills=["a", "b", "c"])
+        removed = prune_active_skills(conv, ["a", "c"])
+        assert removed == ["b"]
+        assert conv.active_skills == ["a", "c"]
+
+    def test_noop_when_already_consistent(self):
+        conv = Conversation(active_skills=["a", "b"])
+        removed = prune_active_skills(conv, ["a", "b", "c"])
+        assert removed == []
+        assert conv.active_skills == ["a", "b"]
+
+    def test_empty_available_clears_all(self):
+        conv = Conversation(active_skills=["a", "b"])
+        removed = prune_active_skills(conv, [])
+        assert removed == ["a", "b"]
+        assert conv.active_skills == []
+
+    def test_empty_active_stays_empty(self):
+        conv = Conversation(active_skills=[])
+        removed = prune_active_skills(conv, ["a"])
+        assert removed == []
+        assert conv.active_skills == []
+
+    def test_preserves_order(self):
+        conv = Conversation(active_skills=["c", "a", "b"])
+        removed = prune_active_skills(conv, ["a", "c", "d"])
+        assert removed == ["b"]
+        assert conv.active_skills == ["c", "a"]
 
 
 # ---------------------------------------------------------------------------

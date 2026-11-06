@@ -106,3 +106,20 @@ def effective_available_skills(
     if isinstance(persona, Persona):
         return persona.config.available_skills
     return persona.available_skills
+
+
+def prune_active_skills(
+    conversation: Conversation, available: list[str]
+) -> list[str]:
+    """Enforce the invariant ``active_skills ⊆ available`` on a conversation.
+
+    Removes every entry of ``conversation.active_skills`` that is not in
+    ``available`` (the effective available list) and returns the removed
+    names, so callers can report them. Entries are removed in place.
+    """
+    removed = [name for name in conversation.active_skills if name not in available]
+    if removed:
+        conversation.active_skills = [
+            name for name in conversation.active_skills if name in available
+        ]
+    return removed

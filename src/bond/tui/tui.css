@@ -150,3 +150,88 @@ ConversationSelectorPopup > .button-bar {
     align: right middle;
     dock: bottom;
 }
+
+SkillsPopup {
+    height: auto;
+    width: 75%;
+    max-height: 75%;
+    border: solid $primary;
+    background: $surface;
+
+    padding: 1 2;
+}
+
+SkillsPopup > .skills-popup-title {
+    content-align: center middle;
+    text-align: center;
+    color: $primary;
+}
+
+SkillsPopup > .skills-popup-mode {
+    text-align: center;
+    color: $text-muted;
+}
+
+SkillsPopup > .skills-popup-hint {
+    text-align: center;
+    color: $text-muted;
+}
+
+SkillsPopup > ScrollableContainer.skills-popup-list {
+    max-height: 100%;
+    width: 100%;
+    background: $surface;
+}
+
+SkillsPopup .skill-row {
+    height: auto;
+    width: 100%;
+}
+
+SkillsPopup Button.skill-active-toggle {
+    width: 4;
+    min-width: 4;
+    height: 1;
+    border: none;
+    background: transparent;
+    color: $accent;
+}
+
+SkillsPopup Button.skill-active-toggle:disabled {
+    color: $text-muted;
+}
+
+SkillsPopup Button.skill-option {
+    width: 100%;
+    background: transparent;
+    border: none;
+    color: $text;
+}
+
+SkillsPopup Button.skill-option.off {
+    color: $text-muted;
+}
+
+SkillsPopup Button.skill-option.active-row {
+    color: $accent;
+}
+
+SkillsPopup Button.skill-option.selected {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+SkillsPopup Button.skill-option:focus,
+SkillsPopup Button.skill-option:hover {
+    background: $surface;
+}
+
+SkillsPopup > ScrollableContainer.skills-popup-list > Static.empty-state {
+    color: $surface;
+}
+
+SkillsPopup > .button-bar {
+    width: 100%;
+    height: auto;
+    align: right middle;
+    dock: bottom;
+}

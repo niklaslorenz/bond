@@ -11,6 +11,8 @@ from textual.notifications import SeverityLevel
 from bond.behaviours.async_turn import TYPE_CHECKING
 from bond.conversation.conversation import Conversation
 from bond.runtime import BondRuntime
+from bond.skill import effective_available_skills, prune_active_skills
+from bond.tui.widgets.skills_popup import SkillInfo
 
 if TYPE_CHECKING:
     from bond.tui.app import BondTui
@@ -218,6 +220,57 @@ class TuiCommandHandler:
         self._notify("Detached conversation")
         return True
 
+    async def skills(self, _: Namespace) -> bool:
+        if not self._app.is_idle:
+            return False
+        # The popup waits for TUI events (keys, clicks) to resolve, so it must
+        # run as its own task — awaiting it here would block the command event
+        # and freeze the UI (same reason `load` schedules its interactive task).
+        self._app.schedule(self._manage_skills_interactive())
+        return True
+
+    async def _manage_skills_interactive(self):
+        async with self._app.action_lock:
+            if not self._app.is_idle:
+                return
+            conversation = self._app.current_conversation
+            persona = self._app.agent_loop.persona
+            infos: list[SkillInfo] = []
+            for name in self._runtime.list_skills():
+                try:
+                    skill = self._runtime.get_skill(name)
+                    infos.append(SkillInfo(name=name, description=skill.description))
+                except Exception as e:
+                    logger.warning(f"Could not load skill '{name}' for popup: {e}")
+                    infos.append(SkillInfo(name=name, missing=True))
+            result = await self._app.select_skills(
+                skills=infos,
+                persona_name=persona.name,
+                persona_available_skills=persona.config.available_skills,
+                conversation_available_skills=conversation.available_skills,
+                active_skills=conversation.active_skills,
+            )
+            if isinstance(result, Failure):
+                return
+            new_config = result.unwrap()
+            if new_config is None:
+                return
+            async with self._app.agent_loop.pause():
+                conversation.available_skills = new_config.available_skills
+                conversation.active_skills = list(new_config.active_skills)
+                # Defense in depth: enforce active ⊆ effective available
+                effective = effective_available_skills(conversation, persona)
+                removed = prune_active_skills(conversation, effective)
+            if new_config.available_skills is None:
+                avail_str = f"inherit persona '{persona.name}'"
+            else:
+                avail_str = ", ".join(new_config.available_skills) or "none"
+            active_str = ", ".join(conversation.active_skills) or "none"
+            message = f"Skills updated — available: {avail_str}; active: {active_str}"
+            if removed:
+                message += f" (removed inactive-from-available: {', '.join(removed)})"
+            self._notify(message)
+
     # Helper methods
 
     def _notify(self, text: str, severity: SeverityLevel = "information"):
@@ -391,3 +444,11 @@ class TuiCommandHandler:
             exit_on_error=False,
         )
         detach_parser.set_defaults(callback=self.detach)
+
+        skills_parser = subparsers.add_parser(
+            "skills",
+            help="Manage available and active skills for this conversation",
+            aliases=["skill"],
+            exit_on_error=False,
+        )
+        skills_parser.set_defaults(callback=self.skills)

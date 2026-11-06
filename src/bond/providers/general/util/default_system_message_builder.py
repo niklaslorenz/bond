@@ -156,6 +156,11 @@ class DefaultSystemMessageBuilder(SystemMessageBuilder):
         if conversation.active_skills:
             blocks = []
             for name in conversation.active_skills:
+                if name not in available:
+                    logger.warning(
+                        f"Skipping active skill '{name}': not in the available skills"
+                    )
+                    continue
                 try:
                     skill = runtime.get_skill(name)
                     blocks.append(render_skill_md(skill))
@@ -166,9 +171,7 @@ class DefaultSystemMessageBuilder(SystemMessageBuilder):
                     "<active-skills>\n"
                     "<reliability>trusted</reliability>\n"
                     "<source>user configuration</source>\n"
-                    "<content>\n"
-                    + "\n\n".join(blocks)
-                    + "\n</content>\n"
+                    "<content>\n" + "\n\n".join(blocks) + "\n</content>\n"
                     "</active-skills>"
                 )
 
