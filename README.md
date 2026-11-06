@@ -34,7 +34,8 @@ Currently supported providers are:
 Skills are directory-based instruction packages (`~/.config/bond/skills/<name>/SKILL.md`)
 that the agent can load and unload per conversation via the `load_skill` / `unload_skill`
 tools. Available skills are configured per persona (`available_skills`) and can be
-overridden per conversation. See [Skills](./docs/skills.md) for the full documentation.
+overridden per conversation. Run `bond skills` to list all discovered skills.
+See [Skills](./docs/skills.md) for the full documentation.
 
 ## Packages with extensive tests
 

@@ -39,6 +39,19 @@ Always summarize the document structure before the content.
 - The frontmatter is parsed manually (no YAML dependency), so keep it simple:
   one `key: value` per line, values may be quoted.
 
+### Listing discovered skills from the CLI
+
+`bond skills` lists every skill the runtime discovers in
+`~/.config/bond/skills/` (directories containing a `SKILL.md`), with each
+skill's description:
+
+```
+$ bond skills
+Skills:
+  pdf-tools: Tools for extracting and analyzing PDFs.
+  git-helpers
+```
+
 ## Activating skills: the `skills` toolset
 
 Loading and unloading is done through two builtin tools, registered as the
@@ -102,16 +115,24 @@ the current conversation's skills (only while the agent is idle):
 - Each row shows two states: **available** (`[x]` / `[ ]`) and **active**
   (`●` / `○`). A mode line on top shows whether `available_skills` is currently
   *inheriting from the persona* or a *custom* list.
-- Keys: `up`/`down` (or `ctrl+k`/`ctrl+j`, `tab`/`shift+tab`) move the
-  highlight, `enter` toggles **available**, `shift+enter` toggles **active**,
-  `escape` cancels. The search field filters rows (same fuzzy matching as the
-  conversation selector).
+- Keys (vim-style, two focus modes — the hint line at the bottom shows the
+  current mode):
+  - anywhere: `up`/`down` (or `ctrl+k`/`ctrl+j`) move the highlight,
+    `enter` applies, `tab` switches between search and list, `ctrl+z` cancels.
+  - search focused (default): type to filter rows (same fuzzy matching as the
+    conversation selector); `esc`/`tab` switch to the list.
+  - list focused: `j`/`k` move the highlight, `a` toggles **available**
+    (unchecking an active skill also deactivates it), `s` toggles **active** —
+    activating a skill that is not available yet also makes it available,
+    while deactivating keeps it available, `q` cancels, `/` switches back to
+    the search, `esc` cancels.
 - Buttons: **All** / **None** apply to the currently filtered rows, **Clear**
   sets available to an explicit empty list, **Reset (persona)** goes back to
   inherit mode (`available_skills = null`), **Apply** commits, **Cancel**
   discards.
 - Clicking a row toggles its available state; clicking the `●`/`○` toggle
-  switches active (the toggle is disabled while the skill is not available).
+  switches active (activating implies available, deactivating does not revoke
+  availability).
 
 Changes take effect on the next generation (the system message is re-rendered
 every turn) and are persisted with the conversation metadata on save.

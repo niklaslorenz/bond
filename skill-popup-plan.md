@@ -6,7 +6,13 @@
 > `test/bond/test_skill.py`, and the builder test module. Docs in
 > `docs/skills.md`. One deviation from the plan: the active toggle is bound to
 > `shift+enter` (and the `●`/`○` row button) instead of a printable key,
-> because a focused `Input` consumes all printable keys.
+> because a focused `Input` consumes all printable keys. Final keymap is
+> vim-style with two focus modes (search / list): `tab` switches modes,
+> `enter` applies, `esc` backs out of search then cancels, and in list mode
+> `j`/`k` move, `a` toggles available, `s` toggles active, `q` cancels,
+> `/` returns to search. Final semantics: `s` on an inactive skill activates
+> it *and* makes it available in one step; deactivating keeps it available;
+> `a` on an active skill makes it unavailable (and deactivates) directly.
 
 Goal: a `:skills` TUI command that opens a popup to manage a conversation's
 skills — which skills are *available* and which are *active* — without
@@ -60,11 +66,11 @@ Each row = one skill on disk (`runtime.list_skills()`, sorted), showing
 `name` + `description` (from `get_skill`, tolerant of load errors → "<unreadable>").
 Three visual states per row:
 
-| state                        | marker        | css class          |
-| ---------------------------- | ------------- | ------------------ |
-| available + active           | `[x] ● name`  | `skill-row active` |
-| available, not active        | `[x] ○ name`  | `skill-row`        |
-| not available                | `[ ]  name`   | `skill-row off` (dimmed) |
+| state                 | marker       | css class                |
+| --------------------- | ------------ | ------------------------ |
+| available + active    | `[x] ● name` | `skill-row active`       |
+| available, not active | `[x] ○ name` | `skill-row`              |
+| not available         | `[ ]  name`  | `skill-row off` (dimmed) |
 
 Skills referenced by the current available/active lists but missing on disk
 are still shown, marked `(missing)`, so the user can remove them.
@@ -128,13 +134,13 @@ Draft logic kept in small pure-ish methods (`_toggle_available`,
        `runtime.get_skill(name)` (try/except), persona name,
        `effective_available_skills(conversation, persona)`,
        `conversation.active_skills`.
-    2. `result = await self._app.select_skills(...)`
-    3. On `Success`: set `conversation.available_skills = result.available_skills`,
+    1. `result = await self._app.select_skills(...)`
+    1. On `Success`: set `conversation.available_skills = result.available_skills`,
        prune active via `prune_active_skills` (plus whatever the popup already
        pruned), notify a summary
        (`Skills updated — available: inherit|a, b; active: x, y`
-       + removed ones). Changes apply to the next `generate()` automatically.
-    4. On `Failure` (cancelled): no changes.
+       - removed ones). Changes apply to the next `generate()` automatically.
+    1. On `Failure` (cancelled): no changes.
   - The mutated fields are plain model fields, so they persist with the
     conversation metadata JSON on the next save/quit — no extra save logic.
 
@@ -156,18 +162,18 @@ for name in conversation.active_skills:
 
 ## Files
 
-| file | change |
-| ---- | ------ |
-| `src/bond/tui/widgets/skills_popup.py` | new: `SkillsPopupResult`, `SkillsPopup` |
-| `src/bond/tui/app.py` | `select_skills(...)` helper |
-| `src/bond/tui/command_handler.py` | `:skills` command + parser entry |
-| `src/bond/skill.py` | `prune_active_skills()` helper |
-| `src/bond/providers/general/util/default_system_message_builder.py` | filter `<active-skills>` by effective available |
-| `src/bond/tui/tui.css` | `SkillsPopup` styles (mirror conversation-selector) |
-| `test/bond/test_skill.py` | tests for `prune_active_skills` |
-| `test/bond/tui/test_skills_popup.py` | new: pilot tests for popup draft logic (toggle/reset/clear/apply/cancel, prune on apply) |
-| `docs/skills.md` | document `:skills` popup + the active ⊆ available invariant |
-| `README.md` | move "skills popup" from Future Features to implemented |
+| file                                                                | change                                                                                   |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `src/bond/tui/widgets/skills_popup.py`                              | new: `SkillsPopupResult`, `SkillsPopup`                                                  |
+| `src/bond/tui/app.py`                                               | `select_skills(...)` helper                                                              |
+| `src/bond/tui/command_handler.py`                                   | `:skills` command + parser entry                                                         |
+| `src/bond/skill.py`                                                 | `prune_active_skills()` helper                                                           |
+| `src/bond/providers/general/util/default_system_message_builder.py` | filter `<active-skills>` by effective available                                          |
+| `src/bond/tui/tui.css`                                              | `SkillsPopup` styles (mirror conversation-selector)                                      |
+| `test/bond/test_skill.py`                                           | tests for `prune_active_skills`                                                          |
+| `test/bond/tui/test_skills_popup.py`                                | new: pilot tests for popup draft logic (toggle/reset/clear/apply/cancel, prune on apply) |
+| `docs/skills.md`                                                    | document `:skills` popup + the active ⊆ available invariant                              |
+| `README.md`                                                         | move "skills popup" from Future Features to implemented                                  |
 
 ## Optional (can be a follow-up)
 

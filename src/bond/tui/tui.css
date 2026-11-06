@@ -197,10 +197,6 @@ SkillsPopup Button.skill-active-toggle {
     color: $accent;
 }
 
-SkillsPopup Button.skill-active-toggle:disabled {
-    color: $text-muted;
-}
-
 SkillsPopup Button.skill-option {
     width: 100%;
     background: transparent;

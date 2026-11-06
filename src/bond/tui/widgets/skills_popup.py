@@ -8,19 +8,28 @@ Two independent states per skill:
   its SKILL.md is rendered into the system prompt.
 
 Invariant: active skills are always a subset of the available ones. Unchecking
-"available" also removes the skill from the active draft, and Apply prunes
+"available" also removes the skill from the active draft; activating a skill
+implies making it available (deactivating keeps it available). Apply prunes
 again (defense in depth — the system message builder filters as well).
 
 Draft semantics: ``_available is None`` means inherit mode. The first toggle
 materializes the effective list into an explicit set; the Reset button goes
 back to ``None``.
+
+Keymap (vim-style, two focus modes):
+
+- anywhere: ``up``/``down``/``ctrl+k``/``ctrl+j`` move, ``enter`` applies,
+  ``tab`` switches mode, ``ctrl+z`` cancels.
+- search focused (default): type to filter, ``esc``/``tab`` switch to list.
+- list focused: ``j``/``k`` move, ``a`` toggles available, ``s`` toggles active
+  (implies available), ``q`` cancels, ``/`` switches to search, ``esc`` cancels.
 """
 
 from difflib import SequenceMatcher
 
 from pydantic import BaseModel
 from textual.containers import Horizontal, ScrollableContainer, Vertical
-from textual.events import Key
+from textual.events import DescendantFocus, Key
 from textual.timer import Timer
 from textual.widgets import Button, Input, Static
 
@@ -77,12 +86,11 @@ class SkillsPopup(TuiPopup[SkillsPopupResult], Vertical):
         referenced = set(self._effective_available) | set(active_skills)
         for name in sorted(referenced - set(by_name)):
             by_name[name] = SkillInfo(name=name, missing=True)
-        self._all_skills: list[SkillInfo] = [
-            by_name[name] for name in sorted(by_name)
-        ]
+        self._all_skills: list[SkillInfo] = [by_name[name] for name in sorted(by_name)]
 
         self._search_value: str = ""
         self._search_timer: Timer | None = None
+        self._list_focused = False  # False = search field focused (list mode off)
         self._visible_skills: list[SkillInfo] = []
         self._selected_index: int = -1
         self._next_option_id = 1
@@ -96,10 +104,7 @@ class SkillsPopup(TuiPopup[SkillsPopupResult], Vertical):
             placeholder="Search skills", id="skills-popup-search"
         )
         self._list_container = ScrollableContainer(classes="skills-popup-list")
-        self._hint = Static(
-            "up/down: select · enter: toggle available · shift+enter: toggle active · esc: cancel",
-            classes="skills-popup-hint",
-        )
+        self._hint = Static("", classes="skills-popup-hint")
         self._reset_button = Button(
             "Reset (persona)", id="skills-popup-reset", variant="default"
         )
@@ -127,7 +132,35 @@ class SkillsPopup(TuiPopup[SkillsPopupResult], Vertical):
 
     async def on_mount(self):
         await self._refresh()
+        self._update_hint()
+        self._focus_search()  # search mode is the default on open
+
+    # Focus mode helpers
+
+    def _update_hint(self):
+        if self._list_focused:
+            self._hint.update(
+                "j/k: move · a: available · s: active · q: cancel · "
+                "/ : search · tab: search · enter: apply"
+            )
+        else:
+            self._hint.update("type: filter · tab/esc: list · enter: apply")
+
+    def _focus_list(self):
+        self._list_focused = True
+        self._list_container.focus()
+        self._update_hint()
+
+    def _focus_search(self):
+        self._list_focused = False
         self._search_field.focus()
+        self._update_hint()
+
+    def on_descendant_focus(self, event: DescendantFocus):
+        # Mouse clicks can move focus directly; keep the mode flag in sync.
+        # "List mode" simply means the search field is not focused.
+        self._list_focused = event.widget is not self._search_field
+        self._update_hint()
 
     # State helpers
 
@@ -170,11 +203,14 @@ class SkillsPopup(TuiPopup[SkillsPopupResult], Vertical):
         await self._refresh()
 
     async def _toggle_active(self, name: str):
-        if not self._is_available(name):
-            return  # button is disabled in this state; guard anyway
         if name in self._active:
+            # Deactivate only — the skill stays available.
             self._active.discard(name)
         else:
+            # Activating implies availability.
+            if self._available is None:
+                self._available = set(self._effective_available)
+            self._available.add(name)
             self._active.add(name)
         await self._refresh()
 
@@ -228,7 +264,9 @@ class SkillsPopup(TuiPopup[SkillsPopupResult], Vertical):
         self._adjust_selection_after_refresh()
         if not filtered:
             empty_text = (
-                "No matching skills." if self._search_value.strip() else "No skills found."
+                "No matching skills."
+                if self._search_value.strip()
+                else "No skills found."
             )
             self._list_container.mount(Static(empty_text, classes="empty-state"))
             return
@@ -241,6 +279,8 @@ class SkillsPopup(TuiPopup[SkillsPopupResult], Vertical):
                 id=option_id,
                 classes="skill-option",
             )
+            # Keep enter/space for the popup, not the button's press binding.
+            option_button.can_focus = False
             if not self._is_available(info.name):
                 option_button.add_class("off")
             if info.name in self._active:
@@ -249,8 +289,8 @@ class SkillsPopup(TuiPopup[SkillsPopupResult], Vertical):
                 "●" if info.name in self._active else "○",
                 id=active_id,
                 classes="skill-active-toggle",
-                disabled=not self._is_available(info.name),
             )
+            active_button.can_focus = False
             # Children must be passed to the constructor: mounting them onto
             # `row` before `row` itself is mounted raises MountError.
             row = Horizontal(active_button, option_button, classes="skill-row")
@@ -323,29 +363,69 @@ class SkillsPopup(TuiPopup[SkillsPopupResult], Vertical):
 
     async def on_key(self, event: Key):
         key = event.key
-        if key in ("up", "ctrl+k", "shift+tab"):
+        # Works in both modes (non-printable, bubbles from the search field).
+        if key in ("up", "ctrl+k"):
             event.stop()
             self._move_selection(-1)
             return
-        if key in ("down", "ctrl+j", "tab"):
+        if key in ("down", "ctrl+j"):
             event.stop()
             self._move_selection(1)
             return
+        if key == "tab":
+            event.stop()
+            if self._list_focused:
+                self._focus_search()
+            else:
+                self._focus_list()
+            return
         if key == "enter":
+            event.stop()
+            self._apply()
+            return
+        if key == "ctrl+z":
+            event.stop()
+            self.finish(None)
+            return
+        if key == "escape":
+            event.stop()
+            if not self._list_focused:
+                # From the search field: back out to the list.
+                self._focus_list()
+            else:
+                self.finish(None)
+            return
+        # List mode only: printable keys never reach us while the search
+        # field is focused (the Input stops them).
+        if not self._list_focused:
+            return
+        if key == "j":
+            event.stop()
+            self._move_selection(1)
+            return
+        if key == "k":
+            event.stop()
+            self._move_selection(-1)
+            return
+        if key == "a":
             event.stop()
             skill = self._selected_skill()
             if skill is not None:
                 await self._toggle_available(skill.name)
             return
-        if key == "shift+enter":
+        if key == "s":
             event.stop()
             skill = self._selected_skill()
             if skill is not None:
                 await self._toggle_active(skill.name)
             return
-        if key == "escape" or key == "ctrl+z":
+        if key == "q":
             event.stop()
             self.finish(None)
+            return
+        if key == "slash":  # pilot/terminals report "/" as the "slash" key
+            event.stop()
+            self._focus_search()
             return
 
     async def on_button_pressed(self, event: Button.Pressed):

@@ -94,6 +94,26 @@ def list_plugins(_: Namespace):
     print("Plugins:\n  " + "\n  ".join(plugins))
 
 
+def list_skills(_: Namespace):
+    runtime = BondRuntime.get_instance()
+    runtime.initialize_dynamic(enable_plugins=False)
+    skills = runtime.list_skills()
+    if not skills:
+        print("No skills found")
+        return
+    print("Skills:")
+    for name in skills:
+        try:
+            description = runtime.get_skill(name).description
+        except Exception as e:
+            print(f"  {name} (failed to load: {e})")
+            continue
+        if description:
+            print(f"  {name}: {description}")
+        else:
+            print(f"  {name}")
+
+
 def tts(args: Namespace):
     runtime = BondRuntime.get_instance()
     runtime.initialize_dynamic()
@@ -141,6 +161,11 @@ def main():
 
     toolsets_parser = subparsers.add_parser("toolsets")
     toolsets_parser.set_defaults(callback=list_toolsets)
+
+    skills_parser = subparsers.add_parser(
+        "skills", help="List all skills discovered in the config directory"
+    )
+    skills_parser.set_defaults(callback=list_skills)
 
     tts_parser = subparsers.add_parser("tts")
     tts_parser.add_argument("provider", type=str)
