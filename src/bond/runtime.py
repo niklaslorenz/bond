@@ -25,6 +25,7 @@ from bond.providers.mistral.mistral import Mistral
 from bond.providers.ollama.ollama import Ollama
 from bond.providers.provider import Provider
 from bond.registry import MappedEntryRegistry, NamedEntryRegistry
+from bond.skill import Skill, parse_skill_md
 from bond.tools.file_system import (
     apply_patch,
     create_file,
@@ -115,6 +116,8 @@ class RuntimeEnvironment(ABC):
     @abstractmethod
     def list_prompts(self) -> list[str]: ...
     @abstractmethod
+    def list_skills(self) -> list[str]: ...
+    @abstractmethod
     def get_plugins(self) -> dict[str, BondPlugin]: ...
     @abstractmethod
     def load_provider(self, name: str, runtime: "BondRuntime") -> Provider: ...
@@ -124,6 +127,8 @@ class RuntimeEnvironment(ABC):
     ) -> Result[PersonaConfig, str]: ...
     @abstractmethod
     def load_prompt(self, name: str, runtime: "BondRuntime") -> str: ...
+    @abstractmethod
+    def load_skill(self, name: str, runtime: "BondRuntime") -> Skill: ...
     @abstractmethod
     def get_plugin_data_base_dir(self) -> Path: ...
     @abstractmethod
@@ -141,12 +146,14 @@ class StaticRuntimeEnvironment(RuntimeEnvironment):
         data_dir: Path | None = None,
         conversations_path: Path | None = None,
         cache_path: Path | None = None,
+        skills: dict[str, Skill] | None = None,
     ):
         self._bond_config = bond_config
         self._providers = providers
         self._personas = personas
         self._plugins = plugins
         self._prompts = prompts
+        self._skills = skills or {}
         self._data_dir = data_dir or Path("~/.local/share/bond").expanduser().absolute()
         self._conversations_path = conversations_path
         self._cache_path = cache_path
@@ -169,6 +176,9 @@ class StaticRuntimeEnvironment(RuntimeEnvironment):
     def list_prompts(self) -> list[str]:
         return list(self._prompts.keys())
 
+    def list_skills(self) -> list[str]:
+        return list(self._skills.keys())
+
     def get_plugins(self) -> dict[str, BondPlugin]:
         return self._plugins.copy()
 
@@ -182,6 +192,9 @@ class StaticRuntimeEnvironment(RuntimeEnvironment):
 
     def load_prompt(self, name: str, runtime: "BondRuntime") -> str:
         return self._prompts[name]
+
+    def load_skill(self, name: str, runtime: "BondRuntime") -> Skill:
+        return self._skills[name]
 
     def get_plugin_data_base_dir(self) -> Path:
         return self._data_dir
@@ -228,6 +241,16 @@ class DynamicRuntimeEnvironment(RuntimeEnvironment):
                 "*.md", root_dir=(self._config_dir / "prompts").as_posix()
             )
         ]
+
+    def list_skills(self) -> list[str]:
+        skills_dir = self._config_dir / "skills"
+        if not skills_dir.is_dir():
+            return []
+        return sorted(
+            entry.name
+            for entry in skills_dir.iterdir()
+            if entry.is_dir() and (entry / "SKILL.md").is_file()
+        )
 
     def get_plugins(self) -> dict[str, BondPlugin]:
         try:
@@ -286,6 +309,12 @@ class DynamicRuntimeEnvironment(RuntimeEnvironment):
             raise ValueError(f"Invalid prompt name: {name}. Path does not exist.")
         return path.read_text(encoding="utf-8")
 
+    def load_skill(self, name: str, runtime: BondRuntime) -> Skill:
+        path = self._config_dir / f"skills/{name}/SKILL.md"
+        if not path.exists():
+            raise ValueError(f"Invalid skill name: {name}. Path does not exist.")
+        return parse_skill_md(path.read_text(encoding="utf-8"), fallback_name=name)
+
     def get_plugin_data_base_dir(self) -> Path:
         return self._data_base_dir / "plugins"
 
@@ -318,6 +347,7 @@ class BondRuntime:
         self._loaded_providers = NamedEntryRegistry[Provider]()
         self._loaded_personas = NamedEntryRegistry[PersonaConfig]()
         self._loaded_prompts = NamedEntryRegistry[str]()
+        self._loaded_skills = NamedEntryRegistry[Skill]()
         self._environment: RuntimeEnvironment | None = None
         logger.debug("BondRuntime created")
 
@@ -328,9 +358,10 @@ class BondRuntime:
         personas: dict[str, PersonaConfig],
         plugins: dict[str, BondPlugin],
         prompts: dict[str, str],
+        skills: dict[str, Skill] | None = None,
     ) -> StaticRuntimeEnvironment:
         self._environment = StaticRuntimeEnvironment(
-            config, providers, personas, plugins, prompts
+            config, providers, personas, plugins, prompts, skills=skills
         )
         self._register_builtin_toolsets()
         self._register_builtin_provider_types()
@@ -369,6 +400,9 @@ class BondRuntime:
 
     def list_prompts(self) -> list[str]:
         return self._get_env().list_prompts()
+
+    def list_skills(self) -> list[str]:
+        return self._get_env().list_skills()
 
     def get_conversations_path(self) -> Path | None:
         return self._get_env().get_conversations_path()
@@ -443,6 +477,15 @@ class BondRuntime:
         prompt = env.load_prompt(prompt_name, self)
         self._loaded_prompts.register(prompt_name, prompt)
         return prompt
+
+    def get_skill(self, skill_name: str) -> Skill:
+        """Get a skill by name, loading it if necessary"""
+        env = self._get_env()
+        if (skill := self._loaded_skills.get(skill_name)) is not None:
+            return skill
+        skill = env.load_skill(skill_name, self)
+        self._loaded_skills.register(skill_name, skill)
+        return skill
 
     def load_vector_store(self, name: str, vector_store_type: str) -> VectorStore:
         if vector_store_type != "faiss":

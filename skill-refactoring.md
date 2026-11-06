@@ -64,13 +64,14 @@ The old macro mechanism moves to a new "prompts" feature.
 
 ### Phase 2 — Skill model + runtime API
 
-- [ ] Create `src/bond/skill.py`: `Skill` pydantic model + `parse_skill_md()`
-- [ ] Add `list_skills()` / `load_skill(name) -> Skill` to `RuntimeEnvironment` ABC
-- [ ] `StaticRuntimeEnvironment`: accept `skills: dict[str, Skill]`
-- [ ] `DynamicRuntimeEnvironment`: `list_skills()` globs `skills/*/SKILL.md` dirs;
-  `load_skill` reads + parses `skills/<name>/SKILL.md`
-- [ ] `BondRuntime`: `list_skills()`, `get_skill()` with `_loaded_skills` cache
-- [ ] Tests for the SKILL.md frontmatter parser (incl. fallback name)
+- [x] Create `src/bond/skill.py`: `Skill` pydantic model + `parse_skill_md()`
+- [x] Add `list_skills()` / `load_skill(name) -> Skill` to `RuntimeEnvironment` ABC
+- [x] `StaticRuntimeEnvironment`: accept `skills: dict[str, Skill]`
+- [x] `DynamicRuntimeEnvironment`: `list_skills()` globs `skills/*/SKILL.md` dirs;
+      `load_skill` reads + parses `skills/<name>/SKILL.md`
+- [x] `BondRuntime`: `list_skills()`, `get_skill()` with `_loaded_skills` cache
+- [x] Tests for the SKILL.md frontmatter parser (incl. fallback name)
+      → `test/bond/test_skill.py` (parser + both envs + runtime cache)
 
 ### Phase 3 — Data model: conversation + persona fields
 
