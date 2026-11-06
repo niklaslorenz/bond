@@ -29,29 +29,35 @@ Currently supported providers are:
 - [Mistral](./docs/providers/mistral.md)
 - [Ollama](./docs/providers/ollama.md)
 
+## Skills
+
+Skills are directory-based instruction packages (`~/.config/bond/skills/<name>/SKILL.md`)
+that the agent can load and unload per conversation via the `load_skill` / `unload_skill`
+tools. Available skills are configured per persona (`available_skills`) and can be
+overridden per conversation. See [Skills](./docs/skills.md) for the full documentation.
+
 ## Packages with extensive tests
 
 - conversation
 
 ## Future Features
 
-- Actual Skills and not just prompt macros
-  - Definable skill-sets for a persona
-  - Per Conversation enabled skills based on the persona
-  - Popup for searching and enabling skills
+- Skills popup in the TUI for searching and enabling skills
+  - Reset button (back to the persona's `available_skills`), clear (empty list),
+    select-all of the filtered skills
+- Skill directories with `tools/*.py` (`EXPORT_TOOLS`) -> `PythonToolset("skill:<name>")`,
+  plus live toolbox enable/disable and skill-sync on persona switch
+- `requirements.txt` per skill for dependency installation
 
-Implementation Details:
+Implemented (see [Skills](./docs/skills.md)):
 
-- The conversation gets a new optional field called active_skills
-- If this is None, then the available skills are exactly what the persona has as default
-- If it is not None, then the skills are only those from this list
-- On a persona switch, this list is left untouched.
-- If the popup is used to change the available skills, then this new field is set according
-  to the selected skills
-- There is a reset button, which sets the value to None, tracking the ones form the persona again
-- There is a clear button, which disables all skills by setting the value to an empty list
-- There is a select-all button, which selects all filtered skills
-- Maybe clear and select-all can be merged into a single button, but not clear yet
+- Directory-based skills with `SKILL.md` frontmatter (name / description / instructions)
+- Definable skill-sets per persona (`available_skills` in the persona config)
+- Per-conversation override (`available_skills`: `null` = inherit persona, `[]` = none,
+  list = exactly these) and per-conversation `active_skills`
+- `load_skill` / `unload_skill` tools (builtin `skills` toolset) with allow-list enforcement
+- `<available-skills>` / `<active-skills>` sections in the system prompt
+- The old prompt macros are now "prompts" (`{PROMPT:name}`)
 
 ## Free Form Memory
 

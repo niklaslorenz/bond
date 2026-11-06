@@ -119,9 +119,13 @@ The old macro mechanism moves to a new "prompts" feature.
 
 ### Phase 6 — Docs & cleanup
 
-- [ ] Update README "Future Features" section to reflect implemented state
-- [ ] Docs note: skill cache is process-lifetime (restart to reload SKILL.md)
-- [ ] Docs note: only enable skills you trust (future `tools/` will run in-process)
+- [x] Update README "Future Features" section to reflect implemented state
+  (skills moved to a new `## Skills` section linking to the docs)
+- [x] New `docs/skills.md`: skill layout, SKILL.md format, persona
+  `available_skills`, per-conversation override semantics, `skills` toolset,
+  system-prompt sections, prompts-vs-skills
+- [x] Docs note: skill cache is process-lifetime (restart to reload SKILL.md)
+- [x] Docs note: only enable skills you trust (future `tools/` will run in-process)
 
 ## Later phases (deliberately out of scope)
 
