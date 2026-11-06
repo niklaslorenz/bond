@@ -102,13 +102,20 @@ The old macro mechanism moves to a new "prompts" feature.
 
 ### Phase 5 — System prompt sections
 
-- [ ] `DefaultSystemMessageBuilder`: add `runtime` param + `include_skills` flag
-- [ ] Render `<available-skills>` section (name + description lines)
-- [ ] Render `<active-skills>` section (full SKILL.md blocks per active skill)
-- [ ] Pass `include_skills=True` in generation builders (`mistral.py`,
-  `ollama.py`); leave `False` for summarization / thought-condensation
-- [ ] Lenient handling: unknown skill names in persona/conversation → warn, don't crash
-- [ ] Tests for both sections (empty / populated / None-available fallback)
+- [x] `DefaultSystemMessageBuilder`: add `runtime` param + `include_skills` flag
+  (runtime falls back to `BondRuntime.get_instance()` via function-local import;
+  persona resolved via `conversation.persona` -> `runtime.get_persona()`)
+- [x] Render `<available-skills>` section (name + description lines, plus a
+  "Use the load_skill tool" hint)
+- [x] Render `<active-skills>` section (full SKILL.md blocks via `render_skill_md`,
+  one per active skill)
+- [x] Pass `include_skills=True, runtime=runtime` in generation builders
+  (`mistral.py`, `ollama.py`); left `False` for summarization (thought
+  condensation builds its own raw SystemMessage)
+- [x] Lenient handling: unknown skill names / unresolvable persona → warn, skip
+- [x] Tests for both sections (empty / populated / None-available fallback /
+  section order / singleton fallback)
+  → `test/bond/providers/general/util/test_default_system_message_builder.py`
 
 ### Phase 6 — Docs & cleanup
 

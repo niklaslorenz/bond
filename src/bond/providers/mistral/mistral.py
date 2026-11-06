@@ -91,7 +91,9 @@ class Mistral:
             toolbox.tool_descriptions,
             self.chat_completions(),
             10,
-            DefaultSystemMessageBuilder(include_prefix_summary=True),
+            DefaultSystemMessageBuilder(
+                include_prefix_summary=True, include_skills=True, runtime=runtime
+            ),
             MistralMessageListBuilder(
                 include_framework_messages=self.config.enable_framework_messages,
                 mock_starting_assistant_message=True,

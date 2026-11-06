@@ -1,13 +1,20 @@
 """Tests for bond.providers.general.util.default_system_message_builder module."""
 
+from unittest.mock import MagicMock
+
+from returns.result import Failure, Success
+
 from bond.conversation.conversation import Conversation
 from bond.conversation.task_list import TaskList, TaskListItem
 from bond.conversation.types import SystemMessage, TextChunk
 from bond.conversation.working_set import WorkingSet
 from bond.conversation.working_set_item import TextItem
+from bond.persona import PersonaConfig
 from bond.providers.general.util.default_system_message_builder import (
     DefaultSystemMessageBuilder,
 )
+from bond.runtime import BondRuntime
+from bond.skill import Skill, render_skill_md
 
 # ---------------------------------------------------------------------------
 # Helpers / fixtures
@@ -496,3 +503,267 @@ class TestDefaultSystemMessageBuilderEdgeCases:
         result = builder.render_system_message(conv, prompt)
         assert result is not None
         assert result.content[0].text == prompt
+
+
+# ---------------------------------------------------------------------------
+# DefaultSystemMessageBuilder - skills
+# ---------------------------------------------------------------------------
+
+SKILL_PDF = Skill(
+    name="pdf", description="PDF tools", instructions="Use pdf tools when asked."
+)
+SKILL_GIT = Skill(
+    name="git", description="Git helpers", instructions="Use git helpers when asked."
+)
+
+
+def make_mock_runtime(
+    skills: dict[str, Skill] | None = None,
+    persona_config: PersonaConfig | None = None,
+    persona_failure: str | None = None,
+) -> MagicMock:
+    """Mock BondRuntime serving the given skills / persona resolution."""
+    runtime = MagicMock()
+    skills = skills or {}
+    runtime.get_skill.side_effect = lambda name: skills[name]
+    if persona_failure is not None:
+        runtime.get_persona.return_value = Failure(persona_failure)
+    else:
+        runtime.get_persona.return_value = Success(
+            persona_config
+            or PersonaConfig(name="p", generation={}, available_skills=[])
+        )
+    return runtime
+
+
+def make_persona_config(available_skills: list[str]) -> PersonaConfig:
+    return PersonaConfig(
+        name="p", generation={}, available_skills=available_skills
+    )
+
+
+class TestRenderSystemMessageSkillsInit:
+    def test_include_skills_defaults_false(self):
+        builder = DefaultSystemMessageBuilder()
+        assert builder._include_skills is False
+        assert builder._runtime is None
+
+    def test_include_skills_and_runtime_stored(self):
+        runtime = MagicMock()
+        builder = DefaultSystemMessageBuilder(include_skills=True, runtime=runtime)
+        assert builder._include_skills is True
+        assert builder._runtime is runtime
+
+
+class TestRenderSystemMessageAvailableSkills:
+    def test_available_skills_from_conversation_list(self):
+        runtime = make_mock_runtime({"pdf": SKILL_PDF, "git": SKILL_GIT})
+        builder = DefaultSystemMessageBuilder(include_skills=True, runtime=runtime)
+        conv = Conversation(available_skills=["pdf", "git"])
+
+        result = builder.render_system_message(conv, "You are helpful")
+
+        text = result.content[0].text
+        assert "You are helpful" in text
+        assert "<available-skills>" in text
+        assert "- pdf: PDF tools" in text
+        assert "- git: Git helpers" in text
+        assert "</available-skills>" in text
+        # active-skills must not be rendered when nothing is active
+        assert "<active-skills>" not in text
+
+    def test_available_skills_fall_back_to_persona(self):
+        runtime = make_mock_runtime(
+            {"pdf": SKILL_PDF}, persona_config=make_persona_config(["pdf"])
+        )
+        builder = DefaultSystemMessageBuilder(include_skills=True, runtime=runtime)
+        conv = Conversation(persona="p")  # available_skills=None -> inherit persona
+
+        result = builder.render_system_message(conv, "prompt")
+
+        text = result.content[0].text
+        assert "<available-skills>" in text
+        assert "- pdf: PDF tools" in text
+        runtime.get_persona.assert_called_once_with("p")
+
+    def test_conversation_empty_list_suppresses_available_section(self):
+        runtime = make_mock_runtime(
+            {"pdf": SKILL_PDF}, persona_config=make_persona_config(["pdf"])
+        )
+        builder = DefaultSystemMessageBuilder(include_skills=True, runtime=runtime)
+        conv = Conversation(persona="p", available_skills=[])
+
+        result = builder.render_system_message(conv, "prompt")
+
+        assert "<available-skills>" not in result.content[0].text
+
+    def test_no_available_skills_renders_no_section(self):
+        runtime = make_mock_runtime()
+        builder = DefaultSystemMessageBuilder(include_skills=True, runtime=runtime)
+        conv = Conversation()
+
+        result = builder.render_system_message(conv, "prompt")
+
+        assert result.content[0].text == "prompt"
+
+    def test_unknown_available_skill_is_skipped(self):
+        runtime = make_mock_runtime({"pdf": SKILL_PDF})
+        builder = DefaultSystemMessageBuilder(include_skills=True, runtime=runtime)
+        conv = Conversation(available_skills=["ghost", "pdf"])
+
+        result = builder.render_system_message(conv, "prompt")
+
+        text = result.content[0].text
+        assert "<available-skills>" in text
+        assert "- pdf: PDF tools" in text
+        assert "ghost" not in text
+
+    def test_all_available_skills_unknown_renders_no_section(self):
+        runtime = make_mock_runtime()
+        builder = DefaultSystemMessageBuilder(include_skills=True, runtime=runtime)
+        conv = Conversation(available_skills=["ghost"])
+
+        result = builder.render_system_message(conv, "prompt")
+
+        assert "<available-skills>" not in result.content[0].text
+
+    def test_persona_resolution_failure_falls_back_leniently(self):
+        runtime = make_mock_runtime(persona_failure="no such persona")
+        builder = DefaultSystemMessageBuilder(include_skills=True, runtime=runtime)
+        conv = Conversation(persona="missing", available_skills=["pdf"])
+        runtime.get_skill.side_effect = lambda name: {"pdf": SKILL_PDF}[name]
+
+        result = builder.render_system_message(conv, "prompt")
+
+        # conversation list still wins; no crash
+        text = result.content[0].text
+        assert "- pdf: PDF tools" in text
+
+    def test_persona_resolution_failure_without_conversation_list(self):
+        runtime = make_mock_runtime(persona_failure="no such persona")
+        builder = DefaultSystemMessageBuilder(include_skills=True, runtime=runtime)
+        conv = Conversation(persona="missing")
+
+        result = builder.render_system_message(conv, "prompt")
+
+        assert result.content[0].text == "prompt"
+
+    def test_no_persona_on_conversation_uses_empty_persona(self):
+        runtime = make_mock_runtime()
+        builder = DefaultSystemMessageBuilder(include_skills=True, runtime=runtime)
+        conv = Conversation()  # persona is None
+
+        result = builder.render_system_message(conv, "prompt")
+
+        assert result.content[0].text == "prompt"
+        runtime.get_persona.assert_not_called()
+
+    def test_runtime_fallback_to_singleton(self, monkeypatch):
+        runtime = make_mock_runtime({"pdf": SKILL_PDF})
+        get_instance = MagicMock(return_value=runtime)
+        monkeypatch.setattr(BondRuntime, "get_instance", get_instance)
+        builder = DefaultSystemMessageBuilder(include_skills=True)  # runtime=None
+        conv = Conversation(available_skills=["pdf"])
+
+        result = builder.render_system_message(conv, "prompt")
+
+        get_instance.assert_called_once_with()
+        assert "- pdf: PDF tools" in result.content[0].text
+
+
+class TestRenderSystemMessageActiveSkills:
+    def test_active_skills_render_full_content(self):
+        runtime = make_mock_runtime({"pdf": SKILL_PDF})
+        builder = DefaultSystemMessageBuilder(include_skills=True, runtime=runtime)
+        conv = Conversation(active_skills=["pdf"])
+
+        result = builder.render_system_message(conv, "prompt")
+
+        text = result.content[0].text
+        assert "<active-skills>" in text
+        assert render_skill_md(SKILL_PDF) in text
+        assert "Use pdf tools when asked." in text
+        assert "</active-skills>" in text
+        # nothing available -> no available section
+        assert "<available-skills>" not in text
+
+    def test_multiple_active_skills(self):
+        runtime = make_mock_runtime({"pdf": SKILL_PDF, "git": SKILL_GIT})
+        builder = DefaultSystemMessageBuilder(include_skills=True, runtime=runtime)
+        conv = Conversation(active_skills=["pdf", "git"])
+
+        result = builder.render_system_message(conv, "prompt")
+
+        text = result.content[0].text
+        assert "Use pdf tools when asked." in text
+        assert "Use git helpers when asked." in text
+
+    def test_unknown_active_skill_is_skipped(self):
+        runtime = make_mock_runtime({"pdf": SKILL_PDF})
+        builder = DefaultSystemMessageBuilder(include_skills=True, runtime=runtime)
+        conv = Conversation(active_skills=["ghost", "pdf"])
+
+        result = builder.render_system_message(conv, "prompt")
+
+        text = result.content[0].text
+        assert "<active-skills>" in text
+        assert "Use pdf tools when asked." in text
+        assert "ghost" not in text
+
+    def test_all_active_skills_unknown_renders_no_section(self):
+        runtime = make_mock_runtime()
+        builder = DefaultSystemMessageBuilder(include_skills=True, runtime=runtime)
+        conv = Conversation(active_skills=["ghost"])
+
+        result = builder.render_system_message(conv, "prompt")
+
+        assert result.content[0].text == "prompt"
+
+    def test_skills_disabled_ignores_everything(self):
+        runtime = make_mock_runtime({"pdf": SKILL_PDF})
+        builder = DefaultSystemMessageBuilder(include_skills=False, runtime=runtime)
+        conv = Conversation(available_skills=["pdf"], active_skills=["pdf"])
+
+        result = builder.render_system_message(conv, "prompt")
+
+        assert result.content[0].text == "prompt"
+
+    def test_skills_sections_without_prompt(self):
+        runtime = make_mock_runtime({"pdf": SKILL_PDF})
+        builder = DefaultSystemMessageBuilder(include_skills=True, runtime=runtime)
+        conv = Conversation(available_skills=["pdf"], active_skills=["pdf"])
+
+        result = builder.render_system_message(conv, None)
+
+        assert result is not None
+        text = result.content[0].text
+        assert "<available-skills>" in text
+        assert "<active-skills>" in text
+
+    def test_skill_section_order(self):
+        """Order: working-set, task-list, available-skills, active-skills, previous-context."""
+        runtime = make_mock_runtime({"pdf": SKILL_PDF})
+        builder = DefaultSystemMessageBuilder(
+            include_prefix_summary=True,
+            include_working_set=True,
+            include_task_list=True,
+            include_skills=True,
+            runtime=runtime,
+        )
+        conv = make_full_conversation(
+            prefix_summary="Previous",
+            working_set_items=["WS item"],
+            task_list_items=[("TL item", False)],
+        )
+        conv.available_skills = ["pdf"]
+        conv.active_skills = ["pdf"]
+
+        result = builder.render_system_message(conv, "prompt")
+
+        text = result.content[0].text
+        ws_idx = text.index("<working-set>")
+        tl_idx = text.index("<task-list>")
+        av_idx = text.index("<available-skills>")
+        ac_idx = text.index("<active-skills>")
+        pc_idx = text.index("<previous-context>")
+        assert ws_idx < tl_idx < av_idx < ac_idx < pc_idx
