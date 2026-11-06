@@ -55,6 +55,7 @@ class PersonaConfig(BaseModel):
     memory: dict[str, Any] | None = None
 
     toolsets: list[str] = Field(default_factory=list)
+    available_skills: list[str] = Field(default_factory=list)
 
     @classmethod
     def get_type(cls) -> str:

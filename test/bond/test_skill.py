@@ -1,4 +1,4 @@
-"""Tests for bond.skill (parser) and the skill support in bond.runtime."""
+"""Tests for bond.skill (parser, helper) and the skill support in bond.runtime."""
 
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -6,12 +6,14 @@ from unittest.mock import MagicMock
 import pytest
 
 from bond.config import BondConfig
+from bond.conversation.conversation import Conversation
+from bond.persona import Persona, PersonaConfig
 from bond.runtime import (
     BondRuntime,
     DynamicRuntimeEnvironment,
     StaticRuntimeEnvironment,
 )
-from bond.skill import Skill, parse_skill_md
+from bond.skill import Skill, effective_available_skills, parse_skill_md
 
 # ---------------------------------------------------------------------------
 # parse_skill_md
@@ -203,3 +205,83 @@ class TestBondRuntimeSkills:
             env.load_skill.assert_called_once_with("cached", runtime)
         finally:
             runtime._environment = old_env
+
+
+# ---------------------------------------------------------------------------
+# effective_available_skills
+# ---------------------------------------------------------------------------
+
+
+def _persona_config(available_skills: list[str] | None = None) -> PersonaConfig:
+    return PersonaConfig(
+        name="p",
+        generation={},
+        available_skills=available_skills if available_skills is not None else [],
+    )
+
+
+class TestEffectiveAvailableSkills:
+    def test_conversation_list_wins_over_persona(self):
+        conv = Conversation(available_skills=["a", "b"])
+        persona = _persona_config(["c"])
+        assert effective_available_skills(conv, persona) == ["a", "b"]
+
+    def test_conversation_none_falls_back_to_persona_config(self):
+        conv = Conversation()
+        persona = _persona_config(["c", "d"])
+        assert effective_available_skills(conv, persona) == ["c", "d"]
+
+    def test_accepts_instantiated_persona(self):
+        conv = Conversation()
+        persona = Persona(
+            name="p",
+            config=_persona_config(["x"]),
+            generation=None,  # type: ignore[arg-type]
+            summarization=None,
+            thought_condensation=None,
+            tts=None,
+            memory=None,
+            toolbox=None,  # type: ignore[arg-type]
+        )
+        assert effective_available_skills(conv, persona) == ["x"]
+
+    def test_persona_none_returns_empty(self):
+        conv = Conversation()
+        assert effective_available_skills(conv, None) == []
+
+    def test_conversation_empty_list_is_explicit_not_none(self):
+        conv = Conversation(available_skills=[])
+        persona = _persona_config(["c"])
+        assert effective_available_skills(conv, persona) == []
+
+    def test_defaults(self):
+        conv = Conversation()
+        assert conv.available_skills is None
+        assert conv.active_skills == []
+        assert _persona_config().available_skills == []
+
+
+# ---------------------------------------------------------------------------
+# Conversation serialization with skill fields
+# ---------------------------------------------------------------------------
+
+
+class TestConversationSkillFieldsSerialization:
+    def test_roundtrip_with_values(self):
+        conv = Conversation(available_skills=["a"], active_skills=["b", "c"])
+        loaded = Conversation.model_validate_json(conv.model_dump_json())
+        assert loaded.available_skills == ["a"]
+        assert loaded.active_skills == ["b", "c"]
+
+    def test_old_metadata_without_skill_fields_loads_with_defaults(self):
+        # Simulates a conversation saved before the skill fields existed
+        old_json = '{"name": "old", "persona": "assistant"}'
+        conv = Conversation.model_validate_json(old_json)
+        assert conv.available_skills is None
+        assert conv.active_skills == []
+
+    def test_roundtrip_defaults(self):
+        conv = Conversation()
+        loaded = Conversation.model_validate_json(conv.model_dump_json())
+        assert loaded.available_skills is None
+        assert loaded.active_skills == []

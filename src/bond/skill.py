@@ -20,6 +20,9 @@ import re
 
 from pydantic import BaseModel, Field
 
+from bond.conversation.conversation import Conversation
+from bond.persona import Persona, PersonaConfig
+
 logger = logging.getLogger(__name__)
 
 _FRONTMATTER_RE = re.compile(r"\A---[ \t]*\r?\n(.*?)\r?\n---[ \t]*\r?\n?", re.DOTALL)
@@ -73,3 +76,24 @@ def parse_skill_md(text: str, fallback_name: str) -> Skill:
         description=description,
         instructions=instructions.strip("\r\n"),
     )
+
+
+def effective_available_skills(
+    conversation: Conversation, persona: Persona | PersonaConfig | None
+) -> list[str]:
+    """Resolve which skills a conversation may use.
+
+    Single source of truth shared by the skill tools and the system message
+    builder: an explicit ``conversation.available_skills`` list wins; otherwise
+    the persona's ``available_skills`` are used (``None`` persona -> none).
+
+    Accepts either an instantiated :class:`Persona` or a raw
+    :class:`PersonaConfig`.
+    """
+    if conversation.available_skills is not None:
+        return conversation.available_skills
+    if persona is None:
+        return []
+    if isinstance(persona, Persona):
+        return persona.config.available_skills
+    return persona.available_skills

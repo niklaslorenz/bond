@@ -33,6 +33,8 @@ class Conversation(BaseModel):
     persona: str | None = None
     working_set: WorkingSet | None = None
     task_list: TaskList | None = None
+    available_skills: list[str] | None = None
+    active_skills: list[str] = Field(default_factory=list)
     metadata: ConversationMetadata = Field(default_factory=ConversationMetadata)
 
     _episodes: EpisodeCache | None = PrivateAttr(default=None)

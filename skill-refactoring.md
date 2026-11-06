@@ -75,12 +75,15 @@ The old macro mechanism moves to a new "prompts" feature.
 
 ### Phase 3 — Data model: conversation + persona fields
 
-- [ ] `Conversation`: add `available_skills: list[str] | None = None`,
-  `active_skills: list[str] = []`
-- [ ] `PersonaConfig`: add `available_skills: list[str] = []`
-- [ ] Add `effective_available_skills(conversation, persona)` helper (single
-  source of truth for tool + builder)
-- [ ] Tests: conversation serialization round-trip with old files (defaults)
+- [x] `Conversation`: add `available_skills: list[str] | None = None`,
+      `active_skills: list[str] = []`
+- [x] `PersonaConfig`: add `available_skills: list[str] = []`
+- [x] Add `effective_available_skills(conversation, persona)` helper (single
+      source of truth for tool + builder) — in `bond/skill.py`, accepts
+      `Persona` or `PersonaConfig` (duck-typed via `.config`), TYPE_CHECKING
+      imports only so no circular imports
+- [x] Tests: conversation serialization round-trip with old files (defaults)
+      → in `test/bond/test_skill.py` (helper precedence + old-JSON compat)
 
 ### Phase 4 — Tools
 
