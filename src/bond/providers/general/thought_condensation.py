@@ -7,7 +7,7 @@ from returns.result import Failure, Result, Success
 from bond.conversation.conversation import Conversation
 from bond.conversation.types import SystemMessage, TextChunk, ThinkChunk, UserMessage
 from bond.endpoints.chat_completions import ChatCompletionsEndpoint
-from bond.util import resolve_skills
+from bond.util import resolve_prompts
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ class DefaultThoughtCondensationOptions(BaseModel):
     token_threshold: int
 
     def resolve(self, runtime: "BondRuntime | None"):
-        self.prompt = resolve_skills(self.prompt, runtime)
+        self.prompt = resolve_prompts(self.prompt, runtime)
 
 
 class DefaultThoughtCondensationCapability:

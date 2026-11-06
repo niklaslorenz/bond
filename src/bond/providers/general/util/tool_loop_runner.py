@@ -11,7 +11,7 @@ from bond.providers.general.util import ToolCallLoop
 from bond.tools.task_list import task_list_toolset
 from bond.tools.tool import ToolCallContext
 from bond.tools.toolbox import Toolbox
-from bond.util import resolve_skills
+from bond.util import resolve_prompts
 
 if TYPE_CHECKING:
     from bond.runtime import BondRuntime
@@ -25,8 +25,8 @@ class ToolLoopRunnerOptions(BaseModel):
     iterations: int
 
     def resolve(self, runtime: "BondRuntime | None"):
-        self.prompt = resolve_skills(self.prompt, runtime)
-        self.instruction = resolve_skills(self.instruction, runtime)
+        self.prompt = resolve_prompts(self.prompt, runtime)
+        self.instruction = resolve_prompts(self.instruction, runtime)
 
 
 logger = logging.getLogger(__name__)

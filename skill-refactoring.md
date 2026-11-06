@@ -12,8 +12,7 @@ The old macro mechanism moves to a new "prompts" feature.
 - **Prompts (old skills)**: `~/.config/bond/prompts/*.md`, macro `{PROMPT:name}`,
   runtime methods `list_prompts` / `get_prompt` / `load_prompt`,
   `resolve_prompts()` in `util.py`.
-- **Skills (new)**: `~/.config/bond/skills/<name>/SKILL.md` with `---
-  name / description ---` frontmatter (parsed manually, no yaml dependency).
+- **Skills (new)**: `~/.config/bond/skills/<name>/SKILL.md` with `--- name / description ---` frontmatter (parsed manually, no yaml dependency).
   Body = instructions. Frontmatter `name` falls back to the directory name.
 - **Skill object**: pydantic model `Skill(name, description, instructions)` in
   `src/bond/skill.py` + `parse_skill_md(text, fallback_name)`.
@@ -51,17 +50,17 @@ The old macro mechanism moves to a new "prompts" feature.
 
 ### Phase 1 — Rename current skills to "prompts"
 
-- [ ] Rename `~/.config/bond/skills/` → `prompts/` in `DynamicRuntimeEnvironment`
-- [ ] Rename env ABC + both implementations + runtime methods:
-      `list_skills`/`load_skill`/`get_skill` → `list_prompts`/`load_prompt`/`get_prompt`
-- [ ] Rename runtime cache `_loaded_skills` → `_loaded_prompts`
-- [ ] Rename `resolve_skills` → `resolve_prompts` in `util.py`, macro `{SKILL:x}` → `{PROMPT:x}`
-- [ ] Update call sites: `generation.py`, `summarization.py`,
-      `thought_condensation.py`, `tool_loop_runner.py`
-- [ ] Update `test/bond/providers/general/util/test_tool_loop_runner.py`
-      (mocks + `{SKILL:...}` strings)
-- [ ] Decide migration story for existing users' `skills/` dir
-      (auto-migrate on startup vs. docs note)
+- [x] Rename `~/.config/bond/skills/` → `prompts/` in `DynamicRuntimeEnvironment`
+- [x] Rename env ABC + both implementations + runtime methods:
+  `list_skills`/`load_skill`/`get_skill` → `list_prompts`/`load_prompt`/`get_prompt`
+- [x] Rename runtime cache `_loaded_skills` → `_loaded_prompts`
+- [x] Rename `resolve_skills` → `resolve_prompts` in `util.py`, macro `{SKILL:x}` → `{PROMPT:x}`
+- [x] Update call sites: `generation.py`, `summarization.py`,
+  `thought_condensation.py`, `tool_loop_runner.py`
+- [x] Update `test/bond/providers/general/util/test_tool_loop_runner.py`
+  (mocks + `{PROMPT:...}` strings)
+- [x] Decide migration story for existing users' `skills/` dir
+  (auto-migrate on startup vs. docs note)
 
 ### Phase 2 — Skill model + runtime API
 
@@ -69,27 +68,27 @@ The old macro mechanism moves to a new "prompts" feature.
 - [ ] Add `list_skills()` / `load_skill(name) -> Skill` to `RuntimeEnvironment` ABC
 - [ ] `StaticRuntimeEnvironment`: accept `skills: dict[str, Skill]`
 - [ ] `DynamicRuntimeEnvironment`: `list_skills()` globs `skills/*/SKILL.md` dirs;
-      `load_skill` reads + parses `skills/<name>/SKILL.md`
+  `load_skill` reads + parses `skills/<name>/SKILL.md`
 - [ ] `BondRuntime`: `list_skills()`, `get_skill()` with `_loaded_skills` cache
 - [ ] Tests for the SKILL.md frontmatter parser (incl. fallback name)
 
 ### Phase 3 — Data model: conversation + persona fields
 
 - [ ] `Conversation`: add `available_skills: list[str] | None = None`,
-      `active_skills: list[str] = []`
+  `active_skills: list[str] = []`
 - [ ] `PersonaConfig`: add `available_skills: list[str] = []`
 - [ ] Add `effective_available_skills(conversation, persona)` helper (single
-      source of truth for tool + builder)
+  source of truth for tool + builder)
 - [ ] Tests: conversation serialization round-trip with old files (defaults)
 
 ### Phase 4 — Tools
 
 - [ ] Create `src/bond/tools/skill_tools.py` with `load_skill` / `unload_skill`
-      (use `context.conversation` / `context.persona`, mirror `memory_tools.py`)
+  (use `context.conversation` / `context.persona`, mirror `memory_tools.py`)
 - [ ] Register builtin `PythonToolset("skills", [load_skill, unload_skill])`
-      in `_default_toolsets` in `runtime.py`
+  in `_default_toolsets` in `runtime.py`
 - [ ] `load_skill`: verify against effective available skills; error lists what
-      IS available; append to `active_skills` (idempotent); return full content
+  IS available; append to `active_skills` (idempotent); return full content
 - [ ] `unload_skill`: remove from `active_skills`
 - [ ] Tests for allow/deny paths
 
@@ -99,7 +98,7 @@ The old macro mechanism moves to a new "prompts" feature.
 - [ ] Render `<available-skills>` section (name + description lines)
 - [ ] Render `<active-skills>` section (full SKILL.md blocks per active skill)
 - [ ] Pass `include_skills=True` in generation builders (`mistral.py`,
-      `ollama.py`); leave `False` for summarization / thought-condensation
+  `ollama.py`); leave `False` for summarization / thought-condensation
 - [ ] Lenient handling: unknown skill names in persona/conversation → warn, don't crash
 - [ ] Tests for both sections (empty / populated / None-available fallback)
 
@@ -113,7 +112,7 @@ The old macro mechanism moves to a new "prompts" feature.
 
 - [ ] Skill directories with `tools/*.py` (`EXPORT_TOOLS`) → `PythonToolset("skill:<name>")`
 - [ ] `Toolbox.enable_toolset` / `disable_toolset` + live tool descriptions in
-      `DefaultGenerationCapability` (currently snapshots `self._tools`)
+  `DefaultGenerationCapability` (currently snapshots `self._tools`)
 - [ ] Toolbox skill-sync on persona switch in `_build_turn()`
 - [ ] Skills popup in TUI (search/enable, reset → None, clear → [], select-all)
 - [ ] `requirements.txt` per skill for dependency installation

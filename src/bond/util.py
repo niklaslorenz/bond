@@ -89,12 +89,12 @@ def resolve_api_key(api_key_raw: str) -> str:
 
 
 @overload
-def resolve_skills(instruction_raw: str, runtime: "BondRuntime | None") -> str: ...
+def resolve_prompts(instruction_raw: str, runtime: "BondRuntime | None") -> str: ...
 @overload
-def resolve_skills(instruction_raw: None, runtime: "BondRuntime | None") -> None: ...
+def resolve_prompts(instruction_raw: None, runtime: "BondRuntime | None") -> None: ...
 
 
-def resolve_skills(
+def resolve_prompts(
     instruction_raw: str | None, runtime: "BondRuntime | None"
 ) -> str | None:
     if instruction_raw is None:
@@ -103,11 +103,11 @@ def resolve_skills(
         from bond.runtime import BondRuntime
 
         runtime = BondRuntime.get_instance()
-    skill_pattern = r"\{SKILL:([^\{\}\s]*?)\}"
+    prompt_pattern = r"\{PROMPT:([^\{\}\s]*?)\}"
 
     instruction = re.sub(
-        skill_pattern,
-        lambda match: runtime.get_skill(match.group(1)),
+        prompt_pattern,
+        lambda match: runtime.get_prompt(match.group(1)),
         instruction_raw,
     )
 

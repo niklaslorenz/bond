@@ -16,7 +16,7 @@ from bond.endpoints.chat_completions import (
     CompletionChunk,
 )
 from bond.tools.tool import Tool
-from bond.util import resolve_skills
+from bond.util import resolve_prompts
 
 if TYPE_CHECKING:
     from bond.runtime import BondRuntime
@@ -29,7 +29,7 @@ class DefaultGenerationOptions(BaseModel):
 
     def resolve(self, runtime: "BondRuntime | None"):
         if self.system_prompt is not None:
-            self.system_prompt = resolve_skills(self.system_prompt, runtime)
+            self.system_prompt = resolve_prompts(self.system_prompt, runtime)
 
 
 class DefaultGenerationCapability:

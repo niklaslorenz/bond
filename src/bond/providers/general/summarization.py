@@ -12,7 +12,7 @@ from bond.providers.general.util.tool_loop_runner import (
     ToolLoopRunner,
     ToolLoopRunnerOptions,
 )
-from bond.util import resolve_skills
+from bond.util import resolve_prompts
 
 if TYPE_CHECKING:
     from bond.runtime import BondRuntime
@@ -28,7 +28,7 @@ class SummaryHandlerOptions(BaseModel):
     chunk_size: int | None = None
 
     def resolve(self, runtime: "BondRuntime | None"):
-        self.prompt = resolve_skills(self.prompt, runtime)
+        self.prompt = resolve_prompts(self.prompt, runtime)
 
 
 class DefaultSummarizationOptions(BaseModel):

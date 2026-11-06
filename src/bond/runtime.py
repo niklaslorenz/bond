@@ -113,7 +113,7 @@ class RuntimeEnvironment(ABC):
     @abstractmethod
     def list_personas(self) -> list[str]: ...
     @abstractmethod
-    def list_skills(self) -> list[str]: ...
+    def list_prompts(self) -> list[str]: ...
     @abstractmethod
     def get_plugins(self) -> dict[str, BondPlugin]: ...
     @abstractmethod
@@ -123,7 +123,7 @@ class RuntimeEnvironment(ABC):
         self, name: str, runtime: "BondRuntime"
     ) -> Result[PersonaConfig, str]: ...
     @abstractmethod
-    def load_skill(self, name: str, runtime: "BondRuntime") -> str: ...
+    def load_prompt(self, name: str, runtime: "BondRuntime") -> str: ...
     @abstractmethod
     def get_plugin_data_base_dir(self) -> Path: ...
     @abstractmethod
@@ -137,7 +137,7 @@ class StaticRuntimeEnvironment(RuntimeEnvironment):
         providers: dict[str, Provider],
         personas: dict[str, PersonaConfig],
         plugins: dict[str, BondPlugin],
-        skills: dict[str, str],
+        prompts: dict[str, str],
         data_dir: Path | None = None,
         conversations_path: Path | None = None,
         cache_path: Path | None = None,
@@ -146,7 +146,7 @@ class StaticRuntimeEnvironment(RuntimeEnvironment):
         self._providers = providers
         self._personas = personas
         self._plugins = plugins
-        self._skills = skills
+        self._prompts = prompts
         self._data_dir = data_dir or Path("~/.local/share/bond").expanduser().absolute()
         self._conversations_path = conversations_path
         self._cache_path = cache_path
@@ -166,8 +166,8 @@ class StaticRuntimeEnvironment(RuntimeEnvironment):
     def list_personas(self) -> list[str]:
         return list(self._personas.keys())
 
-    def list_skills(self) -> list[str]:
-        return list(self._skills.keys())
+    def list_prompts(self) -> list[str]:
+        return list(self._prompts.keys())
 
     def get_plugins(self) -> dict[str, BondPlugin]:
         return self._plugins.copy()
@@ -180,8 +180,8 @@ class StaticRuntimeEnvironment(RuntimeEnvironment):
     ) -> Result[PersonaConfig, str]:
         return Result.from_value(self._personas[name])
 
-    def load_skill(self, name: str, runtime: "BondRuntime") -> str:
-        return self._skills[name]
+    def load_prompt(self, name: str, runtime: "BondRuntime") -> str:
+        return self._prompts[name]
 
     def get_plugin_data_base_dir(self) -> Path:
         return self._data_dir
@@ -221,11 +221,11 @@ class DynamicRuntimeEnvironment(RuntimeEnvironment):
             )
         ]
 
-    def list_skills(self) -> list[str]:
+    def list_prompts(self) -> list[str]:
         return [
             f[:-3]
             for f in glob.glob(
-                "*.md", root_dir=(self._config_dir / "skills").as_posix()
+                "*.md", root_dir=(self._config_dir / "prompts").as_posix()
             )
         ]
 
@@ -280,10 +280,10 @@ class DynamicRuntimeEnvironment(RuntimeEnvironment):
         path = self._config_dir / f"personas/{name}.json"
         return PersonaConfig.from_file_safe(path, runtime)
 
-    def load_skill(self, name: str, runtime: BondRuntime) -> str:
-        path = self._config_dir / f"skills/{name}.md"
+    def load_prompt(self, name: str, runtime: BondRuntime) -> str:
+        path = self._config_dir / f"prompts/{name}.md"
         if not path.exists():
-            raise ValueError(f"Invalid skill name: {name}. Path does not exist.")
+            raise ValueError(f"Invalid prompt name: {name}. Path does not exist.")
         return path.read_text(encoding="utf-8")
 
     def get_plugin_data_base_dir(self) -> Path:
@@ -317,7 +317,7 @@ class BondRuntime:
         self._loaded_plugins = NamedEntryRegistry[BondPlugin]()
         self._loaded_providers = NamedEntryRegistry[Provider]()
         self._loaded_personas = NamedEntryRegistry[PersonaConfig]()
-        self._loaded_skills = NamedEntryRegistry[str]()
+        self._loaded_prompts = NamedEntryRegistry[str]()
         self._environment: RuntimeEnvironment | None = None
         logger.debug("BondRuntime created")
 
@@ -327,10 +327,10 @@ class BondRuntime:
         providers: dict[str, Provider],
         personas: dict[str, PersonaConfig],
         plugins: dict[str, BondPlugin],
-        skills: dict[str, str],
+        prompts: dict[str, str],
     ) -> StaticRuntimeEnvironment:
         self._environment = StaticRuntimeEnvironment(
-            config, providers, personas, plugins, skills
+            config, providers, personas, plugins, prompts
         )
         self._register_builtin_toolsets()
         self._register_builtin_provider_types()
@@ -367,8 +367,8 @@ class BondRuntime:
     def list_plugins(self) -> list[str]:
         return self._plugin_registry.get_names()
 
-    def list_skills(self) -> list[str]:
-        return self._get_env().list_skills()
+    def list_prompts(self) -> list[str]:
+        return self._get_env().list_prompts()
 
     def get_conversations_path(self) -> Path | None:
         return self._get_env().get_conversations_path()
@@ -435,14 +435,14 @@ class BondRuntime:
         self._loaded_providers.register(provider_name, provider)
         return provider
 
-    def get_skill(self, skill_name: str) -> str:
-        """Get a skill by name, loading it if necessary"""
+    def get_prompt(self, prompt_name: str) -> str:
+        """Get a prompt by name, loading it if necessary"""
         env = self._get_env()
-        if (skill := self._loaded_skills.get(skill_name)) is not None:
-            return skill
-        skill = env.load_skill(skill_name, self)
-        self._loaded_skills.register(skill_name, skill)
-        return skill
+        if (prompt := self._loaded_prompts.get(prompt_name)) is not None:
+            return prompt
+        prompt = env.load_prompt(prompt_name, self)
+        self._loaded_prompts.register(prompt_name, prompt)
+        return prompt
 
     def load_vector_store(self, name: str, vector_store_type: str) -> VectorStore:
         if vector_store_type != "faiss":

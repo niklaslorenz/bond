@@ -224,19 +224,19 @@ class TestToolLoopRunnerOptions:
         )
         # resolve(None) will try to get BondRuntime.get_instance() which may fail
         # We'll test this with a mock runtime instead
-        options.prompt = "Hello {SKILL:test}"
-        options.instruction = "Do {SKILL:thing}"
+        options.prompt = "Hello {PROMPT:test}"
+        options.instruction = "Do {PROMPT:thing}"
 
         mock_runtime = MagicMock()
-        mock_runtime.get_skill = lambda name: f"<skill:{name}>"
+        mock_runtime.get_prompt = lambda name: f"<prompt:{name}>"
 
         options.resolve(mock_runtime)
 
-        assert options.prompt == "Hello <skill:test>"
-        assert options.instruction == "Do <skill:thing>"
+        assert options.prompt == "Hello <prompt:test>"
+        assert options.instruction == "Do <prompt:thing>"
 
-    def test_resolve_with_no_skills(self):
-        """Test resolve() with strings that don't contain skill patterns."""
+    def test_resolve_with_no_prompts(self):
+        """Test resolve() with strings that don't contain prompt patterns."""
         options = ToolLoopRunnerOptions(
             model="test-model",
             prompt="You are helpful",
@@ -249,7 +249,7 @@ class TestToolLoopRunnerOptions:
 
         assert options.prompt == "You are helpful"
         assert options.instruction == "Do something"
-        mock_runtime.get_skill.assert_not_called()
+        mock_runtime.get_prompt.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
