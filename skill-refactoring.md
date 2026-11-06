@@ -31,8 +31,10 @@ The old macro mechanism moves to a new "prompts" feature.
   registered as a builtin `PythonToolset("skills", ...)` in `_default_toolsets`
   (toolbox stays static — dynamic skill-toolsets are a later phase).
   `load_skill` verifies the name against effective available skills, appends to
-  `conversation.active_skills`, and returns the full skill content as the tool
-  result (visible same-turn). `unload_skill` removes from `active_skills`.
+  `conversation.active_skills`, and returns only a short confirmation — the
+  skill content is NOT put into the tool result, because it is rendered into
+  the system prompt by the builder (single source; avoids duplicating it into
+  the message history). `unload_skill` removes from `active_skills`.
   Deactivation needs no prompt scrubbing: the system message is re-rendered
   fresh every `generate()`, never stored in history.
 - **System prompt**: sections rendered by `DefaultSystemMessageBuilder` (NOT
@@ -87,14 +89,16 @@ The old macro mechanism moves to a new "prompts" feature.
 
 ### Phase 4 — Tools
 
-- [ ] Create `src/bond/tools/skill_tools.py` with `load_skill` / `unload_skill`
+- [x] Create `src/bond/tools/skill_tools.py` with `load_skill` / `unload_skill`
   (use `context.conversation` / `context.persona`, mirror `memory_tools.py`)
-- [ ] Register builtin `PythonToolset("skills", [load_skill, unload_skill])`
+- [x] Register builtin `PythonToolset("skills", [load_skill, unload_skill])`
   in `_default_toolsets` in `runtime.py`
-- [ ] `load_skill`: verify against effective available skills; error lists what
-  IS available; append to `active_skills` (idempotent); return full content
-- [ ] `unload_skill`: remove from `active_skills`
-- [ ] Tests for allow/deny paths
+- [x] `load_skill`: verify against effective available skills; error lists what
+  IS available; append to `active_skills` (idempotent); return only a
+  confirmation, NOT the skill content (content lives in the system prompt only;
+  runtime imported function-locally to avoid a cycle with `runtime.py`)
+- [x] `unload_skill`: remove from `active_skills`
+- [x] Tests for allow/deny paths → `test/bond/tools/test_skill_tools.py`
 
 ### Phase 5 — System prompt sections
 

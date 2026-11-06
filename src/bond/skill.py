@@ -78,6 +78,15 @@ def parse_skill_md(text: str, fallback_name: str) -> Skill:
     )
 
 
+def render_skill_md(skill: Skill) -> str:
+    """Render a :class:`Skill` back to SKILL.md format (frontmatter + instructions)."""
+    lines = ["---", f"name: {skill.name}"]
+    if skill.description:
+        lines.append(f"description: {skill.description}")
+    lines.append("---")
+    return "\n".join(lines) + "\n" + skill.instructions
+
+
 def effective_available_skills(
     conversation: Conversation, persona: Persona | PersonaConfig | None
 ) -> list[str]:

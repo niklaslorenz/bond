@@ -38,6 +38,7 @@ from bond.tools.file_system.search import search_file
 from bond.tools.mcp_toolset import McpToolset
 from bond.tools.memory_tools import recall_memory, retire_memory, store_memory
 from bond.tools.shell_tools import run_shell_commands
+from bond.tools.skill_tools import load_skill, unload_skill
 from bond.tools.stream_tools import write_to_output
 from bond.tools.task_list import (
     add_tasks,
@@ -79,6 +80,7 @@ _default_toolsets: list[Toolset] = [
     PythonToolset("write", [write_to_output]),
     PythonToolset("test", [test_confirmation]),
     PythonToolset("memory", [recall_memory, store_memory, retire_memory]),
+    PythonToolset("skills", [load_skill, unload_skill]),
     PythonToolset(
         "task_list",
         [add_tasks, complete_tasks, delete_tasks, clear_tasks, clear_completed_tasks],
