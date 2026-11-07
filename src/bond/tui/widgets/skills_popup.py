@@ -20,9 +20,10 @@ Keymap (vim-style, two focus modes):
 
 - anywhere: ``up``/``down``/``ctrl+k``/``ctrl+j`` move, ``enter`` applies,
   ``tab`` switches mode, ``ctrl+z`` cancels.
-- search focused (default): type to filter, ``esc``/``tab`` switch to list.
-- list focused: ``j``/``k`` move, ``a`` toggles available, ``s`` toggles active
-  (implies available), ``q`` cancels, ``/`` switches to search, ``esc`` cancels.
+- list focused (default): ``j``/``k`` move, ``space`` toggles available,
+  ``shift+space`` toggles active (implies available), ``q`` cancels,
+  ``/`` switches to search, ``esc`` cancels.
+- search focused: type to filter, ``esc``/``tab`` switch to list.
 """
 
 from difflib import SequenceMatcher
@@ -143,8 +144,8 @@ class SkillsPopup(TuiPopup[SkillsPopupResult], Vertical):
     def _update_hint(self):
         if self._list_focused:
             self._hint.update(
-                "j/k: move · a: available · s: active · q: cancel · "
-                "/ : search · tab: search · enter: apply"
+                "j/k: move · space: available · shift+space: active · "
+                "q: cancel · / : search · tab: search · enter: apply"
             )
         else:
             self._hint.update("type: filter · tab/esc: list · enter: apply")

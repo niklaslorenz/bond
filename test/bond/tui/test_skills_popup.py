@@ -222,63 +222,60 @@ class TestSkillsPopupDraftLogic:
                 pdf = next(s for s in popup._all_skills if s.name == "pdf")
                 git = next(s for s in popup._all_skills if s.name == "git")
                 web = next(s for s in popup._all_skills if s.name == "web")
-                assert popup._row_label(pdf) == "● [x] pdf — PDF tools"
-                assert popup._row_label(git) == "○ [x] git — Git helpers"
-                assert popup._row_label(web) == "○ [ ] web — Web search"
+                assert popup._row_label(pdf) == "● ✔ pdf — PDF tools"
+                assert popup._row_label(git) == "○ ✔ git — Git helpers"
+                assert popup._row_label(web) == "○ ✗ web — Web search"
 
         run(main())
 
 
 class TestSkillsPopupKeys:
-    def test_a_toggles_available_in_list_mode(self):
+    def test_space_toggles_available_in_list_mode(self):
         async def main():
             popup = make_popup()
             app = PopupHost(popup)
             async with app.run_test() as pilot:
                 await pilot.pause()
-                await pilot.press("escape")  # search -> list
-                await pilot.pause()
-                await pilot.pause()  # focus() is deferred via call_later
-                assert popup._list_focused
-                # first row (sorted) is "git"; a removes it from available
-                await pilot.press("a")
+                assert popup._list_focused  # list mode is the default
+                # first row (sorted) is "git"; space removes it from available
+                await pilot.press("space")
                 await pilot.pause()
                 assert popup._available == {"pdf"}
                 assert popup._active == {"pdf"}
 
         run(main())
 
-    def test_s_toggles_active_and_implies_available(self):
+    def test_shift_space_toggles_active_and_implies_available(self):
         async def main():
             popup = make_popup()
             app = PopupHost(popup)
             async with app.run_test() as pilot:
                 await pilot.pause()
-                await pilot.press("tab")  # search -> list
-                await pilot.pause()
-                await pilot.pause()  # focus() is deferred via call_later
+                assert popup._list_focused
                 # move to "web" (sorted rows: git, pdf, web), which is not
-                # available; s activates it and makes it available in one step
+                # available; shift+space activates it and makes it available
+                # in one step
                 await pilot.press("j", "j")
-                await pilot.press("s")
+                await pilot.press("shift+space")
                 await pilot.pause()
                 assert popup._active == {"pdf", "web"}
                 # materialized from the persona list (pdf, git) plus web
                 assert popup._available == {"pdf", "git", "web"}
-                # s again deactivates but keeps it available
-                await pilot.press("s")
+                # shift+space again deactivates but keeps it available
+                await pilot.press("shift+space")
                 await pilot.pause()
                 assert popup._active == {"pdf"}
                 assert popup._available == {"pdf", "git", "web"}
 
         run(main())
 
-    def test_enter_applies_from_search_mode(self):
+    def test_enter_applies(self):
         async def main():
             popup = make_popup()
             app = PopupHost(popup)
             async with app.run_test() as pilot:
                 await pilot.pause()
+                assert popup._list_focused
                 await pilot.press("enter")
                 await pilot.pause()
                 result = await popup.wait_for()
@@ -296,10 +293,30 @@ class TestSkillsPopupKeys:
             app = PopupHost(popup)
             async with app.run_test() as pilot:
                 await pilot.pause()
+                assert popup._list_focused
+                await pilot.press("tab")  # list -> search
+                await pilot.pause()
+                await pilot.pause()  # focus() is deferred via call_later
+                assert not popup._list_focused
                 await pilot.press("escape")  # search -> list
                 await pilot.pause()
                 assert popup._list_focused
                 assert not popup._finished_event.is_set()
+                await pilot.press("escape")  # list -> cancel
+                await pilot.pause()
+                result = await popup.wait_for()
+                assert isinstance(result, Success)
+                assert result.unwrap() is None
+
+        run(main())
+
+    def test_escape_in_list_mode_cancels_directly(self):
+        async def main():
+            popup = make_popup()
+            app = PopupHost(popup)
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                assert popup._list_focused
                 await pilot.press("escape")  # list -> cancel
                 await pilot.pause()
                 result = await popup.wait_for()
@@ -314,9 +331,7 @@ class TestSkillsPopupKeys:
             app = PopupHost(popup)
             async with app.run_test() as pilot:
                 await pilot.pause()
-                await pilot.press("tab")  # search -> list
-                await pilot.pause()
-                await pilot.pause()
+                assert popup._list_focused
                 await pilot.press("q")
                 await pilot.pause()
                 result = await popup.wait_for()
@@ -331,13 +346,13 @@ class TestSkillsPopupKeys:
             app = PopupHost(popup)
             async with app.run_test() as pilot:
                 await pilot.pause()
-                assert not popup._list_focused
-                await pilot.press("tab")
-                await pilot.pause()
                 assert popup._list_focused
                 await pilot.press("tab")
                 await pilot.pause()
                 assert not popup._list_focused
+                await pilot.press("tab")
+                await pilot.pause()
+                assert popup._list_focused
 
         run(main())
 
@@ -346,8 +361,6 @@ class TestSkillsPopupKeys:
             popup = make_popup()
             app = PopupHost(popup)
             async with app.run_test() as pilot:
-                await pilot.pause()
-                await pilot.press("tab")  # -> list
                 await pilot.pause()
                 assert popup._list_focused
                 await pilot.press("/")  # -> search
@@ -366,6 +379,10 @@ class TestSkillsPopupKeys:
             app = PopupHost(popup)
             async with app.run_test() as pilot:
                 await pilot.pause()
+                await pilot.press("tab")  # list -> search
+                await pilot.pause()
+                await pilot.pause()  # focus() is deferred via call_later
+                assert not popup._list_focused
                 await pilot.press("a")  # types into the filter, does not toggle
                 await pilot.pause()
                 assert popup._search_value == "a"
@@ -407,19 +424,19 @@ class TestSkillsPopupKeys:
 
         run(main())
 
-    def test_a_on_empty_filter_is_noop(self):
+    def test_space_on_empty_filter_is_noop(self):
         async def main():
             popup = make_popup()
             app = PopupHost(popup)
             async with app.run_test() as pilot:
                 await pilot.pause()
+                assert popup._list_focused
                 popup._search_value = "zzz-no-match"
                 await popup._refresh()
                 await pilot.pause()
                 assert popup._visible_skills == []
-                await pilot.press("escape")  # -> list mode
-                await pilot.pause()
-                await pilot.press("a")
+                # no selected row -> space is a noop, inherit mode untouched
+                await pilot.press("space")
                 await pilot.pause()
                 assert popup._available is None
 
