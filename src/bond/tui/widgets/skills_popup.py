@@ -90,7 +90,7 @@ class SkillsPopup(TuiPopup[SkillsPopupResult], Vertical):
 
         self._search_value: str = ""
         self._search_timer: Timer | None = None
-        self._list_focused = False  # False = search field focused (list mode off)
+        self._list_focused = True  # False = search field focused (list mode off)
         self._visible_skills: list[SkillInfo] = []
         self._selected_index: int = -1
         self._next_option_id = 1
@@ -133,7 +133,10 @@ class SkillsPopup(TuiPopup[SkillsPopupResult], Vertical):
     async def on_mount(self):
         await self._refresh()
         self._update_hint()
-        self._focus_search()  # search mode is the default on open
+        if self._list_focused:
+            self._focus_list()
+        else:
+            self._focus_search()
 
     # Focus mode helpers
 
@@ -173,7 +176,7 @@ class SkillsPopup(TuiPopup[SkillsPopupResult], Vertical):
         return name in self._current_available()
 
     def _row_label(self, info: SkillInfo) -> str:
-        box = "[x]" if self._is_available(info.name) else "[ ]"
+        box = "✔" if self._is_available(info.name) else "✗"
         dot = "●" if info.name in self._active else "○"
         desc = f" — {info.description}" if info.description else ""
         missing = " (missing)" if info.missing else ""
@@ -279,21 +282,12 @@ class SkillsPopup(TuiPopup[SkillsPopupResult], Vertical):
                 id=option_id,
                 classes="skill-option",
             )
-            # Keep enter/space for the popup, not the button's press binding.
             option_button.can_focus = False
             if not self._is_available(info.name):
                 option_button.add_class("off")
             if info.name in self._active:
                 option_button.add_class("active-row")
-            active_button = Button(
-                "●" if info.name in self._active else "○",
-                id=active_id,
-                classes="skill-active-toggle",
-            )
-            active_button.can_focus = False
-            # Children must be passed to the constructor: mounting them onto
-            # `row` before `row` itself is mounted raises MountError.
-            row = Horizontal(active_button, option_button, classes="skill-row")
+            row = Horizontal(option_button, classes="skill-row")
             self._list_container.mount(row)
             self._row_buttons.append(option_button)
             self._option_id_to_index[option_id] = index
@@ -407,13 +401,13 @@ class SkillsPopup(TuiPopup[SkillsPopupResult], Vertical):
             event.stop()
             self._move_selection(-1)
             return
-        if key == "a":
+        if key == "space":
             event.stop()
             skill = self._selected_skill()
             if skill is not None:
                 await self._toggle_available(skill.name)
             return
-        if key == "s":
+        if key == "shift+space":
             event.stop()
             skill = self._selected_skill()
             if skill is not None:
@@ -449,14 +443,4 @@ class SkillsPopup(TuiPopup[SkillsPopupResult], Vertical):
             return
         if button_id == "skills-popup-none":
             await self._select_none_visible()
-            return
-        if button_id in self._option_id_to_index:
-            index = self._option_id_to_index[button_id]
-            if 0 <= index < len(self._visible_skills):
-                await self._toggle_available(self._visible_skills[index].name)
-            return
-        if button_id in self._active_id_to_index:
-            index = self._active_id_to_index[button_id]
-            if 0 <= index < len(self._visible_skills):
-                await self._toggle_active(self._visible_skills[index].name)
             return

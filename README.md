@@ -61,7 +61,7 @@ Implemented (see [Skills](./docs/skills.md)):
   (search, bulk actions, reset-to-persona, materialize-on-first-toggle)
 - The old prompt macros are now "prompts" (`{PROMPT:name}`)
 
-## Free Form Memory
+### Free Form Memory
 
 - Memory storages with an id
 - A persona can be granted access (read and/or write) to an FFM storage
@@ -69,3 +69,8 @@ Implemented (see [Skills](./docs/skills.md)):
 - Tools for reading and writing files (can reuse existing file tools)
 - Profits from search tools like grep
 - Maybe FFM can get indexed into a semantic vector store later on
+
+### Keymap help page
+
+- A unified way to define keymap schemes that can be used for different contexts inside the tui
+- A help popup that shows a key and description table
