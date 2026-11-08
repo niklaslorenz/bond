@@ -238,7 +238,7 @@ class TuiCommandHandler:
             infos: list[SkillInfo] = []
             for name in self._runtime.list_skills():
                 try:
-                    skill = self._runtime.get_skill(name)
+                    skill = self._runtime.get_skill(name).unwrap()
                     infos.append(SkillInfo(name=name, description=skill.description))
                 except Exception as e:
                     logger.warning(f"Could not load skill '{name}' for popup: {e}")

@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Type
 
 from mcp import StdioServerParameters
-from returns.result import Result, Success
+from returns.result import Failure, Result, Success
 
 from bond.config import (
     BondConfig,
@@ -25,7 +25,7 @@ from bond.providers.mistral.mistral import Mistral
 from bond.providers.ollama.ollama import Ollama
 from bond.providers.provider import Provider
 from bond.registry import MappedEntryRegistry, NamedEntryRegistry
-from bond.skill import Skill, parse_skill_md
+from bond.skill import Skill
 from bond.tools.file_system import (
     apply_patch,
     create_file,
@@ -48,6 +48,9 @@ from bond.tools.task_list import (
     delete_tasks,
 )
 from bond.tools.test_tool import test_confirmation
+from bond.tools.toolbox import PythonToolset, Toolbox, Toolset
+from bond.tools.web_access import access_web
+from bond.tools.web_search import search_the_web
 from bond.tools.working_set import (
     add_working_set_directory,
     add_working_set_file,
@@ -55,9 +58,6 @@ from bond.tools.working_set import (
     clear_working_set,
     remove_working_set_items,
 )
-from bond.tools.toolbox import PythonToolset, Toolbox, Toolset
-from bond.tools.web_access import access_web
-from bond.tools.web_search import search_the_web
 from bond.vector_store.base import VectorStore
 
 logger = logging.getLogger(__name__)
@@ -130,7 +130,7 @@ class RuntimeEnvironment(ABC):
     @abstractmethod
     def load_prompt(self, name: str, runtime: "BondRuntime") -> str: ...
     @abstractmethod
-    def load_skill(self, name: str, runtime: "BondRuntime") -> Skill: ...
+    def load_skill(self, name: str, runtime: "BondRuntime") -> Result[Skill, str]: ...
     @abstractmethod
     def get_plugin_data_base_dir(self) -> Path: ...
     @abstractmethod
@@ -195,8 +195,10 @@ class StaticRuntimeEnvironment(RuntimeEnvironment):
     def load_prompt(self, name: str, runtime: "BondRuntime") -> str:
         return self._prompts[name]
 
-    def load_skill(self, name: str, runtime: "BondRuntime") -> Skill:
-        return self._skills[name]
+    def load_skill(self, name: str, runtime: "BondRuntime") -> Result[Skill, str]:
+        if name not in self._skills:
+            return Result.from_failure(f"Invalid skill name: {name}")
+        return Result.from_value(self._skills[name])
 
     def get_plugin_data_base_dir(self) -> Path:
         return self._data_dir
@@ -311,11 +313,9 @@ class DynamicRuntimeEnvironment(RuntimeEnvironment):
             raise ValueError(f"Invalid prompt name: {name}. Path does not exist.")
         return path.read_text(encoding="utf-8")
 
-    def load_skill(self, name: str, runtime: BondRuntime) -> Skill:
-        path = self._config_dir / f"skills/{name}/SKILL.md"
-        if not path.exists():
-            raise ValueError(f"Invalid skill name: {name}. Path does not exist.")
-        return parse_skill_md(path.read_text(encoding="utf-8"), fallback_name=name)
+    def load_skill(self, name: str, runtime: BondRuntime) -> Result[Skill, str]:
+        skill_path = self._config_dir / "skills" / name
+        return Skill.load_from(skill_path, fallback_name=name)
 
     def get_plugin_data_base_dir(self) -> Path:
         return self._data_base_dir / "plugins"
@@ -480,13 +480,15 @@ class BondRuntime:
         self._loaded_prompts.register(prompt_name, prompt)
         return prompt
 
-    def get_skill(self, skill_name: str) -> Skill:
+    def get_skill(self, skill_name: str) -> Result[Skill, str]:
         """Get a skill by name, loading it if necessary"""
         env = self._get_env()
         if (skill := self._loaded_skills.get(skill_name)) is not None:
-            return skill
+            return Result.from_value(skill)
         skill = env.load_skill(skill_name, self)
-        self._loaded_skills.register(skill_name, skill)
+        if isinstance(skill, Failure):
+            return skill
+        self._loaded_skills.register(skill_name, skill.unwrap())
         return skill
 
     def load_vector_store(self, name: str, vector_store_type: str) -> VectorStore:

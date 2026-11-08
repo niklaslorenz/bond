@@ -8,8 +8,6 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Iterable, Iterator, overload
 
-from returns.result import Result
-
 from bond.conversation.types import Episode, Turn
 
 

@@ -14,7 +14,6 @@ from bond.endpoints.embeddings import EmbeddingsEndpoint
 from bond.endpoints.models import ModelsEndpoint
 from bond.endpoints.tts import TTSEndpoint
 from bond.endpoints.voices import VoicesEndpoint
-from bond.tools.toolbox import Toolbox
 
 if TYPE_CHECKING:
     from bond.runtime import BondRuntime
@@ -36,7 +35,6 @@ class Provider[ConfigType: BaseModel](Protocol):
         self,
         name: str,
         config: dict[str, Any],
-        toolbox: Toolbox,
         runtime: "BondRuntime | None" = None,
     ) -> GenerationCapability | None: ...
     def summarization(

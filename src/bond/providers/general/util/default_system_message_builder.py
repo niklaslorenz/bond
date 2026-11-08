@@ -137,8 +137,12 @@ class DefaultSystemMessageBuilder(SystemMessageBuilder):
             for name in available:
                 try:
                     skill = runtime.get_skill(name)
-                    description = f": {skill.description}" if skill.description else ""
-                    lines.append(f"- {name}{description}")
+                    if isinstance(skill, Success):
+                        skill = skill.unwrap()
+                        description = (
+                            f": {skill.description}" if skill.description else ""
+                        )
+                        lines.append(f"- {name}{description}")
                 except Exception as e:
                     logger.warning(f"Skipping unavailable skill '{name}': {e}")
             if lines:
@@ -163,7 +167,8 @@ class DefaultSystemMessageBuilder(SystemMessageBuilder):
                     continue
                 try:
                     skill = runtime.get_skill(name)
-                    blocks.append(render_skill_md(skill))
+                    if isinstance(skill, Success):
+                        blocks.append(render_skill_md(skill.unwrap()))
                 except Exception as e:
                     logger.warning(f"Skipping active skill '{name}': {e}")
             if blocks:

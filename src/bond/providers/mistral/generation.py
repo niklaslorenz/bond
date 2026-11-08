@@ -31,7 +31,6 @@ class MistralGeneration(DefaultGenerationCapability):
         self,
         name: str,
         options: DefaultGenerationOptions,
-        tools: list[Tool],
         chat_completions: MistralChatCompletions,
         max_retries: int,
         system_message_builder: SystemMessageBuilder,
@@ -40,7 +39,6 @@ class MistralGeneration(DefaultGenerationCapability):
         super().__init__(
             name,
             options,
-            tools,
             chat_completions,
             max_retries,
             system_message_builder,
@@ -52,6 +50,7 @@ class MistralGeneration(DefaultGenerationCapability):
         conversation: Conversation,
         triggers: GenerationTriggers,
         callback: Callable[[CompletionChunk], None] | None,
+        tools: list[Tool] | None,
         model_options: dict[str, Any] | None = None,
     ) -> Result[tuple[AssistantConversationMessage, UsageInfo], str]:
         # Get or generate the cache key
@@ -66,4 +65,6 @@ class MistralGeneration(DefaultGenerationCapability):
             "prompt_cache_key": cache_key,
         }
 
-        return super().generate(conversation, triggers, callback, mistral_options)
+        return super().generate(
+            conversation, triggers, callback, tools, mistral_options
+        )

@@ -525,7 +525,7 @@ def make_mock_runtime(
     """Mock BondRuntime serving the given skills / persona resolution."""
     runtime = MagicMock()
     skills = skills or {}
-    runtime.get_skill.side_effect = lambda name: skills[name]
+    runtime.get_skill.side_effect = lambda name: Success(skills[name])
     if persona_failure is not None:
         runtime.get_persona.return_value = Failure(persona_failure)
     else:
@@ -631,7 +631,7 @@ class TestRenderSystemMessageAvailableSkills:
         runtime = make_mock_runtime(persona_failure="no such persona")
         builder = DefaultSystemMessageBuilder(include_skills=True, runtime=runtime)
         conv = Conversation(persona="missing", available_skills=["pdf"])
-        runtime.get_skill.side_effect = lambda name: {"pdf": SKILL_PDF}[name]
+        runtime.get_skill.side_effect = lambda name: Success({"pdf": SKILL_PDF}[name])
 
         result = builder.render_system_message(conv, "prompt")
 

@@ -41,10 +41,20 @@ See [Skills](./docs/skills.md) for the full documentation.
 
 - conversation
 
+## TODOs
+
+- **Rethink `AsyncAgentLoop` state ownership.** The loop currently holds
+  `_persona`, `_persona_toolbox`, `_conversation`, ... and rebuilds them via
+  `_build_turn()` whenever the persona/conversation changes (`set_persona`,
+  `set_conversation`). This pattern hits its limits: every new piece of state
+  has to be explicitly threaded through `_build_turn`, and the loop mutates the
+  conversation (e.g. pruning `active_skills`) instead of deriving state from
+  it. Better: work like the skill toolsets — before every turn, reconcile the
+  held objects against `self._conversation` (e.g. `_check_skill_toolsets()`)
+  instead of pushing changes into the conversation through the loop.
+
 ## Future Features
 
-- Skill directories with `tools/*.py` (`EXPORT_TOOLS`) -> `PythonToolset("skill:<name>")`,
-  plus live toolbox enable/disable and skill-sync on persona switch
 - `requirements.txt` per skill for dependency installation
 - Status bar segment showing the conversation's active skills
 
@@ -59,6 +69,9 @@ Implemented (see [Skills](./docs/skills.md)):
   `active ⊆ available` invariant enforced (popup + builder filter)
 - `:skills` popup in the TUI for managing available/active skills per conversation
   (search, bulk actions, reset-to-persona, materialize-on-first-toggle)
+- Skill-provided tools: `skills/<name>/tools/*.py` exporting `EXPORT_TOOLSETS`,
+  lazily imported and exposed with the `sk:<name>:` prefix while the skill is
+  active (see `feature_plan_skill_tools.md`)
 - The old prompt macros are now "prompts" (`{PROMPT:name}`)
 
 ### Free Form Memory

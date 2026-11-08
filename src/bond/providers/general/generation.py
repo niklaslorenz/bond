@@ -9,7 +9,6 @@ from bond.conversation.conversation import Conversation
 from bond.conversation.types import (
     AssistantConversationMessage,
     UsageInfo,
-    UserConversationMessage,
 )
 from bond.endpoints.chat_completions import (
     ChatCompletionsEndpoint,
@@ -37,7 +36,6 @@ class DefaultGenerationCapability:
         self,
         name: str,
         options: DefaultGenerationOptions,
-        tools: list[Tool],
         chat_completions: ChatCompletionsEndpoint,
         max_retries: int,
         system_message_builder: SystemMessageBuilder,
@@ -45,7 +43,6 @@ class DefaultGenerationCapability:
     ):
         self._name = name
         self._options = options
-        self._tools = tools
         self._chat_completions = chat_completions
         self._max_retries = max_retries
         self._system_message_builder = system_message_builder
@@ -56,6 +53,7 @@ class DefaultGenerationCapability:
         conversation: Conversation,
         triggers: GenerationTriggers,
         callback: Callable[[CompletionChunk], None] | None,
+        tools: list[Tool] | None,
         model_options: dict[str, Any] | None = None,
     ) -> Result[tuple[AssistantConversationMessage, UsageInfo], str]:
         can_stream = self._chat_completions.supports_streaming()
@@ -94,7 +92,7 @@ class DefaultGenerationCapability:
                 response = self._chat_completions.stream_chat_completion(
                     self._options.model,
                     messages,
-                    self._tools,
+                    tools or [],
                     callback,
                     system_message,
                     all_model_options,
@@ -104,7 +102,7 @@ class DefaultGenerationCapability:
                 response = self._chat_completions.chat_completion(
                     self._options.model,
                     messages,
-                    self._tools,
+                    tools or [],
                     system_message,
                     all_model_options,
                     self._max_retries,

@@ -64,6 +64,51 @@ class PythonToolset(Toolset):
         return None
 
 
+def prefix_tool_description(description: Tool, prefix: str) -> Tool:
+    """Return a copy of a tool description with ``prefix`` prepended to the tool name."""
+    return description.model_copy(
+        update={
+            "function": description.function.model_copy(
+                update={"name": prefix + description.function.name}
+            )
+        }
+    )
+
+
+class PrefixedToolset(Toolset):
+    """Wraps a toolset and exposes it under a namespaced name.
+
+    The toolset's name and every tool's ``function.name`` get ``prefix``
+    prepended (e.g. ``sk:pdf:``), so skill-provided tools can never collide
+    with persona or builtin tools. Execution is routed through the original
+    (unprefixed) BondTools.
+    """
+
+    def __init__(self, toolset: Toolset, prefix: str):
+        super().__init__(prefix + toolset.name)
+        self._toolset = toolset
+        self._prefix = prefix
+
+    def activate(self) -> "ActivePrefixedToolset":
+        active = self._toolset.activate()
+        tools = [
+            BondTool(
+                tool.base_fn, prefix_tool_description(tool.description, self._prefix)
+            )
+            for tool in active.tools
+        ]
+        return ActivePrefixedToolset(tools, active)
+
+
+class ActivePrefixedToolset(ActiveToolset):
+    def __init__(self, tools: list[BondTool], wrapped: ActiveToolset):
+        super().__init__(tools)
+        self._wrapped = wrapped
+
+    def release(self):
+        self._wrapped.release()
+
+
 class Toolbox:
     def __init__(self, toolsets: Collection[Toolset]):
         self._toolsets = {toolset.name: toolset for toolset in toolsets}
@@ -81,6 +126,33 @@ class Toolbox:
                 tool_names.add(tool_name)
                 self._tool_toolset_map[tool_name] = toolset_name
                 self._all_tool_descriptions.append(tool_description)
+
+    def add_toolset(self, toolset: Toolset) -> ActiveToolset:
+        if toolset.name in self._toolsets:
+            raise ValueError("Duplicate toolset name")
+        active_toolset: ActiveToolset = toolset.activate()
+        for tool in active_toolset.tools:
+            if (
+                toolset_name := tool.description.function.name
+            ) in self._tool_toolset_map:
+                raise ValueError(f"Duplicate tool name: {toolset_name}")
+        for tool in active_toolset.tools:
+            self._tool_toolset_map[tool.description.function.name] = toolset.name
+            self._all_tool_descriptions.append(tool.description)
+        self._toolsets[toolset.name] = toolset
+        self._active_toolsets[toolset.name] = active_toolset
+        return active_toolset
+
+    def remove_toolset(self, name: str):
+        if name not in self._toolsets:
+            return
+        active_toolset = self._active_toolsets[name]
+        for tool in active_toolset.tools:
+            del self._tool_toolset_map[tool.description.function.name]
+            self._all_tool_descriptions.remove(tool.description)
+        active_toolset.release()
+        del self._toolsets[name]
+        del self._active_toolsets[name]
 
     def release(self):
         for active_toolset in self._active_toolsets.values():
@@ -107,9 +179,20 @@ class Toolbox:
         except Exception as e:
             return Failure(f"An error occured during tool call ({type(e)}): {e}")
 
+    def has_tool(self, tool_name: str) -> bool:
+        return tool_name in self._tool_toolset_map
+
     @property
     def tool_descriptions(self) -> list[Tool]:
         return list(self._all_tool_descriptions)
+
+    @property
+    def toolset_names(self) -> list[str]:
+        return list(self._toolsets.keys())
+
+    @property
+    def toolsets(self) -> list[Toolset]:
+        return list(self._toolsets.values())
 
     def _find_tool(self, name: str) -> BondTool | None:
         if (toolset_name := self._tool_toolset_map.get(name)) is None:

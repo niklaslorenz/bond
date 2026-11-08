@@ -3,7 +3,7 @@
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
+from returns.result import Failure, Success
 
 from bond.config import BondConfig
 from bond.conversation.conversation import Conversation
@@ -15,8 +15,8 @@ from bond.runtime import (
 )
 from bond.skill import (
     Skill,
+    _parse_skill_md,
     effective_available_skills,
-    parse_skill_md,
     prune_active_skills,
 )
 
@@ -35,70 +35,72 @@ class TestParseSkillMd:
             "# Instructions\n"
             "Use these tools when the user mentions PDFs.\n"
         )
-        skill = parse_skill_md(text, fallback_name="pdf")
-        assert skill.name == "pdf-tools"
-        assert skill.description == "Tools for extracting and analyzing PDFs."
-        assert skill.instructions == (
+        name, description, instructions = _parse_skill_md(text, fallback_name="pdf")
+        assert name == "pdf-tools"
+        assert description == "Tools for extracting and analyzing PDFs."
+        assert instructions == (
             "# Instructions\nUse these tools when the user mentions PDFs."
         )
 
     def test_frontmatter_name_wins_over_fallback(self):
         text = "---\nname: other-name\ndescription: d\n---\nbody\n"
-        skill = parse_skill_md(text, fallback_name="dir-name")
-        assert skill.name == "other-name"
+        name, _, _ = _parse_skill_md(text, fallback_name="dir-name")
+        assert name == "other-name"
 
     def test_no_frontmatter_uses_fallback_name(self):
-        skill = parse_skill_md("Just instructions, no frontmatter.", "my-skill")
-        assert skill.name == "my-skill"
-        assert skill.description == ""
-        assert skill.instructions == "Just instructions, no frontmatter."
+        name, description, instructions = _parse_skill_md(
+            "Just instructions, no frontmatter.", "my-skill"
+        )
+        assert name == "my-skill"
+        assert description == ""
+        assert instructions == "Just instructions, no frontmatter."
 
     def test_frontmatter_without_name_uses_fallback(self):
         text = "---\ndescription: only a description\n---\nbody\n"
-        skill = parse_skill_md(text, fallback_name="dir-name")
-        assert skill.name == "dir-name"
-        assert skill.description == "only a description"
-        assert skill.instructions == "body"
+        name, description, instructions = _parse_skill_md(text, fallback_name="dir-name")
+        assert name == "dir-name"
+        assert description == "only a description"
+        assert instructions == "body"
 
     def test_frontmatter_without_description_defaults_to_empty(self):
         text = "---\nname: x\n---\nbody\n"
-        skill = parse_skill_md(text, fallback_name="fallback")
-        assert skill.name == "x"
-        assert skill.description == ""
+        name, description, _ = _parse_skill_md(text, fallback_name="fallback")
+        assert name == "x"
+        assert description == ""
 
     def test_unknown_frontmatter_keys_are_ignored(self):
         text = "---\nname: x\nauthor: someone\nversion: 1.0\n---\nbody\n"
-        skill = parse_skill_md(text, fallback_name="fallback")
-        assert skill.name == "x"
-        assert skill.instructions == "body"
+        name, _, instructions = _parse_skill_md(text, fallback_name="fallback")
+        assert name == "x"
+        assert instructions == "body"
 
     def test_quoted_values_are_unquoted(self):
-        text = '---\nname: "quoted"\ndescription: \'single quoted\'\n---\nbody\n'
-        skill = parse_skill_md(text, fallback_name="fallback")
-        assert skill.name == "quoted"
-        assert skill.description == "single quoted"
+        text = "---\nname: \"quoted\"\ndescription: 'single quoted'\n---\nbody\n"
+        name, description, _ = _parse_skill_md(text, fallback_name="fallback")
+        assert name == "quoted"
+        assert description == "single quoted"
 
     def test_crlf_line_endings(self):
         text = "---\r\nname: crlf\r\ndescription: windows\r\n---\r\nbody\r\n"
-        skill = parse_skill_md(text, fallback_name="fallback")
-        assert skill.name == "crlf"
-        assert skill.description == "windows"
-        assert skill.instructions == "body"
+        name, description, instructions = _parse_skill_md(text, fallback_name="fallback")
+        assert name == "crlf"
+        assert description == "windows"
+        assert instructions == "body"
 
     def test_instructions_stripped_of_surrounding_newlines(self):
         text = "---\nname: x\n---\n\n\nbody\n\n\n"
-        skill = parse_skill_md(text, fallback_name="fallback")
-        assert skill.instructions == "body"
+        _, _, instructions = _parse_skill_md(text, fallback_name="fallback")
+        assert instructions == "body"
 
     def test_empty_body(self):
         text = "---\nname: x\ndescription: d\n---\n"
-        skill = parse_skill_md(text, fallback_name="fallback")
-        assert skill.instructions == ""
+        _, _, instructions = _parse_skill_md(text, fallback_name="fallback")
+        assert instructions == ""
 
     def test_dashes_in_body_not_treated_as_frontmatter(self):
         text = "---\nname: x\n---\nsome text\n---\nmore text\n"
-        skill = parse_skill_md(text, fallback_name="fallback")
-        assert skill.instructions == "some text\n---\nmore text"
+        _, _, instructions = _parse_skill_md(text, fallback_name="fallback")
+        assert instructions == "some text\n---\nmore text"
 
 
 # ---------------------------------------------------------------------------
@@ -110,8 +112,7 @@ def _make_skill_dir(base: Path, name: str, content: str | None = None) -> Path:
     skill_dir = base / name
     skill_dir.mkdir(parents=True)
     (skill_dir / "SKILL.md").write_text(
-        content
-        or f"---\nname: {name}\ndescription: desc of {name}\n---\nDo {name}.\n",
+        content or f"---\nname: {name}\ndescription: desc of {name}\n---\nDo {name}.\n",
         encoding="utf-8",
     )
     return skill_dir
@@ -141,16 +142,18 @@ class TestDynamicRuntimeEnvironmentSkills:
             "---\ndescription: PDF stuff\n---\nUse pdf tools.\n",
         )
         env = DynamicRuntimeEnvironment(config_dir, tmp_path / "data")
-        skill = env.load_skill("pdf", MagicMock())
-        assert isinstance(skill, Skill)
+        result = env.load_skill("pdf", MagicMock())
+        assert isinstance(result, Success)
+        skill = result.unwrap()
         assert skill.name == "pdf"  # fallback to dir name
         assert skill.description == "PDF stuff"
         assert skill.instructions == "Use pdf tools."
 
-    def test_load_skill_missing_raises(self, tmp_path: Path):
+    def test_load_skill_missing_returns_failure(self, tmp_path: Path):
         env = DynamicRuntimeEnvironment(tmp_path / "config", tmp_path / "data")
-        with pytest.raises(ValueError, match="Invalid skill name"):
-            env.load_skill("nope", MagicMock())
+        result = env.load_skill("nope", MagicMock())
+        assert isinstance(result, Failure)
+        assert "nope" in result.failure()
 
 
 # ---------------------------------------------------------------------------
@@ -173,7 +176,9 @@ class TestStaticRuntimeEnvironmentSkills:
         skill = Skill(name="s", description="d", instructions="i")
         env = self._make_env({"s": skill})
         assert env.list_skills() == ["s"]
-        assert env.load_skill("s", MagicMock()) is skill
+        result = env.load_skill("s", MagicMock())
+        assert isinstance(result, Success)
+        assert result.unwrap() is skill
 
     def test_skills_default_to_empty(self):
         env = self._make_env()
@@ -205,8 +210,9 @@ class TestBondRuntimeSkills:
             assert runtime.list_skills() == ["cached"]
             first = runtime.get_skill("cached")
             second = runtime.get_skill("cached")
-            assert first is skill
-            assert second is skill
+            assert isinstance(first, Success) and isinstance(second, Success)
+            assert first.unwrap() is skill
+            assert second.unwrap() is skill
             env.load_skill.assert_called_once_with("cached", runtime)
         finally:
             runtime._environment = old_env
@@ -241,13 +247,14 @@ class TestEffectiveAvailableSkills:
         persona = Persona(
             name="p",
             config=_persona_config(["x"]),
-            generation=None,  # type: ignore[arg-type]
-            summarization=None,
-            thought_condensation=None,
-            tts=None,
-            memory=None,
-            toolbox=None,  # type: ignore[arg-type]
-        )
+        generation=None,  # type: ignore[arg-type]
+        summarization=None,
+        thought_condensation=None,
+        tts=None,
+        memory=None,
+        toolsets=[],
+        runtime=MagicMock(),
+    )
         assert effective_available_skills(conv, persona) == ["x"]
 
     def test_persona_none_returns_empty(self):

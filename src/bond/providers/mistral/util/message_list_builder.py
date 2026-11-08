@@ -1,4 +1,3 @@
-from bond.capabilities.types import ConversationRenderer
 from bond.conversation.conversation import Conversation
 from bond.conversation.types import (
     AssistantConversationMessage,

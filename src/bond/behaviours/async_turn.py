@@ -16,7 +16,7 @@ from bond.endpoints.chat_completions import CompletionChunk
 from bond.observable import Observable
 from bond.persona import Persona
 from bond.runtime import BondRuntime
-from bond.tools.tool import ToolCallContext
+from bond.tools.tool import Tool, ToolCallContext
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +54,10 @@ class AsyncAgentTurn:
         return self._turn_status
 
     async def run(
-        self, conversation: Conversation, triggers: GenerationTriggers
+        self,
+        conversation: Conversation,
+        triggers: GenerationTriggers,
+        tools: list[Tool] | None = None,
     ) -> Result[Turn, str]:
         if self.is_running:
             raise RuntimeError("Already running")
@@ -62,7 +65,9 @@ class AsyncAgentTurn:
             try:
                 logger.debug("Starting agent turn")
                 self._turn_status.value = "Receiving"
-                response_result = await self._prompt_response(conversation, triggers)
+                response_result = await self._prompt_response(
+                    conversation, triggers, tools
+                )
                 if isinstance(response_result, Failure):
                     return response_result
                 message, usage = response_result.unwrap()
@@ -115,7 +120,10 @@ class AsyncAgentTurn:
         return result.unwrap()
 
     async def _prompt_response(
-        self, conversation: Conversation, triggers: GenerationTriggers
+        self,
+        conversation: Conversation,
+        triggers: GenerationTriggers,
+        tools: list[Tool] | None,
     ) -> Result[tuple[AssistantConversationMessage, UsageInfo], str]:
         if self._stream:
             await self._event_queue.put(
@@ -134,6 +142,7 @@ class AsyncAgentTurn:
             conversation,
             triggers,
             insert_chunk if self._stream else None,
+            tools,
         )
         if isinstance(response, Failure):
             await self._event_queue.put(AsyncTurnErrorEvent(response.failure()))

@@ -13,6 +13,7 @@ from bond.conversation.types import (
 from bond.endpoints.chat_completions import (
     ChatCompletionStreamCallback,
 )
+from bond.tools.tool import Tool
 
 
 class GenerationTriggers(BaseModel):
@@ -26,4 +27,5 @@ class GenerationCapability(Protocol):
         conversation: Conversation,
         triggers: GenerationTriggers,
         callback: ChatCompletionStreamCallback | None,
+        tools: list[Tool] | None,
     ) -> Result[tuple[AssistantConversationMessage, UsageInfo], str]: ...

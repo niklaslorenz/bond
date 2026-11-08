@@ -26,7 +26,6 @@ from bond.providers.mistral.thought_condensation import MistralThoughtCondensati
 from bond.providers.mistral.tts import MistralTTS
 from bond.providers.mistral.util.message_list_builder import MistralMessageListBuilder
 from bond.providers.mistral.voices import MistralVoices
-from bond.tools.toolbox import Toolbox
 
 if TYPE_CHECKING:
     from bond.runtime import BondRuntime
@@ -80,7 +79,6 @@ class Mistral:
         self,
         name: str,
         config: dict[str, Any],
-        toolbox: Toolbox,
         runtime: "BondRuntime | None" = None,
     ) -> MistralGeneration:
         options = DefaultGenerationOptions.model_validate(config)
@@ -88,7 +86,6 @@ class Mistral:
         return MistralGeneration(
             name,
             options,
-            toolbox.tool_descriptions,
             self.chat_completions(),
             10,
             DefaultSystemMessageBuilder(

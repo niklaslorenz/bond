@@ -1,4 +1,3 @@
-import itertools
 import json
 from datetime import datetime, timezone
 from typing import Any, Literal
@@ -145,15 +144,18 @@ class ToolConversationMessage(BaseConversationMessage):
     def name(self):
         return self.message.name
 
+
 class FrameworkConversationMessage(BaseConversationMessage):
     content: str
     summary: str | None = None
     name: str = "Framework"
 
 
-
 ConversationMessage = (
-    UserConversationMessage | AssistantConversationMessage | ToolConversationMessage | FrameworkConversationMessage
+    UserConversationMessage
+    | AssistantConversationMessage
+    | ToolConversationMessage
+    | FrameworkConversationMessage
 )
 
 
@@ -183,7 +185,6 @@ class Turn(BaseModel):
         Determine whether the turn was triggered by the user.
         """
         return self.user_message is not None
-
 
     def flatten(self) -> list[ConversationMessage]:
         messages: list[ConversationMessage] = []

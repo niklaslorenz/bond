@@ -1,9 +1,8 @@
 import asyncio
 import logging
 from dataclasses import dataclass
-from typing import Literal, Protocol
+from typing import Literal
 
-from pydantic import BaseModel
 from returns.result import Result
 
 from bond.capabilities.generation import GenerationTriggers

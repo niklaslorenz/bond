@@ -2,6 +2,8 @@
 
 from unittest.mock import MagicMock
 
+from returns.result import Failure, Result
+
 from bond.conversation.conversation import Conversation
 from bond.persona import Persona, PersonaConfig
 from bond.runtime import BondRuntime, _default_toolsets
@@ -25,7 +27,8 @@ def make_persona(available_skills: list[str]) -> Persona:
         thought_condensation=None,
         tts=None,
         memory=None,
-        toolbox=None,  # type: ignore[arg-type]
+        toolsets=[],
+        runtime=MagicMock(),
     )
 
 
@@ -48,7 +51,7 @@ def make_context(
 def patch_runtime(monkeypatch, skills: dict[str, Skill]):
     """Patch BondRuntime.get_instance() to return a mock serving `skills`."""
     runtime = MagicMock()
-    runtime.get_skill.side_effect = lambda name: skills[name]
+    runtime.get_skill.side_effect = lambda name: Result.from_value(skills[name])
     get_instance = MagicMock(return_value=runtime)
     monkeypatch.setattr(BondRuntime, "get_instance", get_instance)
     return runtime
@@ -175,9 +178,9 @@ class TestLoadSkill:
         assert "Use pdf tools when asked." not in second
         assert "activated" in first and "already" not in first
 
-    def test_runtime_error_is_returned_not_raised(self, monkeypatch):
+    def test_runtime_failure_is_returned_not_raised(self, monkeypatch):
         runtime = MagicMock()
-        runtime.get_skill.side_effect = ValueError("Invalid skill name: ghost")
+        runtime.get_skill.return_value = Failure("Invalid skill name: ghost")
         get_instance = MagicMock(return_value=runtime)
         monkeypatch.setattr(BondRuntime, "get_instance", get_instance)
         conv = Conversation()

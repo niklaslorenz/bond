@@ -104,7 +104,7 @@ def list_skills(_: Namespace):
     print("Skills:")
     for name in skills:
         try:
-            description = runtime.get_skill(name).description
+            description = runtime.get_skill(name).unwrap().description
         except Exception as e:
             print(f"  {name} (failed to load: {e})")
             continue

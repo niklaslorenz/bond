@@ -1,5 +1,7 @@
 import logging
 
+from returns.result import Failure
+
 from bond.skill import effective_available_skills
 from bond.tools import tool
 from bond.tools.tool import ToolCallContext
@@ -56,12 +58,12 @@ def load_skill(
     # toolset, so a module-level import would be circular.
     from bond.runtime import BondRuntime
 
-    try:
-        skill = BondRuntime.get_instance().get_skill(name)
-    except Exception as e:
-        logger.error(f"Failed to load skill '{name}': {e}")
-        return f"Error: Could not load skill '{name}': {e}"
+    skill = BondRuntime.get_instance().get_skill(name)
+    if isinstance(skill, Failure):
+        logger.error(f"Failed to load skill '{name}': {skill.failure()}")
+        return f"Error: Could not load skill '{name}': {skill.failure()}"
 
+    skill = skill.unwrap()
     if name in conversation.active_skills:
         return (
             f"Skill '{name}' is already active. "
@@ -103,8 +105,7 @@ def unload_skill(
         if conversation.active_skills:
             active_str = ", ".join(conversation.active_skills)
             return (
-                f"Error: Skill '{name}' is not active. "
-                f"Active skills: {active_str}"
+                f"Error: Skill '{name}' is not active. " f"Active skills: {active_str}"
             )
         return f"Error: Skill '{name}' is not active. No skills are active."
 

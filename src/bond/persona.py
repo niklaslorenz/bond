@@ -27,11 +27,15 @@ class Persona:
     thought_condensation: ThoughtCondensationCapability | None
     tts: TTSCapability | None
     memory: MemoryCapability | None
-    toolbox: Toolbox
+    toolsets: list[str]
+    runtime: "BondRuntime"
 
     def release(self):
         if self.memory is not None:
             self.memory.release()
+
+    def build_toolbox(self) -> Toolbox:
+        return self.runtime.build_toolbox(self.toolsets)
 
 
 class ConversationFeatures(BaseModel):
@@ -145,10 +149,9 @@ class PersonaConfig(BaseModel):
             from bond.runtime import BondRuntime
 
             runtime = BondRuntime.get_instance()
-        toolbox = runtime.build_toolbox(self.toolsets)
         generation = (
             _get_provider(self.generation, runtime)
-            .map(lambda x: x.generation(self.name, self.generation, toolbox, runtime))
+            .map(lambda x: x.generation(self.name, self.generation, runtime))
             .value_or(None)
         )
         if generation is None:
@@ -185,7 +188,8 @@ class PersonaConfig(BaseModel):
             thought_condensation,
             tts,
             memory,
-            toolbox,
+            self.toolsets,
+            runtime,
         )
 
 

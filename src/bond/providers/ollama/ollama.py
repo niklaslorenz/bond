@@ -83,14 +83,12 @@ class Ollama:
         self,
         name: str,
         config: dict[str, Any],
-        toolbox: Toolbox,
         runtime: "BondRuntime | None" = None,
     ) -> DefaultGenerationCapability:
         options = DefaultGenerationOptions.model_validate(config)
         return DefaultGenerationCapability(
             name,
             options,
-            toolbox.tool_descriptions,
             self.chat_completions(),
             10,
             DefaultSystemMessageBuilder(

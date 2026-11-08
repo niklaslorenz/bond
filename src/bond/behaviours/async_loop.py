@@ -31,9 +31,10 @@ from bond.conversation.types import (
 from bond.observable import Observable
 from bond.persona import Persona
 from bond.runtime import BondRuntime
+from bond.skill import effective_available_skills, prune_active_skills
 from bond.tools.shell_tools import allow_shell_commands
 from bond.tools.tool import ToolCallContext
-from bond.tools.toolbox import Toolbox
+from bond.tools.toolbox import Toolbox, Toolset
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +65,8 @@ class AsyncAgentLoop:
         self._stop_on_failure = stop_on_failure
 
         self._signal_buffer = AsyncLoopSignalBuffer()
+        self._skill_toolbox = Toolbox([])
+        self._loaded_skill_toolsets: dict[str, set[str]] = {}
         self._task: asyncio.Task | None = None
         self._stopped_event = asyncio.Event()
         self._pause_owner: asyncio.Task | None = None
@@ -74,7 +77,7 @@ class AsyncAgentLoop:
         self._stream = stream
         self._allow_shell_executions = allow_shell_executions
 
-        self._agent_turn, self._persona = self._build_turn()
+        self._agent_turn, self._persona, self._persona_toolbox = self._build_turn()
 
     @property
     def is_running(self) -> bool:
@@ -91,13 +94,13 @@ class AsyncAgentLoop:
     async def set_persona(self, persona_id: str):
         async with self.pause():
             self._conversation.persona = persona_id
-            self._agent_turn, self._persona = self._build_turn()
+            self._agent_turn, self._persona, self._persona_toolbox = self._build_turn()
             self._signal_buffer._clear()
 
     async def set_conversation(self, conversation: Conversation):
         async with self.pause():
             self._conversation = conversation
-            self._agent_turn, self._persona = self._build_turn()
+            self._agent_turn, self._persona, self._persona_toolbox = self._build_turn()
             self._signal_buffer._clear()
 
     @property
@@ -171,6 +174,10 @@ class AsyncAgentLoop:
             raise RuntimeError("Not running")
         self._signal_buffer.interrupt()
 
+    def release(self):
+        self._persona_toolbox.release()
+        self._skill_toolbox.release()
+
     async def _run(self):
         try:
             while True:
@@ -196,7 +203,10 @@ class AsyncAgentLoop:
                         AsyncTurnMessageInsertedEvent(message=signal.user_message)
                     )
 
-                turn = await self._agent_turn.run(self.conversation, signal)
+                self._check_skill_toolsets()
+                turn = await self._agent_turn.run(
+                    self.conversation, signal, self._get_available_tools()
+                )
                 if isinstance(turn, Failure):
                     logger.error(f"Error during agent turn: {turn.failure()}")
                     await self._event_queue.put(
@@ -231,7 +241,7 @@ class AsyncAgentLoop:
             self._loop_status.value = status
         pass
 
-    def _build_turn(self) -> tuple[AsyncAgentTurn, Persona]:
+    def _build_turn(self) -> tuple[AsyncAgentTurn, Persona, Toolbox]:
         if self.is_running and not self._is_paused:
             raise RuntimeError("Cannot rebuild turn while busy")
         persona_id = self._conversation.persona or self._default_persona_id
@@ -241,6 +251,7 @@ class AsyncAgentLoop:
             raise RuntimeError(f"Invalid persona config: {persona_config.failure()}")
         persona_config = persona_config.unwrap()
         persona = persona_config.instantiate()
+        persona_toolbox = persona.build_toolbox()
 
         # TODO: this is just a dirty hack, there has to be a better solution
         self._tool_call_context.persona = persona
@@ -254,6 +265,14 @@ class AsyncAgentLoop:
         if hasattr(self, "_persona"):
             getattr(self, "_persona").release()
 
+        if hasattr(self, "_persona_toolbox"):
+            getattr(self, "_persona_toolbox").release()
+
+        effective_available = effective_available_skills(self.conversation, persona)
+        self.conversation.active_skills = prune_active_skills(
+            self.conversation, effective_available
+        )
+
         turn = AsyncAgentTurn(
             persona,
             self._tool_call_context,
@@ -266,7 +285,7 @@ class AsyncAgentLoop:
         turn.turn_status.subscribe(self._on_turn_status_update)
         if self.conversation.persona is None:
             self.conversation.persona = persona_id
-        return (turn, persona)
+        return (turn, persona, persona_toolbox)
 
     async def _handle_tool_calls(
         self, tool_calls: list[ToolCall]
@@ -280,7 +299,8 @@ class AsyncAgentLoop:
                     result = await self._event_loop.run_in_executor(
                         None,
                         _do_tool_call,
-                        self._persona.toolbox,
+                        self._persona_toolbox,
+                        self._skill_toolbox,
                         tool_call.function,
                         self._tool_call_context,
                     )
@@ -288,7 +308,8 @@ class AsyncAgentLoop:
                 result = await self._event_loop.run_in_executor(
                     None,
                     _do_tool_call,
-                    self._persona.toolbox,
+                    self._persona_toolbox,
+                    self._skill_toolbox,
                     tool_call.function,
                     self._tool_call_context,
                 )
@@ -304,11 +325,50 @@ class AsyncAgentLoop:
             await self._event_queue.put(AsyncTurnToolReturnEvent(result=message))
         return messages, results
 
+    def _check_skill_toolsets(self):
+        saved_skills = set(self._loaded_skill_toolsets.keys())
+        active_skills = set(self.conversation.active_skills)
+        for missing in active_skills - saved_skills:
+            skill = self._runtime.get_skill(missing)
+            if isinstance(skill, Failure):
+                logger.warning(f"Could not retrieve skill {missing}: {skill.failure()}")
+                continue
+            skill = skill.unwrap()
+            try:
+                toolsets = skill.toolsets
+                for toolset in toolsets:
+                    self._skill_toolbox.add_toolset(toolset)
+                self._loaded_skill_toolsets[missing] = {ts.name for ts in toolsets}
+            except Exception as e:
+                logger.error(f"Could not get toolsets for skill '{missing}': {e}")
+        for old in saved_skills - active_skills:
+            old_toolsets = self._loaded_skill_toolsets.get(old, [])
+            for toolset in old_toolsets:
+                self._skill_toolbox.remove_toolset(toolset)
+            del self._loaded_skill_toolsets[old]
+
+    def _get_available_tools(self):
+        persona_tools = self._persona_toolbox.tool_descriptions
+        skill_tools = self._skill_toolbox.tool_descriptions
+        return persona_tools + skill_tools
+
 
 def _do_tool_call(
-    toolbox: Toolbox, function_call: FunctionCall, context: ToolCallContext
+    persona_toolbox: Toolbox,
+    skill_toolbox: Toolbox,
+    function_call: FunctionCall,
+    context: ToolCallContext,
 ) -> Result[str, str]:
-    result = toolbox.call_tool(function_call.name, function_call.arguments, context)
+    if persona_toolbox.has_tool(function_call.name):
+        result = persona_toolbox.call_tool(
+            function_call.name, function_call.arguments, context
+        )
+    elif skill_toolbox.has_tool(function_call.name):
+        result = skill_toolbox.call_tool(
+            function_call.name, function_call.arguments, context
+        )
+    else:
+        result = Failure(f"Unknown tool name: {function_call.name}")
 
     if isinstance(result, Failure):
         logger.info(f"Tool call failed: {result.failure()}")
