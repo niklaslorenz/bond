@@ -178,7 +178,7 @@ new cwd.
 
 - [ ] `src/bond/local.py`: `LOCAL_DIR_NAME`, `find_local_bond_dir()` (closest ancestor wins, no merge)
 - [ ] `src/bond/runtime.py`: `disable_local_config` param on `initialize_dynamic` + `initialize_static`; `get_local_bond_dir()` + `get_local_{skills,scripts,conversations}_path()`; local-first skill merge in `list_skills()` / `get_skill()`
-- [ ] **Separate step — verify & fix the stale-cwd bug** (section 7): reproduce (`:cd` in TUI, tools still see old cwd), then fix `AsyncAgentLoop._run()` to set `self._tool_call_context.cwd = Path(os.getcwd())` before each turn; audit `tool_loop_runner.py`; add regression test
+- [x] **Separate step — verify & fix the stale-cwd bug** (section 7): confirmed in code (`ToolCallContext.default`/`async_default` capture `Path(os.getcwd())` once; `:cd` only does `os.chdir`; `_run` never refreshed cwd). Fixed in `AsyncAgentLoop._run()`: `self._tool_call_context.cwd = Path(os.getcwd())` after `_check_skill_toolsets()`, before `self._agent_turn.run(...)`. Audit of `tool_loop_runner.py`: its `cwd=None` is intentional (filesystem disabled for that internal runner) — no change. Regression test still to add under Tests.
 - [ ] `src/bond/local.py`: `LOCAL_DIR_NAME`, `find_local_bond_dir()` (closest ancestor wins, no merge)
 - [ ] `src/bond/runtime.py`: `disable_local_config` param on `initialize_dynamic` + `initialize_static`; `get_local_bond_dir()` + `get_local_{skills,scripts,conversations}_path()`; local-first skill merge in `list_skills()` / `get_skill()`
 - [ ] `src/bond/tools/local_tools.py`: `list_local_scripts` + `run_local_script` (path validation, interpreter choice, `shell=False`, timeout, **no confirmation**); register `PythonToolset("local", ...)` in `_default_toolsets`

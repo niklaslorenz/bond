@@ -1,6 +1,8 @@
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from returns.result import Failure, Result, Success
 
@@ -204,6 +206,10 @@ class AsyncAgentLoop:
                     )
 
                 self._check_skill_toolsets()
+                # Keep the cwd handed to tools fresh: `:cd` (and any other
+                # chdir) changes the process cwd, but the ToolCallContext
+                # captured it once at creation time.
+                self._tool_call_context.cwd = Path(os.getcwd())
                 turn = await self._agent_turn.run(
                     self.conversation, signal, self._get_available_tools()
                 )
