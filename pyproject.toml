@@ -23,6 +23,7 @@ dependencies = [
 [project.optional-dependencies]
 audio=["playsound3>=1.0.4"]
 memory=["faiss-cpu>=1.15.1"]
+pdf=["pypdf>=5.1.0"]
 
 
 [dependency-groups]
@@ -31,7 +32,8 @@ dev = [
     "black>=26.5.1",
     "isort>=8.0.1",
     "pytest>=9.1.1",
-    "pytest-cov>=7.1.0"
+    "pytest-cov>=7.1.0",
+    "pypdf>=5.1.0"
 ]
 
 [project.urls]

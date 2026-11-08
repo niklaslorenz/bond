@@ -52,6 +52,44 @@ Skills:
   git-helpers
 ```
 
+## Skill tools
+
+A skill can make tools available to the agent while it is active. The tools
+are namespaced with the skill's prefix (`sk:<skill-name>:`), so tools from
+different active skills never collide by name, and everything is removed
+again when the skill is unloaded.
+
+### `tools/` — custom Python tools
+
+Any `*.py` file directly in a `tools/` subdirectory whose name starts with
+`tool_` or ends with `_tool`/`_tools` is imported when the skill loads. The
+file must export `EXPORT_TOOLSETS`, a list of `Toolset` objects (usually
+`PythonToolset("name", [tools...])` built with the `@tool.tool` decorator):
+
+```python
+# ~/.config/bond/skills/pdf-tools/tools/pdf_tools.py
+from bond.tools import tool
+from bond.tools.toolbox import PythonToolset
+
+@tool.tool(
+    name="pdf_info",
+    description="Get page count and metadata of a PDF file.",
+    parameters={
+        "file_path": tool.FunctionParameter(type="string", description="Path to the PDF.")
+    },
+    required=["file_path"],
+)
+def pdf_info(context, file_path: str) -> str:
+    ...
+
+EXPORT_TOOLSETS = [PythonToolset("pdf", [pdf_info])]
+```
+
+Ready-made tool files live in the `bond_skill_tools` package in the repo —
+copy them into your skill's `tools/` directory. A broken tool file (syntax
+error, import-time exception, missing `EXPORT_TOOLSETS`) is logged and skipped
+without affecting the rest of the skill.
+
 ## Activating skills: the `skills` toolset
 
 Loading and unloading is done through two builtin tools, registered as the
