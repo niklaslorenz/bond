@@ -42,17 +42,15 @@ Asked the user; decisions taken:
    (not just the currently discovered one), mirroring the existing `.git`
    rule. Decided.
 
-Still open / flagged for veto:
-
-- **Non-interactive script runs**: `run_local_script` asks for confirmation
-  in interactive mode (like `run_shell_commands`); in non-interactive mode
-  it runs without confirmation, because the script set in `.bond/scripts/`
-  is entirely user-controlled (that's the "safer than shell" point).
-  Veto-able.
-- **`lload` (local load command)**: not in scope now; `lsave` only. Can be
-  added later. Open.
-- **CLI flags**: optional `--disable-local-config` on `talk` / `chat` / `ask`
-  entry points, threaded into `initialize_dynamic`. Open (small).
+6. **`run_local_script` never asks for confirmation** — not in interactive
+   mode either. Local scripts are made for the agent to call on its own; the
+   user-controlled allowlist (`.bond/scripts/`) is the safety boundary, so
+   no per-call confirmation. Decided.
+7. **`lload` / `local-load` command** — added alongside `lsave`, mirroring
+   `load` but reading from `.bond/conversations/`, with the same no-`.bond`
+   guard + notification. Decided.
+8. **CLI flags** → `--disable-local-config` on `talk` / `chat` / `ask`,
+   threaded into `initialize_dynamic`. Decided (no longer optional).
 
 ## Design decisions
 
@@ -63,9 +61,10 @@ Still open / flagged for veto:
   `start` (default `Path.cwd()`) and each parent upward, returns the first
   ancestor that is a directory containing a `.bond/` subdirectory.
   Closest wins; no merging.
-- Computed on each call (cheap `iterdir`/`is_dir` walk), so it follows `:cd`
-  in the TUI (`ToolCallContext` captures cwd per turn, and the TUI's `:cd`
-  does `os.chdir`).
+- Computed on each call from `Path.cwd()`, so it follows `:cd` in the TUI
+  (the TUI's `:cd` does `os.chdir`) — provided the `ToolCallContext.cwd`
+  handed to tools is kept fresh; see section 7 for the currently suspected
+  stale-cwd bug and its fix.
 
 ### 2. Runtime integration — `src/bond/runtime.py`
 
@@ -102,8 +101,9 @@ The local dir is cwd-based, not config-dir-based, so it lives on
     `.py` → `sys.executable`; `.sh` → `sh`; otherwise try direct exec.
   - `subprocess.run([interpreter..., script, *args], shell=False,
     capture_output=True, text=True, timeout=timeout, cwd=bond_dir.parent)`.
-  - Interactive mode: `context.ask_confirmation(...)` showing script + args
-    first (same UX as `run_shell_commands`); non-interactive: runs directly.
+  - **No confirmation, ever** — the script runs directly in both interactive
+    and non-interactive mode (decision 6: `.bond/scripts/` is the user's
+    explicit allowlist).
   - Returns exit code + last 50 lines of stdout/stderr; `TimeoutExpired` →
     clear error message.
   - **Not** gated by `allow_shell_commands()` — the persona opting into the
@@ -125,33 +125,67 @@ The local dir is cwd-based, not config-dir-based, so it lives on
 - Trusted code paths (the `lsave` command, runtime internals) may still
   write into `.bond/conversations` — only agent tools are blocked.
 
-### 5. `lsave` / `local-save` command — TUI + CLI
+### 5. `lsave` / `local-save` and `lload` / `local-load` commands — TUI + CLI
 
 - `src/bond/tui/command_handler.py` and `src/bond/cli/_interactive.py`: new
-  `lsave` parser entry with aliases `local-save`, optional `name` argument
-  (mirrors `save`: name given → `move_to(name, local_path)`, else
-  `save_as(conv.name, local_path)`, else "please specify a name").
-- Guard: if `runtime.get_local_conversations_path()` is `None` (no `.bond`
-  found or `disable_local_config`) → notify
-  "Local saving can't be done without a `.bond` directory" and return.
-  **Never creates `.bond`** — only writes into the existing
+  `lsave` (aliases `local-save`) and `lload` (aliases `local-load`) parser
+  entries, each with an optional `name` argument.
+  - `lsave` mirrors `save`: name given → `move_to(name, local_path)`, else
+    `save_as(conv.name, local_path)`, else "please specify a name".
+  - `lload` mirrors `load`: `Conversation.load(name, local_path)` +
+    `set_conversation`; without a name, the TUI launches its interactive
+    conversation picker pointed at the local path.
+- Guard (both commands): if `runtime.get_local_conversations_path()` is
+  `None` (no `.bond` found or `disable_local_config`) → notify
+  "Local saving can't be done without a `.bond` directory" (for `lsave`) /
+  the analogous message for `lload`, and return.
+  **Never creates `.bond`** — only writes into/reads from the existing
   `.bond/conversations/` (created as a subdir of an existing `.bond`, which
   is fine).
 
-### 6. Entry points (optional)
+### 6. Entry points
 
 Thread `--disable-local-config` through `tui/main.py`, `cli/chat.py`,
 `cli/ask.py` → `run_interactive_session(...)` → `initialize_dynamic(...)`.
+
+### 7. Known issue to check & fix separately: stale `cwd` in `ToolCallContext`
+
+**Suspected bug (to be verified in a separate step):** `ToolCallContext`
+captures `Path(os.getcwd())` once at creation time (`ToolCallContext.default`
+/ `async_default` in `tools/tool.py`; created e.g. in `tui/main.py:58`,
+`cli/_interactive.py:400`, `cli/ask.py:73`). The TUI `:cd` command
+(`tui/command_handler.py` `_handle_shell_command`) only calls `os.chdir()`
+and never updates the context. `AsyncAgentLoop._build_turn()` already
+refreshes `persona`/`conversation` on the context per turn
+(`behaviours/async_loop.py`, the block marked "dirty hack") and
+`_run()` calls `_check_skill_toolsets()` before every turn — but **never
+refreshes `cwd`**. So after `:cd`, all tools keep operating on the directory
+the app was started in.
+
+**Intended behaviour:** tools called from the loop always receive the fresh
+cwd via `ToolCallContext`.
+
+**Planned fix:** in `AsyncAgentLoop._run()`, right after
+`self._check_skill_toolsets()` and before `self._agent_turn.run(...)`, add
+`self._tool_call_context.cwd = Path(os.getcwd())` (needs `import os` /
+`from pathlib import Path` as required). Also audit the other context creation
+sites (`providers/general/util/tool_loop_runner.py` passes `cwd=None` —
+check whether that path also needs the fresh cwd). Add a regression test that
+`chdir`s between turns and asserts the context passed to tools reflects the
+new cwd.
 
 ## Task list
 
 - [ ] `src/bond/local.py`: `LOCAL_DIR_NAME`, `find_local_bond_dir()` (closest ancestor wins, no merge)
 - [ ] `src/bond/runtime.py`: `disable_local_config` param on `initialize_dynamic` + `initialize_static`; `get_local_bond_dir()` + `get_local_{skills,scripts,conversations}_path()`; local-first skill merge in `list_skills()` / `get_skill()`
-- [ ] `src/bond/tools/local_tools.py`: `list_local_scripts` + `run_local_script` (path validation, interpreter choice, `shell=False`, timeout, interactive confirmation); register `PythonToolset("local", ...)` in `_default_toolsets`
+- [ ] **Separate step — verify & fix the stale-cwd bug** (section 7): reproduce (`:cd` in TUI, tools still see old cwd), then fix `AsyncAgentLoop._run()` to set `self._tool_call_context.cwd = Path(os.getcwd())` before each turn; audit `tool_loop_runner.py`; add regression test
+- [ ] `src/bond/local.py`: `LOCAL_DIR_NAME`, `find_local_bond_dir()` (closest ancestor wins, no merge)
+- [ ] `src/bond/runtime.py`: `disable_local_config` param on `initialize_dynamic` + `initialize_static`; `get_local_bond_dir()` + `get_local_{skills,scripts,conversations}_path()`; local-first skill merge in `list_skills()` / `get_skill()`
+- [ ] `src/bond/tools/local_tools.py`: `list_local_scripts` + `run_local_script` (path validation, interpreter choice, `shell=False`, timeout, **no confirmation**); register `PythonToolset("local", ...)` in `_default_toolsets`
 - [ ] `src/bond/tools/file_system/util.py`: `path_is_in_bond()` + `check_write_access()`; wire into `create_file.py` and `apply_patch.py`
-- [ ] `src/bond/tui/command_handler.py`: `lsave` / `local-save` command with no-`.bond` guard + notification
-- [ ] `src/bond/cli/_interactive.py`: `lsave` / `local-save` command with the same guard
-- [ ] Entry points: `--disable-local-config` flag on `talk` / `chat` / `ask`, threaded to `initialize_dynamic` (optional)
-- [ ] Tests: `test/bond/test_local.py` (discovery closest-wins, disable flag, local skills shadow global); `test/bond/tools/test_local_tools.py` (listing, traversal rejection, real script exec, missing `.bond`); file-tool write-protection tests (`create_file` / `apply_patch` into `.bond` denied, reads allowed); `lsave` guard tests for TUI + CLI handlers
-- [ ] Docs: new `docs/local-bond-dir.md` (layout, discovery rule, `disable_local_config`, `lsave`, script tools incl. confirmation behavior, write protection); short pointer in `docs/skills.md` that local skills shadow global ones
+- [ ] `src/bond/tui/command_handler.py`: `lsave` / `local-save` and `lload` / `local-load` commands with no-`.bond` guard + notification
+- [ ] `src/bond/cli/_interactive.py`: `lsave` / `local-save` and `lload` / `local-load` commands with the same guard
+- [ ] Entry points: `--disable-local-config` flag on `talk` / `chat` / `ask`, threaded to `initialize_dynamic`
+- [ ] Tests: `test/bond/test_local.py` (discovery closest-wins, disable flag, local skills shadow global); `test/bond/tools/test_local_tools.py` (listing, traversal rejection, real script exec without confirmation, missing `.bond`); file-tool write-protection tests (`create_file` / `apply_patch` into `.bond` denied, reads allowed); `lsave`/`lload` guard tests for TUI + CLI handlers; stale-cwd regression test
+- [ ] Docs: new `docs/local-bond-dir.md` (layout, discovery rule, `disable_local_config`, `lsave`/`lload`, script tools with no-confirmation behavior, write protection, cwd behavior); short pointer in `docs/skills.md` that local skills shadow global ones
 - [ ] Run full test suite; verify no regressions
