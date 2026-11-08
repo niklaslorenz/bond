@@ -24,13 +24,12 @@ closing `---` is the skill's instructions:
 
 ```markdown
 ---
-name: pdf-tools
-description: Tools for extracting and analyzing PDFs.
+name: research
+description: Helpers for researching topics thoroughly.
 ---
 # Instructions
 
-When the user mentions PDFs, use the pdf tools to extract text and metadata.
-Always summarize the document structure before the content.
+When the user asks for research, gather sources first, then summarize.
 ```
 
 - `name` is optional — if missing, the directory name is used.
@@ -48,7 +47,7 @@ skill's description:
 ```
 $ bond skills
 Skills:
-  pdf-tools: Tools for extracting and analyzing PDFs.
+  research: Helpers for researching topics thoroughly.
   git-helpers
 ```
 
@@ -67,28 +66,31 @@ file must export `EXPORT_TOOLSETS`, a list of `Toolset` objects (usually
 `PythonToolset("name", [tools...])` built with the `@tool.tool` decorator):
 
 ```python
-# ~/.config/bond/skills/pdf-tools/tools/pdf_tools.py
+# ~/.config/bond/skills/git-helpers/tools/git_tools.py
 from bond.tools import tool
 from bond.tools.toolbox import PythonToolset
 
 @tool.tool(
-    name="pdf_info",
-    description="Get page count and metadata of a PDF file.",
+    name="git_status",
+    description="Get the status of the git repository.",
     parameters={
-        "file_path": tool.FunctionParameter(type="string", description="Path to the PDF.")
+        "repo_path": tool.FunctionParameter(type="string", description="Path to the repo.")
     },
-    required=["file_path"],
+    required=["repo_path"],
 )
-def pdf_info(context, file_path: str) -> str:
+def git_status(context, repo_path: str) -> str:
     ...
 
-EXPORT_TOOLSETS = [PythonToolset("pdf", [pdf_info])]
+EXPORT_TOOLSETS = [PythonToolset("git", [git_status])]
 ```
 
-Ready-made tool files live in the `bond_skill_tools` package in the repo —
-copy them into your skill's `tools/` directory. A broken tool file (syntax
-error, import-time exception, missing `EXPORT_TOOLSETS`) is logged and skipped
-without affecting the rest of the skill.
+A broken tool file (syntax error, import-time exception, missing
+`EXPORT_TOOLSETS`) is logged and skipped without affecting the rest of the
+skill.
+
+Note: PDF reading does not need a skill — it ships builtin as the `pdf`
+toolset (`pdf_info` / `read_pdf_text`); just add `"pdf"` to the persona's
+`toolsets` and install the `pdf` extra (`pip install bond[pdf]`).
 
 ## Activating skills: the `skills` toolset
 
@@ -114,7 +116,7 @@ For the agent to see these tools, the persona's `toolsets` must include
     "system_prompt": "You are a helpful assistant."
   },
   "toolsets": ["file", "shell", "skills"],
-  "available_skills": ["pdf-tools", "git-helpers"]
+  "available_skills": ["research", "git-helpers"]
 }
 ```
 
@@ -125,11 +127,11 @@ available by default for every conversation with that persona:
 
 | Value                          | Meaning                            |
 | ------------------------------ | ---------------------------------- |
-| `["pdf-tools", "git-helpers"]` | exactly these skills are available |
+| `["research", "git-helpers"]`  | exactly these skills are available |
 | `[]` (or omitted)              | no skills available                |
 
 ```json
-"available_skills": ["pdf-tools", "git-helpers"]
+"available_skills": ["research", "git-helpers"]
 ```
 
 ## Per-conversation override

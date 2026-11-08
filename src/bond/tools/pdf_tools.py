@@ -1,14 +1,7 @@
-"""PDF reading tools for Bond skills.
-
-Copy this file into your skill's ``tools/`` directory::
-
-    skills/pdf/tools/pdf_tools.py
-
-and load the skill. The tools below become available with names prefixed by
-``sk:<skill-name>:`` (e.g. ``sk:pdf:read_pdf_text``).
+"""Builtin PDF tools, registered as the ``pdf`` toolset in the runtime.
 
 Requires the ``pypdf`` package: ``pip install pypdf`` (or ``pip install bond[pdf]``).
-The import is lazy, so the file only fails (with a clear error message) when a
+The import is lazy, so the tools only fail (with a clear error message) when a
 PDF tool is actually called without ``pypdf`` installed.
 """
 
@@ -17,7 +10,6 @@ from typing import Any
 
 from bond.tools import tool
 from bond.tools.file_system.util import check_access
-from bond.tools.toolbox import PythonToolset
 from bond.util import resolve_path
 
 _PYPDF_MISSING = (
@@ -194,8 +186,3 @@ def read_pdf_text(
     if end_page is not None and end_page > page_count:
         header += f" (end_page {end_page} clamped to page count)"
     return f"{header}\n\n{output}"
-
-
-EXPORT_TOOLSETS = [
-    PythonToolset("pdf", [pdf_info, read_pdf_text]),
-]

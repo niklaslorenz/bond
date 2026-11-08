@@ -37,6 +37,7 @@ from bond.tools.file_system import (
 from bond.tools.file_system.search import search_file
 from bond.tools.mcp_toolset import McpToolset
 from bond.tools.memory_tools import recall_memory, retire_memory, store_memory
+from bond.tools.pdf_tools import pdf_info, read_pdf_text
 from bond.tools.shell_tools import run_shell_commands
 from bond.tools.skill_tools import load_skill, unload_skill
 from bond.tools.stream_tools import write_to_output
@@ -76,6 +77,7 @@ _default_toolsets: list[Toolset] = [
             grep,
         ],
     ),
+    PythonToolset("pdf", [pdf_info, read_pdf_text]),
     PythonToolset("shell", [run_shell_commands]),
     PythonToolset("write", [write_to_output]),
     PythonToolset("test", [test_confirmation]),
