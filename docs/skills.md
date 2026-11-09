@@ -138,6 +138,24 @@ available by default for every conversation with that persona:
 "available_skills": ["research", "git-helpers"]
 ```
 
+### `use_local_skills`: make all project-local skills available
+
+Setting `use_local_skills: true` on a persona additionally makes **all** local
+skills from the closest `.bond/skills/` directory (see
+[Local `.bond` directory](./local-bond-dir.md)) available — no need to list
+each one in `available_skills` or toggle them in the `:skills` popup:
+
+```json
+"available_skills": ["research"],
+"use_local_skills": true
+```
+
+The effective available skills are then `available_skills` **plus** all local
+skill names. The per-conversation override below still takes precedence: if a
+conversation has its own `available_skills` list, that list is used as-is.
+Defaults to `false` (previous behavior). Has no effect with
+`--disable-local-config` or when there is no `.bond` directory.
+
 ## Per-conversation override
 
 Each conversation stores its own `available_skills` field (in its metadata
@@ -145,7 +163,7 @@ JSON) with tri-state semantics:
 
 | Value        | Meaning                                                        |
 | ------------ | -------------------------------------------------------------- |
-| `null`       | inherit the persona's `available_skills` (this is the default) |
+| `null`       | inherit the persona's `available_skills` — plus all local skills when the persona sets `use_local_skills: true` (this is the default) |
 | `[]`         | explicitly no skills available for this conversation           |
 | `["a", "b"]` | exactly these skills are available                             |
 

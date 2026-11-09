@@ -294,7 +294,9 @@ class TuiCommandHandler:
             result = await self._app.select_skills(
                 skills=infos,
                 persona_name=persona.name,
-                persona_available_skills=persona.config.available_skills,
+                persona_available_skills=effective_available_skills(
+                    None, persona
+                ),
                 conversation_available_skills=conversation.available_skills,
                 active_skills=conversation.active_skills,
             )

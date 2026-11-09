@@ -60,6 +60,11 @@ class PersonaConfig(BaseModel):
 
     toolsets: list[str] = Field(default_factory=list)
     available_skills: list[str] = Field(default_factory=list)
+    use_local_skills: bool = False
+    """When True, all local skills from the closest ``.bond/skills/`` are
+    considered available in conversations that do not define their own
+    ``available_skills`` list (a conversation-level list still takes
+    precedence). When False (default), only ``available_skills`` apply."""
 
     @classmethod
     def get_type(cls) -> str:

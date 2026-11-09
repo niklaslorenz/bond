@@ -38,6 +38,11 @@ name), so switching between two projects that both define a skill called
 `shared` resolves correctly. `bond skills` lists local skills together with
 global ones.
 
+To make **all** local skills available without listing them individually, set
+`"use_local_skills": true` in the persona config — see
+[Skills](./skills.md#use_local_skills-make-all-project-local-skills-available).
+A conversation-level `available_skills` list still takes precedence.
+
 ## Local scripts: the `local` toolset
 
 The builtin `local` toolset lets the agent discover and run the scripts your

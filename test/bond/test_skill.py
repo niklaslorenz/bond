@@ -271,6 +271,95 @@ class TestEffectiveAvailableSkills:
         assert conv.available_skills is None
         assert conv.active_skills == []
         assert _persona_config().available_skills == []
+        assert _persona_config().use_local_skills is False
+
+
+class TestEffectiveAvailableSkillsUseLocalSkills:
+    """``use_local_skills=True`` adds all local skills in inherit mode."""
+
+    @staticmethod
+    def _patch_local_skills(monkeypatch, names: list[str]):
+        stub = MagicMock()
+        stub.list_local_skills.return_value = names
+        monkeypatch.setattr(
+            BondRuntime, "get_instance", classmethod(lambda cls: stub)
+        )
+
+    def test_flag_off_ignores_local_skills(self, monkeypatch):
+        self._patch_local_skills(monkeypatch, ["local1"])
+        conv = Conversation()
+        persona = _persona_config(["a"])
+        assert effective_available_skills(conv, persona) == ["a"]
+
+    def test_flag_on_adds_local_skills_in_inherit_mode(self, monkeypatch):
+        self._patch_local_skills(monkeypatch, ["local1", "local2"])
+        conv = Conversation()
+        persona = _persona_config(["a"])
+        persona.use_local_skills = True
+        assert effective_available_skills(conv, persona) == [
+            "a",
+            "local1",
+            "local2",
+        ]
+
+    def test_flag_on_dedupes_names_already_in_persona_list(self, monkeypatch):
+        self._patch_local_skills(monkeypatch, ["a", "local1"])
+        conv = Conversation()
+        persona = _persona_config(["a"])
+        persona.use_local_skills = True
+        assert effective_available_skills(conv, persona) == ["a", "local1"]
+
+    def test_conversation_list_still_wins_over_flag(self, monkeypatch):
+        self._patch_local_skills(monkeypatch, ["local1"])
+        conv = Conversation(available_skills=["only-this"])
+        persona = _persona_config(["a"])
+        persona.use_local_skills = True
+        assert effective_available_skills(conv, persona) == ["only-this"]
+
+    def test_flag_on_with_instantiated_persona(self, monkeypatch):
+        self._patch_local_skills(monkeypatch, ["local1"])
+        conv = Conversation()
+        config = _persona_config(["x"])
+        config.use_local_skills = True
+        persona = Persona(
+            name="p",
+            config=config,
+            generation=None,  # type: ignore[arg-type]
+            summarization=None,
+            thought_condensation=None,
+            tts=None,
+            memory=None,
+            toolsets=[],
+            runtime=MagicMock(),
+        )
+        assert effective_available_skills(conv, persona) == ["x", "local1"]
+
+    def test_persona_none_still_empty_even_with_flag(self, monkeypatch):
+        self._patch_local_skills(monkeypatch, ["local1"])
+        conv = Conversation()
+        assert effective_available_skills(conv, None) == []
+
+
+class TestEffectiveAvailableSkillsOptionalConversation:
+    """``conversation=None`` means inherit mode without a conversation object."""
+
+    def test_none_conversation_uses_persona_list(self):
+        persona = _persona_config(["a", "b"])
+        assert effective_available_skills(None, persona) == ["a", "b"]
+
+    def test_both_none_returns_empty(self):
+        assert effective_available_skills(None, None) == []
+        assert effective_available_skills() == []
+
+    def test_none_conversation_with_flag_includes_locals(self, monkeypatch):
+        stub = MagicMock()
+        stub.list_local_skills.return_value = ["local1"]
+        monkeypatch.setattr(
+            BondRuntime, "get_instance", classmethod(lambda cls: stub)
+        )
+        persona = _persona_config(["a"])
+        persona.use_local_skills = True
+        assert effective_available_skills(None, persona) == ["a", "local1"]
 
 
 # ---------------------------------------------------------------------------

@@ -167,6 +167,35 @@ class TestLocalSkillPrecedence:
         assert "local-only" not in runtime.list_skills()
 
 
+class TestListLocalSkills:
+    def test_lists_local_skill_dirs_with_skill_md(self, runtime_env, monkeypatch):
+        runtime, config_dir, data_dir = runtime_env
+        bond_dir = config_dir / LOCAL_DIR_NAME
+        _write_skill(bond_dir / "skills", "beta", "b")
+        _write_skill(bond_dir / "skills", "alpha", "a")
+        (bond_dir / "skills" / "no-md").mkdir(parents=True)  # no SKILL.md -> skip
+        _write_skill(config_dir / "skills", "global-one", "g")  # not local
+
+        monkeypatch.chdir(config_dir)
+        assert runtime.list_local_skills() == ["alpha", "beta"]
+
+    def test_empty_when_no_bond_dir(self, runtime_env, tmp_path, monkeypatch):
+        runtime, config_dir, data_dir = runtime_env
+        monkeypatch.chdir(tmp_path)
+        assert runtime.list_local_skills() == []
+
+    def test_empty_when_disabled(self, runtime_env, monkeypatch):
+        runtime, config_dir, data_dir = runtime_env
+        bond_dir = config_dir / LOCAL_DIR_NAME
+        _write_skill(bond_dir / "skills", "local-only", "x")
+
+        monkeypatch.chdir(config_dir)
+        assert runtime.list_local_skills() == ["local-only"]
+
+        _reinit(runtime, config_dir, data_dir, disable_local_config=True)
+        assert runtime.list_local_skills() == []
+
+
 class TestPathKeyedSkillCache:
     def test_same_name_different_projects(self, runtime_env, tmp_path: Path, monkeypatch):
         runtime, _, _ = runtime_env

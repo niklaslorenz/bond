@@ -428,6 +428,20 @@ class BondRuntime:
                     names.add(entry.name)
         return sorted(names)
 
+    def list_local_skills(self) -> list[str]:
+        """List the names of all local skills in the closest ``.bond/skills/``
+        directory (subdirectories containing a ``SKILL.md``). Empty when local
+        config is disabled (``disable_local_config``) or there is no ``.bond``
+        directory."""
+        local_skills_path = self.get_local_skills_path()
+        if local_skills_path is None or not local_skills_path.is_dir():
+            return []
+        return sorted(
+            entry.name
+            for entry in local_skills_path.iterdir()
+            if entry.is_dir() and (entry / "SKILL.md").is_file()
+        )
+
     def get_local_bond_dir(self) -> Path | None:
         """Return the closest ``.bond`` directory (searched from the current
         working directory upwards), or ``None`` if there is none or local

@@ -119,24 +119,37 @@ def render_skill_md(skill: Skill) -> str:
 
 
 def effective_available_skills(
-    conversation: Conversation, persona: Persona | PersonaConfig | None
+    conversation: Conversation | None = None,
+    persona: Persona | PersonaConfig | None = None,
 ) -> list[str]:
     """Resolve which skills a conversation may use.
 
     Single source of truth shared by the skill tools and the system message
     builder: an explicit ``conversation.available_skills`` list wins; otherwise
     the persona's ``available_skills`` are used (``None`` persona -> none).
+    ``conversation=None`` means "no conversation override" (inherit mode) and
+    goes straight to the persona fallback — handy when only the persona-level
+    list is needed and constructing a conversation would be wasteful.
+    If the persona config sets ``use_local_skills=True``, all local skills from
+    the closest ``.bond/skills/`` are additionally available in that fallback
+    case (a conversation-level list still takes precedence).
 
     Accepts either an instantiated :class:`Persona` or a raw
     :class:`PersonaConfig`.
     """
-    if conversation.available_skills is not None:
+    if conversation is not None and conversation.available_skills is not None:
         return conversation.available_skills
     if persona is None:
         return []
-    if isinstance(persona, Persona):
-        return persona.config.available_skills
-    return persona.available_skills
+    config = persona.config if isinstance(persona, Persona) else persona
+    available = list(config.available_skills)
+    if config.use_local_skills:
+        from bond.runtime import BondRuntime
+
+        for name in BondRuntime.get_instance().list_local_skills():
+            if name not in available:
+                available.append(name)
+    return available
 
 
 def prune_active_skills(conversation: Conversation, available: list[str]) -> list[str]:
