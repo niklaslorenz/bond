@@ -13,6 +13,10 @@ Skills live in the bond config directory:
 ~/.config/bond/skills/<name>/SKILL.md
 ```
 
+Projects can also ship their own skills in a `.bond/skills/` directory —
+these **shadow** global skills of the same name. See
+[Project-local `.bond` directory](./local-bond-dir.md).
+
 `<name>` is the skill's identifier — it is what the agent refers to when loading
 the skill and what goes into the allow-lists (see below).
 

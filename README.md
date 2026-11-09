@@ -37,6 +37,10 @@ tools. Available skills are configured per persona (`available_skills`) and can 
 overridden per conversation. Run `bond skills` to list all discovered skills.
 See [Skills](./docs/skills.md) for the full documentation.
 
+Projects can extend bond with a local `.bond/` directory (project-local skills,
+scripts, and conversations) — see
+[Project-local configuration](./docs/local-bond-dir.md).
+
 ## Packages with extensive tests
 
 - conversation

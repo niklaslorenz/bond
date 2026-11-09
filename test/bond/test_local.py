@@ -95,8 +95,11 @@ class TestFindLocalBondDir:
 
 
 class TestRuntimeLocalBondDir:
-    def test_no_bond_dir(self, runtime_env):
+    def test_no_bond_dir(self, runtime_env, tmp_path: Path, monkeypatch):
         runtime, config_dir, data_dir = runtime_env
+        # Run from a directory with no .bond in any ancestor (the repo itself
+        # now has one, since .bond/scripts/run-tests.sh exists).
+        monkeypatch.chdir(tmp_path)
         assert runtime.get_local_bond_dir() is None
         assert runtime.get_local_skills_path() is None
         assert runtime.get_local_scripts_path() is None
