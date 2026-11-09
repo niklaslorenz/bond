@@ -176,12 +176,12 @@ new cwd.
 
 ## Task list
 
-- [ ] `src/bond/local.py`: `LOCAL_DIR_NAME`, `find_local_bond_dir()` (closest ancestor wins, no merge)
-- [ ] `src/bond/runtime.py`: `disable_local_config` param on `initialize_dynamic` + `initialize_static`; `get_local_bond_dir()` + `get_local_{skills,scripts,conversations}_path()`; local-first skill merge in `list_skills()` / `get_skill()`
+- [x] `src/bond/local.py`: `LOCAL_DIR_NAME`, `find_local_bond_dir()` (closest ancestor wins, no merge)
+- [x] `src/bond/runtime.py`: `disable_local_config` param on `initialize_dynamic` + `initialize_static`; `get_local_bond_dir()` + `get_local_{skills,scripts,conversations}_path()`; local-first skill merge in `list_skills()` / `get_skill()` (local skills cached by absolute path in `_local_skill_cache` so `:cd` between projects resolves same-named skills correctly; global skills keep the existing name cache)
 - [x] **Separate step — verify & fix the stale-cwd bug** (section 7): confirmed in code (`ToolCallContext.default`/`async_default` capture `Path(os.getcwd())` once; `:cd` only does `os.chdir`; `_run` never refreshed cwd). Fixed in `AsyncAgentLoop._run()`: `self._tool_call_context.cwd = Path(os.getcwd())` after `_check_skill_toolsets()`, before `self._agent_turn.run(...)`. Audit of `tool_loop_runner.py`: its `cwd=None` is intentional (filesystem disabled for that internal runner) — no change. Regression test still to add under Tests.
 - [ ] `src/bond/local.py`: `LOCAL_DIR_NAME`, `find_local_bond_dir()` (closest ancestor wins, no merge)
 - [ ] `src/bond/runtime.py`: `disable_local_config` param on `initialize_dynamic` + `initialize_static`; `get_local_bond_dir()` + `get_local_{skills,scripts,conversations}_path()`; local-first skill merge in `list_skills()` / `get_skill()`
-- [ ] `src/bond/tools/local_tools.py`: `list_local_scripts` + `run_local_script` (path validation, interpreter choice, `shell=False`, timeout, **no confirmation**); register `PythonToolset("local", ...)` in `_default_toolsets`
+- [x] `src/bond/tools/local_tools.py`: `list_local_scripts` + `run_local_script` (path validation incl. symlink-escape check, interpreter choice, `shell=False`, timeout, **no confirmation**); registered as `PythonToolset("local", ...)` in `_default_toolsets` in `runtime.py`
 - [ ] `src/bond/tools/file_system/util.py`: `path_is_in_bond()` + `check_write_access()`; wire into `create_file.py` and `apply_patch.py`
 - [ ] `src/bond/tui/command_handler.py`: `lsave` / `local-save` and `lload` / `local-load` commands with no-`.bond` guard + notification
 - [ ] `src/bond/cli/_interactive.py`: `lsave` / `local-save` and `lload` / `local-load` commands with the same guard

@@ -19,6 +19,7 @@ from bond.config import (
     McpHttpServerConfig,
     McpStdioServerConfig,
 )
+from bond.local import find_local_bond_dir
 from bond.persona import PersonaConfig
 from bond.plugins.bond_plugin import BondPlugin
 from bond.providers.mistral.mistral import Mistral
@@ -35,6 +36,7 @@ from bond.tools.file_system import (
     read_file,
 )
 from bond.tools.file_system.search import search_file
+from bond.tools.local_tools import list_local_scripts, run_local_script
 from bond.tools.mcp_toolset import McpToolset
 from bond.tools.memory_tools import recall_memory, retire_memory, store_memory
 from bond.tools.pdf_tools import pdf_info, read_pdf_text
@@ -79,6 +81,7 @@ _default_toolsets: list[Toolset] = [
     ),
     PythonToolset("pdf", [pdf_info, read_pdf_text]),
     PythonToolset("shell", [run_shell_commands]),
+    PythonToolset("local", [list_local_scripts, run_local_script]),
     PythonToolset("write", [write_to_output]),
     PythonToolset("test", [test_confirmation]),
     PythonToolset("memory", [recall_memory, store_memory, retire_memory]),
@@ -352,6 +355,8 @@ class BondRuntime:
         self._loaded_personas = NamedEntryRegistry[PersonaConfig]()
         self._loaded_prompts = NamedEntryRegistry[str]()
         self._loaded_skills = NamedEntryRegistry[Skill]()
+        self._local_skill_cache: dict[Path, Skill] = {}
+        self._disable_local_config = False
         self._environment: RuntimeEnvironment | None = None
         logger.debug("BondRuntime created")
 
@@ -363,7 +368,9 @@ class BondRuntime:
         plugins: dict[str, BondPlugin],
         prompts: dict[str, str],
         skills: dict[str, Skill] | None = None,
+        disable_local_config: bool = False,
     ) -> StaticRuntimeEnvironment:
+        self._disable_local_config = disable_local_config
         self._environment = StaticRuntimeEnvironment(
             config, providers, personas, plugins, prompts, skills=skills
         )
@@ -378,11 +385,13 @@ class BondRuntime:
         config_dir: Path | None = None,
         data_dir: Path | None = None,
         enable_plugins: bool = True,
+        disable_local_config: bool = False,
     ) -> DynamicRuntimeEnvironment:
         if config_dir is None:
             config_dir = Path("~/.config/bond").expanduser().absolute()
         if data_dir is None:
             data_dir = Path("~/.local/share/bond").expanduser().absolute()
+        self._disable_local_config = disable_local_config
         self._environment = DynamicRuntimeEnvironment(config_dir, data_dir)
         self._register_builtin_toolsets()
         self._register_builtin_provider_types()
@@ -406,7 +415,36 @@ class BondRuntime:
         return self._get_env().list_prompts()
 
     def list_skills(self) -> list[str]:
-        return self._get_env().list_skills()
+        """List all available skill names. Local skills from the closest
+        ``.bond`` directory are included and shadow global skills of the
+        same name."""
+        names = set(self._get_env().list_skills())
+        local_skills_path = self.get_local_skills_path()
+        if local_skills_path is not None and local_skills_path.is_dir():
+            for entry in local_skills_path.iterdir():
+                if entry.is_dir() and (entry / "SKILL.md").is_file():
+                    names.add(entry.name)
+        return sorted(names)
+
+    def get_local_bond_dir(self) -> Path | None:
+        """Return the closest ``.bond`` directory (searched from the current
+        working directory upwards), or ``None`` if there is none or local
+        config is disabled via ``disable_local_config``."""
+        if self._disable_local_config:
+            return None
+        return find_local_bond_dir(Path.cwd())
+
+    def get_local_skills_path(self) -> Path | None:
+        bond_dir = self.get_local_bond_dir()
+        return bond_dir / "skills" if bond_dir is not None else None
+
+    def get_local_scripts_path(self) -> Path | None:
+        bond_dir = self.get_local_bond_dir()
+        return bond_dir / "scripts" if bond_dir is not None else None
+
+    def get_local_conversations_path(self) -> Path | None:
+        bond_dir = self.get_local_bond_dir()
+        return bond_dir / "conversations" if bond_dir is not None else None
 
     def get_conversations_path(self) -> Path | None:
         return self._get_env().get_conversations_path()
@@ -483,8 +521,28 @@ class BondRuntime:
         return prompt
 
     def get_skill(self, skill_name: str) -> Result[Skill, str]:
-        """Get a skill by name, loading it if necessary"""
+        """Get a skill by name, loading it if necessary.
+
+        A local skill from the closest ``.bond`` directory takes precedence
+        over a global skill of the same name. Local skills are cached by
+        their absolute path (not by name) so that a ``:cd`` into another
+        project with a same-named local skill resolves correctly.
+        """
         env = self._get_env()
+        local_skills_path = self.get_local_skills_path()
+        if local_skills_path is not None:
+            local_skill_path = local_skills_path / skill_name
+            if (local_skill_path / "SKILL.md").is_file():
+                cached = self._local_skill_cache.get(local_skill_path)
+                if cached is None:
+                    result = Skill.load_from(
+                        local_skill_path, fallback_name=skill_name
+                    )
+                    if isinstance(result, Failure):
+                        return result
+                    cached = result.unwrap()
+                    self._local_skill_cache[local_skill_path] = cached
+                return Result.from_value(cached)
         if (skill := self._loaded_skills.get(skill_name)) is not None:
             return Result.from_value(skill)
         skill = env.load_skill(skill_name, self)
