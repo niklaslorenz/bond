@@ -13,7 +13,7 @@ from bond.util import resolve_path
     You are only expected to access files inside the current working directory.
     When creating files outside of the current working directory, the user has to manually grant access.
     Directories that do not exist yet will be created automatically.
-    `.bond` directories are read-only: creating files inside them is not allowed.
+    `.bond` and `.git` directories are read-only: creating files inside them is not allowed.
     """,
     parameters={
         "file_path": tool.FunctionParameter(

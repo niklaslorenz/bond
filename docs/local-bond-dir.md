@@ -74,7 +74,8 @@ named conversation), same as `save`.
 
 ## Write protection
 
-`.bond` directories are **read-only for agent tools**: `create_file` and
-`apply_patch` refuse to write any path inside a `.bond` folder (no matter
-which project is currently active), while reading (`read_file`, …) stays
-allowed. The directory is managed by you, not by the agent.
+`.bond` and `.git` directories are **read-only for agent tools**: the write
+tools (`create_file`, `apply_patch`, `remove_file`) refuse to write or delete
+any path inside a `.bond` or `.git` folder (no matter which project is
+currently active), while reading (`read_file`, …) stays allowed. `.bond` is
+managed by you, `.git` by git — not by the agent.

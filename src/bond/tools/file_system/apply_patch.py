@@ -3,10 +3,8 @@ from pathlib import Path
 
 from bond.tools import tool
 from bond.tools.file_system.util import (
-    check_access,
+    check_write_access,
     fuzzy_find_aider_patch_blocks,
-    path_is_in_bond,
-    path_is_in_git,
 )
 from bond.util import resolve_path
 
@@ -55,7 +53,7 @@ def _format_change_snippet(new_text: str, start_line: int, n_changed: int) -> li
     Patch blocks must begin with a filename line.
     All file paths have to be located inside the current working directory.
     Relative paths will be interpreted as relative to the cwd.
-    `.bond` directories are read-only: patching files inside them is not allowed.
+    `.bond` and `.git` directories are read-only: patching files inside them is not allowed.
     Keep the search blocks unique, but skip long prefixes that should remain unchanged.
 
     Example block:
@@ -128,16 +126,9 @@ def apply_patch(context: tool.ToolCallContext, patch: str) -> str:
             results.append(f"Block {idx}: failed, file does not exist.")
             continue
 
-        if path_is_in_git(path):
-            results.append(
-                f"Block {idx}: failed, file is inside .git folder (permission denied)"
-            )
-            continue
-
-        if path_is_in_bond(path):
-            results.append(
-                f"Block {idx}: failed, file is inside a .bond folder (permission denied)"
-            )
+        has_access, why_not = check_write_access(context, path)
+        if not has_access:
+            results.append(f"Block {idx}: failed, {why_not}")
             continue
 
         text = path.read_text()

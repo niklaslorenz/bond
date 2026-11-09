@@ -135,9 +135,9 @@ def check_write_access(context: tool.ToolCallContext, path: Path) -> tuple[bool,
     """Check if a tool may write to a path.
 
     Like :func:`check_access`, but additionally hard-denies any path inside a
-    ``.bond`` directory: those directories are read-only for agent tools
-    (they are managed by the user), no matter which ``.bond`` is currently
-    active. Reading from ``.bond`` stays allowed.
+    ``.bond`` or ``.git`` directory: those directories are read-only for agent
+    tools (``.bond`` is managed by the user, ``.git`` by git), no matter which
+    project is currently active. Reading from them stays allowed.
     """
     has_access, why_not = check_access(context, path)
     if not has_access:
@@ -146,5 +146,10 @@ def check_write_access(context: tool.ToolCallContext, path: Path) -> tuple[bool,
         return (
             False,
             "Permission denied: `.bond` directories are read-only for tools.",
+        )
+    if path_is_in_git(path):
+        return (
+            False,
+            "Permission denied: `.git` directories are read-only for tools.",
         )
     return True, ""

@@ -35,7 +35,12 @@ class TestCheckWriteAccess:
     def test_bond_path_denied(self, tmp_path: Path):
         ok, msg = check_write_access(make_context(tmp_path), tmp_path / ".bond" / "x")
         assert not ok
-        assert "read-only" in msg
+        assert "`.bond`" in msg and "read-only" in msg
+
+    def test_git_path_denied(self, tmp_path: Path):
+        ok, msg = check_write_access(make_context(tmp_path), tmp_path / ".git" / "x")
+        assert not ok
+        assert "`.git`" in msg and "read-only" in msg
 
     def test_normal_path_allowed(self, tmp_path: Path):
         ok, msg = check_write_access(make_context(tmp_path), tmp_path / "normal")
@@ -49,6 +54,13 @@ class TestCreateFile:
         result = create_file(make_context(tmp_path), str(target), "content")
         assert "Permission denied" in result
         assert "read-only" in result
+        assert not target.exists()
+
+    def test_create_in_git_denied(self, tmp_path: Path):
+        target = tmp_path / ".git" / "hooks" / "x"
+        result = create_file(make_context(tmp_path), str(target), "content")
+        assert "Permission denied" in result
+        assert "`.git`" in result and "read-only" in result
         assert not target.exists()
 
     def test_create_normal_file_ok(self, tmp_path: Path):
@@ -72,7 +84,27 @@ class TestApplyPatch:
             ">>>>>>> REPLACE"
         )
         result = apply_patch(make_context(tmp_path, is_interactive=True), patch)
-        assert "inside a .bond folder" in result
+        assert "Block 0: failed" in result
+        assert "Permission denied" in result
+        assert "`.bond`" in result and "read-only" in result
+        assert target.read_text(encoding="utf-8") == "keep\n"
+
+    def test_patch_in_git_denied(self, tmp_path: Path):
+        target = tmp_path / ".git" / "keep.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("keep\n", encoding="utf-8")
+        patch = (
+            ".git/keep.md\n"
+            "<<<<<<< SEARCH\n"
+            "keep\n"
+            "=======\n"
+            "changed\n"
+            ">>>>>>> REPLACE"
+        )
+        result = apply_patch(make_context(tmp_path, is_interactive=True), patch)
+        assert "Block 0: failed" in result
+        assert "Permission denied" in result
+        assert "`.git`" in result and "read-only" in result
         assert target.read_text(encoding="utf-8") == "keep\n"
 
     def test_patch_normal_file_ok(self, tmp_path: Path):

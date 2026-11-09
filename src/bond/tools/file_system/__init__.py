@@ -6,6 +6,7 @@ from .get_cwd import get_cwd
 from .grep import grep
 from .list_directory import list_directory
 from .read_file import read_file
+from .remove_file import remove_file
 from .search import search_file
 
 __all__ = [
@@ -14,6 +15,7 @@ __all__ = [
     "list_directory",
     "get_cwd",
     "apply_patch",
+    "remove_file",
     "search_file",
     "grep",
 ]

@@ -34,6 +34,7 @@ from bond.tools.file_system import (
     grep,
     list_directory,
     read_file,
+    remove_file,
 )
 from bond.tools.file_system.search import search_file
 from bond.tools.local_tools import list_local_scripts, run_local_script
@@ -74,6 +75,7 @@ _default_toolsets: list[Toolset] = [
             create_file,
             read_file,
             apply_patch,
+            remove_file,
             get_cwd,
             search_file,
             grep,
