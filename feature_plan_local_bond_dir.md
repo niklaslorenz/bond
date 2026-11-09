@@ -182,7 +182,7 @@ new cwd.
 - [ ] `src/bond/local.py`: `LOCAL_DIR_NAME`, `find_local_bond_dir()` (closest ancestor wins, no merge)
 - [ ] `src/bond/runtime.py`: `disable_local_config` param on `initialize_dynamic` + `initialize_static`; `get_local_bond_dir()` + `get_local_{skills,scripts,conversations}_path()`; local-first skill merge in `list_skills()` / `get_skill()`
 - [x] `src/bond/tools/local_tools.py`: `list_local_scripts` + `run_local_script` (path validation incl. symlink-escape check, interpreter choice, `shell=False`, timeout, **no confirmation**); registered as `PythonToolset("local", ...)` in `_default_toolsets` in `runtime.py`
-- [ ] `src/bond/tools/file_system/util.py`: `path_is_in_bond()` + `check_write_access()`; wire into `create_file.py` and `apply_patch.py`
+- [x] `src/bond/tools/file_system/util.py`: `path_is_in_bond()` (any `.bond` path component) + `check_write_access()` (normal access check, then hard deny inside `.bond`); wired into `create_file.py` (replaces `check_access`) and `apply_patch.py` (deny block next to the `.git` check); tool descriptions mention `.bond` read-only. Read tools unchanged; trusted paths (lsave/lload, runtime) can still use `.bond/conversations`
 - [ ] `src/bond/tui/command_handler.py`: `lsave` / `local-save` and `lload` / `local-load` commands with no-`.bond` guard + notification
 - [ ] `src/bond/cli/_interactive.py`: `lsave` / `local-save` and `lload` / `local-load` commands with the same guard
 - [ ] Entry points: `--disable-local-config` flag on `talk` / `chat` / `ask`, threaded to `initialize_dynamic`

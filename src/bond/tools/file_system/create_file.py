@@ -2,7 +2,7 @@ import re
 from pathlib import Path
 
 from bond.tools import tool
-from bond.tools.file_system.util import check_access
+from bond.tools.file_system.util import check_write_access
 from bond.util import resolve_path
 
 
@@ -13,6 +13,7 @@ from bond.util import resolve_path
     You are only expected to access files inside the current working directory.
     When creating files outside of the current working directory, the user has to manually grant access.
     Directories that do not exist yet will be created automatically.
+    `.bond` directories are read-only: creating files inside them is not allowed.
     """,
     parameters={
         "file_path": tool.FunctionParameter(
@@ -28,7 +29,7 @@ def create_file(context: tool.ToolCallContext, file_path: str, content: str) -> 
     if context.cwd is None:
         return "Error: Tool access to the filesystem is currently disabled."
     path = resolve_path(context.cwd, Path(file_path))
-    has_access, why_not = check_access(context, path)
+    has_access, why_not = check_write_access(context, path)
     if not has_access:
         return why_not
     if path.exists():

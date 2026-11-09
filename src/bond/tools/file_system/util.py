@@ -101,6 +101,14 @@ def path_is_in_git(path: Path) -> bool:
     return False
 
 
+def path_is_in_bond(path: Path) -> bool:
+    """Check if a path is inside any .bond folder (any path component)."""
+    for x in path.parts:
+        if x == ".bond":
+            return True
+    return False
+
+
 def check_access(context: tool.ToolCallContext, path: Path) -> tuple[bool, str]:
     """Check if we have access to a path."""
     work_dir = context.cwd
@@ -120,4 +128,23 @@ def check_access(context: tool.ToolCallContext, path: Path) -> tuple[bool, str]:
         f"Bond wants to access the contents of {path}, which lies outside of the current working directory.\nDo you want to grant access?"
     ):
         return False, "Permission denied, the user has declined your request."
+    return True, ""
+
+
+def check_write_access(context: tool.ToolCallContext, path: Path) -> tuple[bool, str]:
+    """Check if a tool may write to a path.
+
+    Like :func:`check_access`, but additionally hard-denies any path inside a
+    ``.bond`` directory: those directories are read-only for agent tools
+    (they are managed by the user), no matter which ``.bond`` is currently
+    active. Reading from ``.bond`` stays allowed.
+    """
+    has_access, why_not = check_access(context, path)
+    if not has_access:
+        return has_access, why_not
+    if path_is_in_bond(path):
+        return (
+            False,
+            "Permission denied: `.bond` directories are read-only for tools.",
+        )
     return True, ""
