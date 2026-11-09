@@ -4,6 +4,7 @@ import os
 import shlex
 import subprocess
 from argparse import ArgumentParser, Namespace, _SubParsersAction
+from pathlib import Path
 
 from returns.result import Failure
 from textual.notifications import SeverityLevel
@@ -64,29 +65,46 @@ class TuiCommandHandler:
         logger.debug("Stopping application")
         await self._app.stop(immediate)
 
-    async def _load_conversation_interactive(self):
-        assert self._conversation_base_path is not None
+    async def _load_conversation_interactive(self, base_path: Path):
         async with self._app.action_lock:
-            result = await self._app.select_conversation(self._list_conversations())
+            result = await self._app.select_conversation(
+                self._list_conversations(base_path)
+            )
             logger.debug(f"Selected conversation: {result}")
             if isinstance(result, Failure):
                 return False
             name = result.unwrap()
             if name == None:
                 return True
-            if not Conversation.exists(name, self._conversation_base_path):
+            if not Conversation.exists(name, base_path):
                 self._notify(f"Error: unable to find conversation: {name}")
                 return True
             async with self._app.agent_loop.pause():
                 if self._save_on_quit:
                     self._save_conversation(self._app.current_conversation)
-                conversation = Conversation.load(name, self._conversation_base_path)
-                conversation._data_path = self._conversation_base_path
+                conversation = Conversation.load(name, base_path)
+                conversation._data_path = base_path
                 await self._app.agent_loop.set_conversation(conversation)
                 await self._app.chat_view.sync(self._app.current_conversation)
                 self._app.chat_view.status_bar.set_persona(
                     self._app.agent_loop.persona.name
                 )
+
+    async def _load_conversation_by_name(self, name: str, base_path: Path) -> bool:
+        if not Conversation.exists(name, base_path):
+            self._notify(f"Error: unable to find conversation: {name}")
+            return True
+        async with self._app.agent_loop.pause():
+            if self._save_on_quit:
+                self._save_conversation(self._app.current_conversation)
+            conversation = Conversation.load(name, base_path)
+            conversation._data_path = base_path
+            await self._app.agent_loop.set_conversation(conversation)
+            await self._app.chat_view.sync(self._app.current_conversation)
+            self._app.chat_view.status_bar.set_persona(
+                self._app.agent_loop.persona.name
+            )
+        return True
 
     # Command Callbacks
 
@@ -123,22 +141,52 @@ class TuiCommandHandler:
             logger.debug(
                 "No name provided for load command. Launching interactive load prompt"
             )
-            self._app.schedule(self._load_conversation_interactive())
+            self._app.schedule(
+                self._load_conversation_interactive(self._conversation_base_path)
+            )
             return True
-        if not Conversation.exists(name, self._conversation_base_path):
-            self._notify(f"Error: unable to find conversation: {name}")
+        return await self._load_conversation_by_name(name, self._conversation_base_path)
+
+    async def lsave(self, args: Namespace) -> bool:
+        if not self._app.is_idle:
+            return False
+        local_path = self._runtime.get_local_conversations_path()
+        if local_path is None:
+            self._notify(
+                "Local saving can't be done without a `.bond` directory",
+                severity="warning",
+            )
             return True
         async with self._app.agent_loop.pause():
-            if self._save_on_quit:
-                self._save_conversation(self._app.current_conversation)
-            await self._app.agent_loop.set_conversation(
-                Conversation.load(name, self._conversation_base_path)
-            )
-            await self._app.chat_view.sync(self._app.current_conversation)
-            self._app.chat_view.status_bar.set_persona(
-                self._app.agent_loop.persona.name
-            )
+            conv = self._app.current_conversation
+            if args.name is not None:
+                conv.move_to(args.name, local_path)
+            else:
+                if conv.name is None:
+                    self._notify("Please specify a name for the conversation")
+                    return True
+                conv.save_as(conv.name, local_path)
+        self._notify(f"Saved locally as '{conv.name}' in {local_path}")
         return True
+
+    async def lload(self, args: Namespace) -> bool:
+        if not self._app.is_idle:
+            return False
+        local_path = self._runtime.get_local_conversations_path()
+        if local_path is None:
+            self._notify(
+                "Local loading can't be done without a `.bond` directory",
+                severity="warning",
+            )
+            return True
+        name: str | None = args.name
+        if name is None:
+            logger.debug(
+                "No name provided for lload command. Launching interactive load prompt"
+            )
+            self._app.schedule(self._load_conversation_interactive(local_path))
+            return True
+        return await self._load_conversation_by_name(name, local_path)
 
     async def new(self, args: Namespace) -> bool:
         logger.debug("Creating new conversation")
@@ -310,15 +358,12 @@ class TuiCommandHandler:
             # and only show one-liners as notification
             self._notify(process.stdout)
 
-    def _list_conversations(self) -> list[str]:
-        if (
-            self._conversation_base_path is None
-            or not self._conversation_base_path.exists()
-        ):
+    def _list_conversations(self, base_path: Path) -> list[str]:
+        if not base_path.exists():
             return []
         files = [
             (path.stat().st_mtime, path.name[:-14])
-            for path in self._conversation_base_path.iterdir()
+            for path in base_path.iterdir()
             if path.is_file() and path.name.endswith("_metadata.json")
         ]
         files.sort(key=lambda item: item[0], reverse=True)
@@ -372,6 +417,34 @@ class TuiCommandHandler:
         )
         load_parser.set_defaults(callback=self.load)
         load_parser.add_argument(
+            "name",
+            nargs="?",
+            type=str,
+            help="Name of the conversation to load",
+        )
+
+        lsave_parser = subparsers.add_parser(
+            "lsave",
+            help="Save the conversation into the local .bond directory",
+            aliases=["local-save"],
+            exit_on_error=False,
+        )
+        lsave_parser.set_defaults(callback=self.lsave)
+        lsave_parser.add_argument(
+            "name",
+            nargs="?",
+            type=str,
+            help="The name of the conversation",
+        )
+
+        lload_parser = subparsers.add_parser(
+            "lload",
+            help="Load a conversation from the local .bond directory",
+            aliases=["local-load"],
+            exit_on_error=False,
+        )
+        lload_parser.set_defaults(callback=self.lload)
+        lload_parser.add_argument(
             "name",
             nargs="?",
             type=str,

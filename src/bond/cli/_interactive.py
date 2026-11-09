@@ -66,13 +66,11 @@ class _CommandHandler:
         runtime: BondRuntime,
         loop: AsyncAgentLoop,
         conv_path: Path,
-        conv_name: str,
         show_thoughts: bool,
     ):
         self._runtime = runtime
         self._loop = loop
         self._conv_path = conv_path
-        self._conv_name = conv_name
         self._show_thoughts = show_thoughts
         self.save_on_exit = True
         self.quit = False
@@ -111,9 +109,12 @@ class _CommandHandler:
             conv.move_to(args.name, self._conversations_path)
             self._notify(f"Saved as '{args.name}'")
         else:
+            if conv.name is None:
+                self._notify("Please specify a name for the conversation to save")
+                return
             self._conv_path.mkdir(parents=True, exist_ok=True)
-            conv.save_as(self._conv_name, self._conv_path)
-            self._notify(f"Saved as '{self._conv_name}'")
+            conv.save_as(conv.name, self._conv_path)
+            self._notify(f"Saved as '{conv.name}'")
 
     async def cmd_load(self, args: Namespace):
         name: str | None = args.name
@@ -127,6 +128,39 @@ class _CommandHandler:
         await self._loop.set_conversation(conversation)
         n_turns = sum(len(ep.turns) for ep in conversation.episodes)
         self._notify(f"Loaded '{name}' with {n_turns} turns")
+
+    async def cmd_lsave(self, args: Namespace):
+        local_path = self._runtime.get_local_conversations_path()
+        if local_path is None:
+            self._notify("Local saving can't be done without a `.bond` directory")
+            return
+        conv = self._loop.conversation
+        if args.name is not None:
+            conv.move_to(args.name, local_path)
+            self._notify(f"Saved locally as '{args.name}' in {local_path}")
+        else:
+            if conv.name is None:
+                self._notify("Please specify a name for the conversation to save")
+                return
+            conv.save_as(conv.name, local_path)
+            self._notify(f"Saved locally as '{conv.name}' in {local_path}")
+
+    async def cmd_lload(self, args: Namespace):
+        local_path = self._runtime.get_local_conversations_path()
+        if local_path is None:
+            self._notify("Local loading can't be done without a `.bond` directory")
+            return
+        name: str | None = args.name
+        if not name:
+            self._notify("Please specify a name for the conversation to load")
+            return
+        if not Conversation.exists(name, local_path):
+            self._notify(f"Error: unknown local conversation name: {name}")
+            return
+        conversation = Conversation.load(name, local_path)
+        await self._loop.set_conversation(conversation)
+        n_turns = sum(len(ep.turns) for ep in conversation.episodes)
+        self._notify(f"Loaded local '{name}' with {n_turns} turns")
 
     async def cmd_new(self, args: Namespace):
         persona = args.to or self._loop.conversation.persona
@@ -256,6 +290,28 @@ class _CommandHandler:
             "name", nargs="?", type=str, help="Name of the conversation to load"
         )
 
+        lsave_parser = subparsers.add_parser(
+            "lsave",
+            help="Save the conversation into the local .bond directory",
+            aliases=["local-save"],
+            exit_on_error=False,
+        )
+        lsave_parser.set_defaults(callback=self.cmd_lsave)
+        lsave_parser.add_argument(
+            "name", nargs="?", type=str, help="Name to save the conversation under"
+        )
+
+        lload_parser = subparsers.add_parser(
+            "lload",
+            help="Load a conversation from the local .bond directory",
+            aliases=["local-load"],
+            exit_on_error=False,
+        )
+        lload_parser.set_defaults(callback=self.cmd_lload)
+        lload_parser.add_argument(
+            "name", nargs="?", type=str, help="Name of the local conversation to load"
+        )
+
         new_parser = subparsers.add_parser(
             "new", help="Start a new conversation", exit_on_error=False
         )
@@ -291,7 +347,9 @@ class _CommandHandler:
         sum_parser.set_defaults(callback=self.cmd_summarize)
 
         len_parser = subparsers.add_parser(
-            "length", help="Print the number of turns", aliases=["len"],
+            "length",
+            help="Print the number of turns",
+            aliases=["len"],
             exit_on_error=False,
         )
         len_parser.set_defaults(callback=self.cmd_length)
@@ -420,9 +478,7 @@ async def run_interactive_session(
         stop_on_failure=False,
     )
 
-    command_handler = _CommandHandler(
-        runtime, loop, conv_path, conv_name, show_thoughts
-    )
+    command_handler = _CommandHandler(runtime, loop, conv_path, show_thoughts)
 
     event_handler.start(event_loop)
     try:

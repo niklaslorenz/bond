@@ -174,6 +174,16 @@ check whether that path also needs the fresh cwd). Add a regression test that
 `chdir`s between turns and asserts the context passed to tools reflects the
 new cwd.
 
+## Deviations / changes during implementation
+
+- **CLI `save`/`lsave` no longer fall back to the session's default conv name**:
+  `cmd_save` in `cli/_interactive.py` used to save an unnamed conversation under
+  `self._conv_name` (e.g. "last-conv"). Now, if no `name` argument is given and
+  `conv.name is None`, both `cmd_save` and `cmd_lsave` print "Please specify a
+  name for the conversation to save" and do nothing (matches the TUI `save`
+  behavior). The automatic save-on-exit under `conv_name` in
+  `run_interactive_session` is unchanged. User-reported pre-existing bug.
+
 ## Task list
 
 - [x] `src/bond/local.py`: `LOCAL_DIR_NAME`, `find_local_bond_dir()` (closest ancestor wins, no merge)
@@ -183,8 +193,8 @@ new cwd.
 - [ ] `src/bond/runtime.py`: `disable_local_config` param on `initialize_dynamic` + `initialize_static`; `get_local_bond_dir()` + `get_local_{skills,scripts,conversations}_path()`; local-first skill merge in `list_skills()` / `get_skill()`
 - [x] `src/bond/tools/local_tools.py`: `list_local_scripts` + `run_local_script` (path validation incl. symlink-escape check, interpreter choice, `shell=False`, timeout, **no confirmation**); registered as `PythonToolset("local", ...)` in `_default_toolsets` in `runtime.py`
 - [x] `src/bond/tools/file_system/util.py`: `path_is_in_bond()` (any `.bond` path component) + `check_write_access()` (normal access check, then hard deny inside `.bond`); wired into `create_file.py` (replaces `check_access`) and `apply_patch.py` (deny block next to the `.git` check); tool descriptions mention `.bond` read-only. Read tools unchanged; trusted paths (lsave/lload, runtime) can still use `.bond/conversations`
-- [ ] `src/bond/tui/command_handler.py`: `lsave` / `local-save` and `lload` / `local-load` commands with no-`.bond` guard + notification
-- [ ] `src/bond/cli/_interactive.py`: `lsave` / `local-save` and `lload` / `local-load` commands with the same guard
+- [x] `src/bond/tui/command_handler.py`: `lsave` / `local-save` and `lload` / `local-load` with no-`.bond` guard + warning notification; refactored `_load_conversation_interactive` / `_list_conversations` to take a base path and added `_load_conversation_by_name` helper shared by `load`/`lload`
+- [x] `src/bond/cli/_interactive.py`: `cmd_lsave` / `cmd_lload` (+ parser entries with `local-save` / `local-load` aliases) with the same guard
 - [ ] Entry points: `--disable-local-config` flag on `talk` / `chat` / `ask`, threaded to `initialize_dynamic`
 - [ ] Tests: `test/bond/test_local.py` (discovery closest-wins, disable flag, local skills shadow global); `test/bond/tools/test_local_tools.py` (listing, traversal rejection, real script exec without confirmation, missing `.bond`); file-tool write-protection tests (`create_file` / `apply_patch` into `.bond` denied, reads allowed); `lsave`/`lload` guard tests for TUI + CLI handlers; stale-cwd regression test
 - [ ] Docs: new `docs/local-bond-dir.md` (layout, discovery rule, `disable_local_config`, `lsave`/`lload`, script tools with no-confirmation behavior, write protection, cwd behavior); short pointer in `docs/skills.md` that local skills shadow global ones
