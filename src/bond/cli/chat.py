@@ -17,6 +17,11 @@ def build_parser():
     parser.add_argument("--non-interactive", action="store_true")
     parser.add_argument("--no-stream", action="store_true")
     parser.add_argument("--debug", action="store_true")
+    parser.add_argument(
+        "--disable-local-config",
+        action="store_true",
+        help="Ignore any local .bond directory (skills, scripts, conversations)",
+    )
 
     return parser
 
@@ -44,6 +49,7 @@ def main():
             stream=stream,
             is_interactive=not args.non_interactive,
             save_after_turn=not args.no_save_after_turn,
+            disable_local_config=args.disable_local_config,
         )
     )
 

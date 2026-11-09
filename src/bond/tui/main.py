@@ -31,7 +31,9 @@ async def run(args: Namespace):
     stream = True
 
     runtime = BondRuntime.get_instance()
-    runtime.initialize_dynamic(config_base_path, data_base_path)
+    runtime.initialize_dynamic(
+        config_base_path, data_base_path, disable_local_config=args.disable_local_config
+    )
     config = runtime.get_bond_config()
     logger.debug(
         f"Found last conversation: {Conversation.exists('last-conv', data_base_path)}"
@@ -84,6 +86,11 @@ def main():
     parser.add_argument("--no-save-after-turn", action="store_true")
     parser.add_argument("--to", type=str)
     parser.add_argument("--new", action="store_true")
+    parser.add_argument(
+        "--disable-local-config",
+        action="store_true",
+        help="Ignore any local .bond directory (skills, scripts, conversations)",
+    )
     args = parser.parse_args()
     setup_logger(args.debug, "talk.log")
     asyncio.run(run(args))

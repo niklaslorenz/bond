@@ -47,7 +47,7 @@ async def _run(args: Namespace):
     env_path = Path("~/.config/bond").expanduser().absolute()
     conv_path = Path("~/.local/share/bond").expanduser().absolute()
     runtime = BondRuntime.get_instance()
-    runtime.initialize_dynamic(env_path)
+    runtime.initialize_dynamic(env_path, disable_local_config=args.disable_local_config)
     config = runtime.get_bond_config()
 
     persona_id: str = (
@@ -136,6 +136,11 @@ def main():
     parser.add_argument("--no-stream", action="store_true")
     parser.add_argument("--no-save", action="store_true")
     parser.add_argument("--debug", action="store_true")
+    parser.add_argument(
+        "--disable-local-config",
+        action="store_true",
+        help="Ignore any local .bond directory (skills, scripts, conversations)",
+    )
 
     args = parser.parse_args()
     util.setup_logger(args.debug, "ask.log")

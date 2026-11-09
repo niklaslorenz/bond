@@ -414,6 +414,7 @@ async def run_interactive_session(
     is_interactive: bool,
     save_after_turn: bool,
     user_name: str = "User",
+    disable_local_config: bool = False,
 ) -> None:
     """Run an interactive chat session driven by an :class:`AsyncAgentLoop`.
 
@@ -424,7 +425,7 @@ async def run_interactive_session(
     commands, see :class:`_CommandHandler`.
     """
     runtime = BondRuntime.get_instance()
-    runtime.initialize_dynamic(env_path)
+    runtime.initialize_dynamic(env_path, disable_local_config=disable_local_config)
     config = runtime.get_bond_config()
     frontend_config = config.ask if config_section == "ask" else config.chat
 
