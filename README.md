@@ -86,3 +86,19 @@ Implemented (see [Skills](./docs/skills.md)):
 
 - With max-depth specifier
 - Line numbers capped at hard coded maximum with a notification of how many lines were omitted
+
+## Refinements before release
+
+### Unified File permissions
+
+The current permissions checks are all over the place and every tool is somewhat responsible for handling it correctly on its own.
+
+Plan:
+Make a file permissions package/module that follows an understandable policy with respect to:
+
+- cwd
+- .git
+- local .bond directories
+- managed directories
+
+Require all tools to access files through this module

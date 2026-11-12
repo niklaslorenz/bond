@@ -4,6 +4,7 @@ import difflib
 from pathlib import Path
 
 from bond.tools import tool
+from bond.util import resolve_path as _resolve_against_cwd
 
 
 def normalize(text: str) -> str:
@@ -109,8 +110,37 @@ def path_is_in_bond(path: Path) -> bool:
     return False
 
 
+def resolve_tool_path(
+    context: tool.ToolCallContext, raw_path: str | Path
+) -> Path | None:
+    """Resolve a tool path argument against the persona and the cwd.
+
+    ``bond://<name>/<path>`` URIs are resolved via the persona's managed
+    directories (raises ``ValueError`` for unknown names or escapes) and work
+    even when ``context.cwd is None``. Absolute paths are returned as-is.
+    Relative paths are resolved against ``context.cwd``; when the cwd is
+    ``None`` (filesystem access disabled), ``None`` is returned.
+    """
+    if context.persona is not None:
+        resolved = context.persona.resolve_path(raw_path)
+        if resolved.is_absolute():
+            return resolved
+        raw_path = resolved
+    if context.cwd is None:
+        return None
+    return _resolve_against_cwd(context.cwd, Path(raw_path))
+
+
 def check_access(context: tool.ToolCallContext, path: Path) -> tuple[bool, str]:
-    """Check if we have access to a path."""
+    """Check if we have access to a path.
+
+    Paths inside a persona-managed directory are pre-authorized (no
+    confirmation needed, also when ``context.cwd is None``).
+    """
+    if context.persona is not None and context.persona.managed_directory_for(
+        path
+    ) is not None:
+        return True, ""
     work_dir = context.cwd
     if work_dir is None:
         return (
@@ -137,7 +167,9 @@ def check_write_access(context: tool.ToolCallContext, path: Path) -> tuple[bool,
     Like :func:`check_access`, but additionally hard-denies any path inside a
     ``.bond`` or ``.git`` directory: those directories are read-only for agent
     tools (``.bond`` is managed by the user, ``.git`` by git), no matter which
-    project is currently active. Reading from them stays allowed.
+    project is currently active — including inside persona-managed directories.
+    Writes into a ``read_only`` managed directory are denied as well. Reading
+    from them stays allowed.
     """
     has_access, why_not = check_access(context, path)
     if not has_access:
@@ -152,4 +184,11 @@ def check_write_access(context: tool.ToolCallContext, path: Path) -> tuple[bool,
             False,
             "Permission denied: `.git` directories are read-only for tools.",
         )
+    if context.persona is not None:
+        managed_dir = context.persona.managed_directory_for(path)
+        if managed_dir is not None and managed_dir.read_only:
+            return (
+                False,
+                f"Permission denied: managed directory '{managed_dir.name}' is read-only.",
+            )
     return True, ""

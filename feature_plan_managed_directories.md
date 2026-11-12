@@ -135,7 +135,7 @@ folders the agent can always access via URIs of the form
       name validator), `managed_directories` field on `Persona`,
       `Persona.resolve_path()`, `Persona.managed_directory_for()`, wire
       through `instantiate()`
-- [ ] `tools/file_system/util.py`: add `resolve_tool_path()`; update
+- [x] `tools/file_system/util.py`: add `resolve_tool_path()`; update
       `check_access()` (managed grant) and `check_write_access()`
       (`.bond`/`.git` still denied, read-only managed dirs denied)
 - [ ] Rewire `read_file`, `list_directory`, `create_file`, `remove_file`,
