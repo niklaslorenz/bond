@@ -1,10 +1,8 @@
 """File search tool."""
-
+"""File search tool."""
 import re
-from pathlib import Path
 
 from bond.tools import tool
-from bond.util import resolve_path
 
 from .util import check_access, fuzzy_contains
 
@@ -58,10 +56,12 @@ def search_file(
     show_line_numbers: bool = True,
     context_lines: int = 0,
 ) -> str:
-    if context.cwd is None:
+    try:
+        path = context.resolve_path(file_path)
+    except ValueError as e:
+        return f"Error: {e}"
+    if path is None:
         return "Error: Tool access to the filesystem is currently disabled."
-
-    path = resolve_path(context.cwd, Path(file_path))
     has_access, why_not = check_access(context, path)
     if not has_access:
         return why_not

@@ -1,8 +1,5 @@
-from pathlib import Path
-
 from bond.tools import tool
 from bond.tools.file_system.util import check_access
-from bond.util import resolve_path
 
 
 def _process_file_content(
@@ -83,9 +80,12 @@ def read_file(
     end_line: int | None = None,
     show_line_numbers: bool = True,
 ) -> str:
-    if context.cwd is None:
+    try:
+        path = context.resolve_path(file_path)
+    except ValueError as e:
+        return f"Error: {e}"
+    if path is None:
         return "Error: Tool access to the file system is currently disabled."
-    path = resolve_path(context.cwd, Path(file_path))
     has_access, why_not = check_access(context, path)
     if not has_access:
         return why_not

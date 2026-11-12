@@ -4,7 +4,6 @@ import difflib
 from pathlib import Path
 
 from bond.tools import tool
-from bond.util import resolve_path as _resolve_against_cwd
 
 
 def normalize(text: str) -> str:
@@ -108,27 +107,6 @@ def path_is_in_bond(path: Path) -> bool:
         if x == ".bond":
             return True
     return False
-
-
-def resolve_tool_path(
-    context: tool.ToolCallContext, raw_path: str | Path
-) -> Path | None:
-    """Resolve a tool path argument against the persona and the cwd.
-
-    ``bond://<name>/<path>`` URIs are resolved via the persona's managed
-    directories (raises ``ValueError`` for unknown names or escapes) and work
-    even when ``context.cwd is None``. Absolute paths are returned as-is.
-    Relative paths are resolved against ``context.cwd``; when the cwd is
-    ``None`` (filesystem access disabled), ``None`` is returned.
-    """
-    if context.persona is not None:
-        resolved = context.persona.resolve_path(raw_path)
-        if resolved.is_absolute():
-            return resolved
-        raw_path = resolved
-    if context.cwd is None:
-        return None
-    return _resolve_against_cwd(context.cwd, Path(raw_path))
 
 
 def check_access(context: tool.ToolCallContext, path: Path) -> tuple[bool, str]:

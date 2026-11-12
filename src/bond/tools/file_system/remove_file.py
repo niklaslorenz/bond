@@ -1,8 +1,5 @@
-from pathlib import Path
-
 from bond.tools import tool
 from bond.tools.file_system.util import check_write_access
-from bond.util import resolve_path
 
 
 @tool.tool(
@@ -25,9 +22,12 @@ from bond.util import resolve_path
     required=["file_path"],
 )
 def remove_file(context: tool.ToolCallContext, file_path: str) -> str:
-    if context.cwd is None:
+    try:
+        path = context.resolve_path(file_path)
+    except ValueError as e:
+        return f"Error: {e}"
+    if path is None:
         return "Error: Tool access to the filesystem is currently disabled."
-    path = resolve_path(context.cwd, Path(file_path))
     has_access, why_not = check_write_access(context, path)
     if not has_access:
         return why_not
@@ -36,8 +36,11 @@ def remove_file(context: tool.ToolCallContext, file_path: str) -> str:
     if path.is_dir():
         return "error: path is a directory, only files can be removed"
 
-    git_dir = context.cwd / ".git"
-    skip_confirmation = git_dir.exists() and git_dir.is_dir()
+    skip_confirmation = (
+        context.cwd is not None
+        and (context.cwd / ".git").exists()
+        and (context.cwd / ".git").is_dir()
+    )
     if not skip_confirmation and not context.ask_confirmation(
         f"Bond wants to remove the file {path}.\nRemove file?"
     ):

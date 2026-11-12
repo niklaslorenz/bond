@@ -1,8 +1,5 @@
-from pathlib import Path
-
 from bond.tools import tool
 from bond.tools.file_system.util import check_access
-from bond.util import resolve_path
 
 
 @tool.tool(
@@ -26,9 +23,12 @@ from bond.util import resolve_path
     required=["dir_path"],
 )
 def list_directory(context: tool.ToolCallContext, dir_path: str) -> str:
-    if context.cwd is None:
+    try:
+        path = context.resolve_path(dir_path)
+    except ValueError as e:
+        return f"Error: {e}"
+    if path is None:
         return "Error: Tool access to the filesystem is currently disabled."
-    path = resolve_path(context.cwd, Path(dir_path))
     has_access, why_not = check_access(context, path)
     if not has_access:
         return why_not

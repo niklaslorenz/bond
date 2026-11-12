@@ -79,12 +79,13 @@ folders the agent can always access via URIs of the form
 4. **`Persona.managed_directory_for(path) -> ManagedDirectory | None`** —
    returns the managed directory whose normalized root lexically contains
    the given path (used by access checks).
-5. **`resolve_tool_path(context, raw_path) -> Path | None`** in
-   `tools/file_system/util.py` — if a persona is present, call
-   `persona.resolve_path(raw_path)` (catch `ValueError` at call sites);
-   if the result is absolute, use it; else join with `context.cwd`
-   (via existing `bond.util.resolve_path`). Returns `None` when the path is
-   relative and `cwd is None` (filesystem disabled, current behavior).
+5. **`ToolCallContext.resolve_path(raw_path) -> Path | None`** in
+   `tools/tool.py` (moved there because non-file-system tools will use it
+   too) — if a persona is present, call `persona.resolve_path(raw_path)`
+   (catch `ValueError` at call sites); if the result is absolute, use it;
+   else join with `context.cwd` (via existing `bond.util.resolve_path`).
+   Returns `None` when the path is relative and `cwd is None` (filesystem
+   disabled, current behavior).
 6. **Access checks in `tools/file_system/util.py`**:
    - `check_access`: if `context.persona.managed_directory_for(path)`
      matches → `(True, "")` before the cwd logic.
@@ -135,13 +136,14 @@ folders the agent can always access via URIs of the form
       name validator), `managed_directories` field on `Persona`,
       `Persona.resolve_path()`, `Persona.managed_directory_for()`, wire
       through `instantiate()`
-- [x] `tools/file_system/util.py`: add `resolve_tool_path()`; update
-      `check_access()` (managed grant) and `check_write_access()`
+- [x] `tools/tool.py`: `ToolCallContext.resolve_path()` (persona URI resolution
+      + cwd fallback, `None` when cwd is `None`); `tools/file_system/util.py`:
+      update `check_access()` (managed grant) and `check_write_access()`
       (`.bond`/`.git` still denied, read-only managed dirs denied)
-- [ ] Rewire `read_file`, `list_directory`, `create_file`, `remove_file`,
-      `apply_patch`, `search_file`, `grep` to `resolve_tool_path()`
+- [x] Rewire `read_file`, `list_directory`, `create_file`, `remove_file`,
+      `apply_patch`, `search_file`, `grep` to `context.resolve_path()`
       (incl. `cwd=None` tolerance in `apply_patch`'s skip-confirmation)
-- [ ] Rewire `pdf_tools._resolve_pdf_path()` to `resolve_tool_path()`
+- [x] Rewire `pdf_tools._resolve_pdf_path()` to `context.resolve_path()`
 - [ ] `default_system_message_builder.py`: `include_managed_directories`
       flag, `_get_persona_config()` refactor,
       `_render_managed_directories_section()` (omitted when empty)

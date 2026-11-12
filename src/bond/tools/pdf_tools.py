@@ -10,7 +10,6 @@ from typing import Any
 
 from bond.tools import tool
 from bond.tools.file_system.util import check_access
-from bond.util import resolve_path
 
 _PYPDF_MISSING = (
     "Error: the 'pypdf' package is required for PDF tools but is not installed. "
@@ -32,13 +31,16 @@ def _import_pypdf() -> Any:
 def _resolve_pdf_path(
     context: tool.ToolCallContext, file_path: str
 ) -> tuple[Path | None, str]:
-    """Resolve ``file_path`` against the cwd and check access.
+    """Resolve ``file_path`` (incl. ``bond://`` URIs) and check access.
 
     Returns ``(path, "")`` on success or ``(None, error_message)``.
     """
-    if context.cwd is None:
+    try:
+        path = context.resolve_path(file_path)
+    except ValueError as e:
+        return None, f"Error: {e}"
+    if path is None:
         return None, "Error: Tool access to the file system is currently disabled."
-    path = resolve_path(context.cwd, Path(file_path))
     has_access, why_not = check_access(context, path)
     if not has_access:
         return None, why_not

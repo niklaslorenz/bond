@@ -1,12 +1,10 @@
 import re
-from pathlib import Path
 
 from bond.tools import tool
 from bond.tools.file_system.util import (
     check_write_access,
     fuzzy_find_aider_patch_blocks,
 )
-from bond.util import resolve_path
 
 _BLOCK_RE = re.compile(
     r"(?:(?P<file>[^\n]+)\n)?<<<<<<< SEARCH\n(?P<search>.*?)\n=======\n(?P<replace>.*?)\n>>>>>>> REPLACE",
@@ -86,11 +84,11 @@ def _format_change_snippet(new_text: str, start_line: int, n_changed: int) -> li
     required=["patch"],
 )
 def apply_patch(context: tool.ToolCallContext, patch: str) -> str:
-    if context.cwd is None:
-        return "error: file modification is not available at the moment"
-
-    git_dir = context.cwd / ".git"
-    skip_confirmation = git_dir.exists() and git_dir.is_dir()
+    skip_confirmation = (
+        context.cwd is not None
+        and (context.cwd / ".git").exists()
+        and (context.cwd / ".git").is_dir()
+    )
 
     if not skip_confirmation and not context.ask_confirmation(
         f"Bond wants to apply the following changes:\n\n{patch}\nMake changes?"
@@ -121,7 +119,16 @@ def apply_patch(context: tool.ToolCallContext, patch: str) -> str:
             results.append(f"Block {idx}: failed, no file specified.")
             continue
 
-        path = resolve_path(context.cwd, Path(file))
+        try:
+            path = context.resolve_path(file)
+        except ValueError as e:
+            results.append(f"Block {idx}: failed, {e}")
+            continue
+        if path is None:
+            results.append(
+                f"Block {idx}: failed, tool access to the filesystem is currently disabled."
+            )
+            continue
         if not path.exists():
             results.append(f"Block {idx}: failed, file does not exist.")
             continue

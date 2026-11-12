@@ -17,6 +17,8 @@ from typing import (
 
 from pydantic import BaseModel
 
+from bond.util import resolve_path as _resolve_against_cwd
+
 from . import logger
 
 if TYPE_CHECKING:
@@ -110,6 +112,24 @@ class ToolCallContext:
         if self.confirmation_prompt is None:
             return False
         return self.confirmation_prompt(prompt)
+
+    def resolve_path(self, raw_path: str | Path) -> Path | None:
+        """Resolve a tool path argument against the persona and the cwd.
+
+        ``bond://<name>/<path>`` URIs are resolved via the persona's managed
+        directories (raises ``ValueError`` for unknown names or escapes) and
+        work even when ``cwd is None``. Absolute paths are returned as-is.
+        Relative paths are resolved against ``cwd``; when the cwd is ``None``
+        (filesystem access disabled), ``None`` is returned.
+        """
+        if self.persona is not None:
+            resolved = self.persona.resolve_path(raw_path)
+            if resolved.is_absolute():
+                return resolved
+            raw_path = resolved
+        if self.cwd is None:
+            return None
+        return _resolve_against_cwd(self.cwd, Path(raw_path))
 
     def _terminal_confirmation(self, prompt: str) -> bool:
         if not self.is_interactive:

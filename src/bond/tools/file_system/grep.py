@@ -7,7 +7,6 @@ from pathlib import Path
 
 from bond.tools import tool
 from bond.tools.file_system.util import check_access
-from bond.util import resolve_path
 
 
 def _build_grep_command(
@@ -117,10 +116,12 @@ def grep(
     context_lines: int = 0,
     show_line_numbers: bool = True,
 ) -> str:
-    if context.cwd is None:
+    try:
+        search_path = context.resolve_path(path)
+    except ValueError as e:
+        return f"Error: {e}"
+    if search_path is None:
         return "Error: Tool access to the filesystem is currently disabled."
-
-    search_path = resolve_path(context.cwd, Path(path))
     has_access, why_not = check_access(context, search_path)
     if not has_access:
         return why_not
@@ -190,7 +191,7 @@ def grep(
                 cmd,
                 capture_output=True,
                 text=True,
-                cwd=str(context.cwd),
+                cwd=str(context.cwd) if context.cwd is not None else None,
             )
 
             if result.returncode == 0:
