@@ -825,3 +825,100 @@ class TestRenderSystemMessageActiveAvailabilityInvariant:
         ac_idx = text.index("<active-skills>")
         pc_idx = text.index("<previous-context>")
         assert ws_idx < tl_idx < av_idx < ac_idx < pc_idx
+
+
+# ---------------------------------------------------------------------------
+# DefaultSystemMessageBuilder - managed directories
+# ---------------------------------------------------------------------------
+
+
+def make_persona_config_with_dirs() -> PersonaConfig:
+    return PersonaConfig(
+        name="p",
+        generation={},
+        managed_directories=[
+            {"name": "sandbox", "path": "/tmp/sandbox"},
+            {"name": "archive", "path": "/tmp/archive", "read_only": True},
+        ],
+    )
+
+
+class TestRenderSystemMessageManagedDirectories:
+    def test_include_managed_directories_defaults_false(self):
+        builder = DefaultSystemMessageBuilder()
+        assert builder._include_managed_directories is False
+
+    def test_section_rendered_with_dirs_and_flag_on(self):
+        runtime = make_mock_runtime(persona_config=make_persona_config_with_dirs())
+        builder = DefaultSystemMessageBuilder(
+            include_managed_directories=True, runtime=runtime
+        )
+        conv = Conversation(persona="p")
+
+        result = builder.render_system_message(conv, "prompt")
+
+        text = result.content[0].text
+        assert "prompt" in text
+        assert "<managed-directories>" in text
+        assert "- sandbox -> /tmp/sandbox (read-write)" in text
+        assert "- archive -> /tmp/archive (read-only)" in text
+        assert "</managed-directories>" in text
+
+    def test_omitted_when_flag_off_even_with_dirs(self):
+        runtime = make_mock_runtime(persona_config=make_persona_config_with_dirs())
+        builder = DefaultSystemMessageBuilder(
+            include_managed_directories=False, runtime=runtime
+        )
+        conv = Conversation(persona="p")
+
+        result = builder.render_system_message(conv, "prompt")
+
+        assert "<managed-directories>" not in result.content[0].text
+
+    def test_omitted_when_no_dirs_even_with_flag_on(self):
+        runtime = make_mock_runtime(
+            persona_config=PersonaConfig(name="p", generation={})
+        )
+        builder = DefaultSystemMessageBuilder(
+            include_managed_directories=True, runtime=runtime
+        )
+        conv = Conversation(persona="p")
+
+        result = builder.render_system_message(conv, "prompt")
+
+        assert "<managed-directories>" not in result.content[0].text
+
+    def test_omitted_without_persona_on_conversation(self):
+        runtime = make_mock_runtime(persona_config=make_persona_config_with_dirs())
+        builder = DefaultSystemMessageBuilder(
+            include_managed_directories=True, runtime=runtime
+        )
+        conv = Conversation()  # persona is None
+
+        result = builder.render_system_message(conv, "prompt")
+
+        assert "<managed-directories>" not in result.content[0].text
+        runtime.get_persona.assert_not_called()
+
+    def test_persona_resolution_failure_omits_section(self):
+        runtime = make_mock_runtime(persona_failure="no such persona")
+        builder = DefaultSystemMessageBuilder(
+            include_managed_directories=True, runtime=runtime
+        )
+        conv = Conversation(persona="missing")
+
+        result = builder.render_system_message(conv, "prompt")
+
+        assert "<managed-directories>" not in result.content[0].text
+
+    def test_section_without_prompt(self):
+        runtime = make_mock_runtime(persona_config=make_persona_config_with_dirs())
+        builder = DefaultSystemMessageBuilder(
+            include_managed_directories=True, runtime=runtime
+        )
+        conv = Conversation(persona="p")
+
+        result = builder.render_system_message(conv, None)
+
+        assert result is not None
+        assert "<managed-directories>" in result.content[0].text

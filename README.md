@@ -18,6 +18,9 @@ and cannot do. For every persona, you can define:
 - The system prompt
 - The tools available to the agent
 - The summarization behaviour
+- Managed directories (`managed_directories`): always-accessible folders addressed
+  via `bond://<name>/<path>` URIs, optionally read-only — see
+  [Managed Directories](./docs/personas/managed-directories.md)
 
 ## Providers
 

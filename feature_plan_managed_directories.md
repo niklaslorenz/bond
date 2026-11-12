@@ -154,17 +154,23 @@ folders the agent can always access via URIs of the form
       `mistral.py` and `ollama.py`
 - [x] `managed-directories.md` prompt snippet at project root (URI scheme,
       tool list, read-only + `.bond`/`.git` rules, symlink/escape behavior)
-- [ ] Tests: new `test/bond/test_persona_managed_directories.py`
+- [x] Tests: `test/bond/test_persona_managed_directories.py`
       (resolve_path mapping/passthrough/unknown-name/escape/symlink root,
       read_only parsing, config validation, `managed_directory_for`);
-      new `test/bond/tools/test_managed_dir_tools.py` (read via `bond://` with
-      `cwd=None`, write denied in read-only dir, `.bond` inside managed dir
-      still write-protected, escape and unknown-name error strings, grep,
-      apply_patch block); extend
+      `test/bond/tools/test_managed_dir_tools.py` (resolve_path on context,
+      read/list/search/grep via `bond://` with `cwd=None`, write denied in
+      read-only dir, `.bond` inside managed dir still write-protected, escape
+      and unknown-name error strings, apply_patch block via URI incl.
+      read-only denial); extended
       `test_default_system_message_builder.py` (flag default off, section
-      present with dirs + flag on, omitted when no dirs, omitted when flag
-      off, read-only marker)
-- [ ] Run full suite: `.bond/scripts/run-tests.sh`
-- [ ] Docs: bullet in `README.md` personas section + short
+      present with dirs + flag on, omitted when no dirs / flag off / no
+      persona / persona failure, read-only marker)
+- [x] Run full suite: `.bond/scripts/run-tests.sh` — 943 passed, 1 failed;
+      the failure (`test/bond/behaviours/test_cwd_refresh.py::
+      test_cwd_refreshed_before_each_turn`) is pre-existing and unrelated:
+      it expects `AsyncAgentLoop` to refresh `ToolCallContext.cwd` before each
+      turn, but no such code exists in `src/bond/behaviours/` on this branch
+      (untouched by this feature)
+- [x] Docs: bullet in `README.md` personas section +
       `docs/personas/managed-directories.md` (config example, URI syntax,
-      read-only semantics, symlink/escape behavior)
+      read-only semantics, symlink/escape behavior, system-prompt wiring)
