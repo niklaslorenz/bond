@@ -92,7 +92,10 @@ class Ollama:
             self.chat_completions(),
             10,
             DefaultSystemMessageBuilder(
-                include_prefix_summary=True, include_skills=True, runtime=runtime
+                include_prefix_summary=True,
+                include_skills=True,
+                include_managed_directories=True,
+                runtime=runtime,
             ),
             DefaultMessageListBuilder(),
         )

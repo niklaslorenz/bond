@@ -22,6 +22,7 @@ class DefaultSystemMessageBuilder(SystemMessageBuilder):
     - Working Set
     - Task List
     - Available / Active Skills
+    - Managed Directories
     """
 
     def __init__(
@@ -31,12 +32,14 @@ class DefaultSystemMessageBuilder(SystemMessageBuilder):
         include_working_set: bool = False,
         include_task_list: bool = False,
         include_skills: bool = False,
+        include_managed_directories: bool = False,
         runtime: "BondRuntime | None" = None,
     ):
         self._include_prefix_summary = include_prefix_summary
         self._include_working_set = include_working_set
         self._include_task_list = include_task_list
         self._include_skills = include_skills
+        self._include_managed_directories = include_managed_directories
         self._runtime = runtime
 
     def render_system_message(
@@ -76,8 +79,17 @@ class DefaultSystemMessageBuilder(SystemMessageBuilder):
                 "</task-list>"
             )
 
-        if self._include_skills:
-            context_sections.extend(self._render_skills_sections(conversation))
+        if self._include_skills or self._include_managed_directories:
+            runtime = self._get_runtime()
+            persona_config = self._get_persona_config(conversation, runtime)
+            if self._include_skills:
+                context_sections.extend(
+                    self._render_skills_sections(conversation, persona_config, runtime)
+                )
+            if self._include_managed_directories:
+                context_sections.extend(
+                    self._render_managed_directories_section(persona_config)
+                )
 
         if self._include_prefix_summary and episode.prefix_summary is not None:
             context_sections.append(
@@ -103,32 +115,42 @@ class DefaultSystemMessageBuilder(SystemMessageBuilder):
         )
         return system_prompt
 
-    def _render_skills_sections(self, conversation: Conversation) -> list[str]:
+    def _get_runtime(self) -> "BondRuntime":
+        """Return the configured runtime, falling back to the singleton."""
+        if self._runtime is not None:
+            return self._runtime
+        # Function-local import: bond.runtime imports provider modules
+        # (incl. this one) for the builtin builders, so a module-level
+        # import would be circular.
+        from bond.runtime import BondRuntime
+
+        return BondRuntime.get_instance()
+
+    def _get_persona_config(
+        self, conversation: Conversation, runtime: "BondRuntime"
+    ) -> "PersonaConfig | None":
+        """Resolve the conversation's persona config via the runtime, if any."""
+        if conversation.persona is None:
+            return None
+        result = runtime.get_persona(conversation.persona)
+        if isinstance(result, Success):
+            return result.unwrap()
+        logger.warning(
+            f"Could not resolve persona '{conversation.persona}': {result.failure()}"
+        )
+        return None
+
+    def _render_skills_sections(
+        self,
+        conversation: Conversation,
+        persona_config: "PersonaConfig | None",
+        runtime: "BondRuntime",
+    ) -> list[str]:
         """Render the <available-skills> and <active-skills> sections.
 
         Unknown skill names (not loadable via the runtime) are skipped with a
         warning instead of crashing the render.
         """
-        runtime = self._runtime
-        if runtime is None:
-            # Function-local import: bond.runtime imports provider modules
-            # (incl. this one) for the builtin builders, so a module-level
-            # import would be circular.
-            from bond.runtime import BondRuntime
-
-            runtime = BondRuntime.get_instance()
-
-        persona_config: PersonaConfig | None = None
-        if conversation.persona is not None:
-            result = runtime.get_persona(conversation.persona)
-            if isinstance(result, Success):
-                persona_config = result.unwrap()
-            else:
-                logger.warning(
-                    f"Could not resolve persona '{conversation.persona}' for "
-                    f"skill sections: {result.failure()}"
-                )
-
         sections: list[str] = []
 
         available = effective_available_skills(conversation, persona_config)
@@ -181,3 +203,29 @@ class DefaultSystemMessageBuilder(SystemMessageBuilder):
                 )
 
         return sections
+
+    def _render_managed_directories_section(
+        self, persona_config: "PersonaConfig | None"
+    ) -> list[str]:
+        """Render the <managed-directories> section, if any exist.
+
+        Lists name, real path and read-only flag of each managed directory.
+        Returns an empty list when the persona defines none (or no persona is
+        resolvable), so the section is omitted entirely in that case.
+        """
+        if persona_config is None or not persona_config.managed_directories:
+            return []
+        lines = [
+            f"- {md.name} -> {md.path}"
+            + (" (read-only)" if md.read_only else " (read-write)")
+            for md in persona_config.managed_directories
+        ]
+        return [
+            "<managed-directories>\n"
+            "<reliability>trusted</reliability>\n"
+            "<source>user configuration</source>\n"
+            "<content>\n"
+            + "\n".join(lines)
+            + "\n</content>\n"
+            "</managed-directories>"
+        ]

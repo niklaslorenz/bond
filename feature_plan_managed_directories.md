@@ -144,11 +144,16 @@ folders the agent can always access via URIs of the form
       `apply_patch`, `search_file`, `grep` to `context.resolve_path()`
       (incl. `cwd=None` tolerance in `apply_patch`'s skip-confirmation)
 - [x] Rewire `pdf_tools._resolve_pdf_path()` to `context.resolve_path()`
-- [ ] `default_system_message_builder.py`: `include_managed_directories`
+- [x] `default_system_message_builder.py`: `include_managed_directories`
       flag, `_get_persona_config()` refactor,
-      `_render_managed_directories_section()` (omitted when empty)
-- [ ] Enable `include_managed_directories=True` in the generation builders of
+      `_render_managed_directories_section()` (omitted when empty; lists only
+      name/path/read-only — usage explanation lives in the
+      `managed-directories.md` prompt snippet, included manually via the
+      persona system prompt)
+- [x] Enable `include_managed_directories=True` in the generation builders of
       `mistral.py` and `ollama.py`
+- [x] `managed-directories.md` prompt snippet at project root (URI scheme,
+      tool list, read-only + `.bond`/`.git` rules, symlink/escape behavior)
 - [ ] Tests: new `test/bond/test_persona_managed_directories.py`
       (resolve_path mapping/passthrough/unknown-name/escape/symlink root,
       read_only parsing, config validation, `managed_directory_for`);
