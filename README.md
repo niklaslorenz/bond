@@ -47,16 +47,6 @@ scripts, and conversations) — see
 
 ## TODOs
 
-- **Rethink `AsyncAgentLoop` state ownership.** The loop currently holds
-  `_persona`, `_persona_toolbox`, `_conversation`, ... and rebuilds them via
-  `_build_turn()` whenever the persona/conversation changes (`set_persona`,
-  `set_conversation`). This pattern hits its limits: every new piece of state
-  has to be explicitly threaded through `_build_turn`, and the loop mutates the
-  conversation (e.g. pruning `active_skills`) instead of deriving state from
-  it. Better: work like the skill toolsets — before every turn, reconcile the
-  held objects against `self._conversation` (e.g. `_check_skill_toolsets()`)
-  instead of pushing changes into the conversation through the loop.
-
 ## Future Features
 
 - `requirements.txt` per skill for dependency installation

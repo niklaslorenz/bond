@@ -33,10 +33,10 @@ from bond.conversation.types import (
 from bond.observable import Observable
 from bond.persona import Persona
 from bond.runtime import BondRuntime
-from bond.skill import effective_available_skills, prune_active_skills
+from bond.skill import effective_available_skills
 from bond.tools.shell_tools import allow_shell_commands
 from bond.tools.tool import ToolCallContext
-from bond.tools.toolbox import Toolbox, Toolset
+from bond.tools.toolbox import Toolbox
 
 logger = logging.getLogger(__name__)
 
@@ -59,16 +59,16 @@ class AsyncAgentLoop:
     ):
         self._runtime = runtime
         self._conversation = conversation
-        self._tool_call_context = tool_call_context
         self._event_queue = event_queue
         self._event_loop = event_loop
         self._default_persona_id = default_persona_id
         self._save_after_turn = save_after_turn
         self._stop_on_failure = stop_on_failure
+        self._stream = stream
+        self._allow_shell_executions = allow_shell_executions
 
+        # Loop Run State
         self._signal_buffer = AsyncLoopSignalBuffer()
-        self._skill_toolbox = Toolbox([])
-        self._loaded_skill_toolsets: dict[str, set[str]] = {}
         self._task: asyncio.Task | None = None
         self._stopped_event = asyncio.Event()
         self._pause_owner: asyncio.Task | None = None
@@ -76,10 +76,16 @@ class AsyncAgentLoop:
         self._pause_depth = 0
         self._loop_status: Observable[LoopStatus] = Observable("Stopped")
 
-        self._stream = stream
-        self._allow_shell_executions = allow_shell_executions
-
-        self._agent_turn, self._persona, self._persona_toolbox = self._build_turn()
+        # Derived state, (re)built by _reconcile_state() from self._conversation
+        self._persona_id: str | None = None
+        self._persona: Persona | None = None
+        self._persona_toolbox: Toolbox | None = None
+        self._tool_call_context: ToolCallContext = tool_call_context
+        self._loaded_skill_toolsets: dict[str, set[str]] = {}
+        self._skill_toolbox = Toolbox([])
+        self._agent_turn: AsyncAgentTurn | None = None
+        self._in_turn = False
+        self._reconcile_state()
 
     @property
     def is_running(self) -> bool:
@@ -91,18 +97,19 @@ class AsyncAgentLoop:
 
     @property
     def persona(self) -> Persona:
+        assert self._persona is not None
         return self._persona
 
     async def set_persona(self, persona_id: str):
         async with self.pause():
             self._conversation.persona = persona_id
-            self._agent_turn, self._persona, self._persona_toolbox = self._build_turn()
+            self._reconcile_state()
             self._signal_buffer._clear()
 
     async def set_conversation(self, conversation: Conversation):
         async with self.pause():
             self._conversation = conversation
-            self._agent_turn, self._persona, self._persona_toolbox = self._build_turn()
+            self._reconcile_state()
             self._signal_buffer._clear()
 
     @property
@@ -177,8 +184,11 @@ class AsyncAgentLoop:
         self._signal_buffer.interrupt()
 
     def release(self):
-        self._persona_toolbox.release()
         self._skill_toolbox.release()
+        if self._persona_toolbox is not None:
+            self._persona_toolbox.release()
+        if self.persona is not None:
+            self.persona.release()
 
     async def _run(self):
         try:
@@ -205,11 +215,8 @@ class AsyncAgentLoop:
                         AsyncTurnMessageInsertedEvent(message=signal.user_message)
                     )
 
-                self._check_skill_toolsets()
-                # Keep the cwd handed to tools fresh: `:cd` (and any other
-                # chdir) changes the process cwd, but the ToolCallContext
-                # captured it once at creation time.
-                self._tool_call_context.cwd = Path(os.getcwd())
+                self._reconcile_state()
+                assert self._agent_turn is not None
                 turn = await self._agent_turn.run(
                     self.conversation, signal, self._get_available_tools()
                 )
@@ -238,6 +245,7 @@ class AsyncAgentLoop:
 
     async def summarize(self) -> Result[int, str] | None:
         async with self.pause():
+            assert self._agent_turn is not None
             return await self._agent_turn.summarize(self.conversation, True)
 
     def _on_turn_status_update(self, status: TurnStatus):
@@ -247,55 +255,68 @@ class AsyncAgentLoop:
             self._loop_status.value = status
         pass
 
-    def _build_turn(self) -> tuple[AsyncAgentTurn, Persona, Toolbox]:
-        if self.is_running and not self._is_paused:
-            raise RuntimeError("Cannot rebuild turn while busy")
-        persona_id = self._conversation.persona or self._default_persona_id
-        persona_config = self._runtime.get_persona(persona_id)
-        if isinstance(persona_config, Failure):
-            self._event_queue.put_nowait(AsyncTurnErrorEvent(persona_config.failure()))
-            raise RuntimeError(f"Invalid persona config: {persona_config.failure()}")
-        persona_config = persona_config.unwrap()
-        persona = persona_config.instantiate()
-        persona_toolbox = persona.build_toolbox()
+    def _reconcile_state(self):
+        """Derive all loop-held state from ``self._conversation``.
 
-        # TODO: this is just a dirty hack, there has to be a better solution
-        self._tool_call_context.persona = persona
-        self._tool_call_context.conversation = self.conversation
+        Called in ``__init__``, at the top of every ``_run()`` iteration
+        (strictly between turns) and by ``set_persona``/``set_conversation``
+        while paused. Rebuilds the persona/toolbox/turn only when the derived
+        persona id changed, and reconciles skill toolsets against the
+        conversation's active skills. The only conversation field this writes
+        is ``persona`` (write-back of the default, so a saved conversation
+        resumes with the correct persona); ``active_skills`` is treated as
+        read-only and merely intersected with the effective available skills.
+        """
 
-        if hasattr(self, "_agent_turn"):
-            getattr(self, "_agent_turn").turn_status.unsubscribe(
-                self._on_turn_status_update
+        conversation = self._conversation
+        persona_id = conversation.persona or self._default_persona_id
+        if conversation.persona is None:
+            conversation.persona = persona_id
+
+        if persona_id != self._persona_id:
+            persona_config = self._runtime.get_persona(persona_id)
+            if isinstance(persona_config, Failure):
+                self._event_queue.put_nowait(
+                    AsyncTurnErrorEvent(persona_config.failure())
+                )
+                raise RuntimeError(
+                    f"Invalid persona config: {persona_config.failure()}"
+                )
+            persona = persona_config.unwrap().instantiate()
+            persona_toolbox = persona.build_toolbox()
+
+            if self._agent_turn is not None:
+                self._agent_turn.turn_status.unsubscribe(self._on_turn_status_update)
+            if self._persona is not None:
+                self._persona.release()
+            if self._persona_toolbox is not None:
+                self._persona_toolbox.release()
+
+            turn = AsyncAgentTurn(
+                persona,
+                self._tool_call_context,
+                self._event_queue,
+                self._stream,
+                self._allow_shell_executions,
+                self._runtime,
+                self._event_loop,
             )
+            turn.turn_status.subscribe(self._on_turn_status_update)
 
-        if hasattr(self, "_persona"):
-            getattr(self, "_persona").release()
+            self._persona_id = persona_id
+            self._persona = persona
+            self._persona_toolbox = persona_toolbox
+            self._agent_turn = turn
 
-        if hasattr(self, "_persona_toolbox"):
-            getattr(self, "_persona_toolbox").release()
+        self._tool_call_context.persona = self._persona
+        self._tool_call_context.conversation = self._conversation
 
-        effective_available = effective_available_skills(self.conversation, persona)
-        self.conversation.active_skills = prune_active_skills(
-            self.conversation, effective_available
-        )
-
-        turn = AsyncAgentTurn(
-            persona,
-            self._tool_call_context,
-            self._event_queue,
-            self._stream,
-            self._allow_shell_executions,
-            self._runtime,
-            self._event_loop,
-        )
-        turn.turn_status.subscribe(self._on_turn_status_update)
-        if self.conversation.persona is None:
-            self.conversation.persona = persona_id
-        return (turn, persona, persona_toolbox)
+        self._reconcile_skill_toolsets()
 
     async def _handle_tool_calls(
         self, tool_calls: list[ToolCall]
     ) -> tuple[list[ToolConversationMessage], list[str]]:
+        assert self._persona_toolbox is not None
         results = []
         messages = []
         for tool_call in tool_calls:
@@ -331,10 +352,32 @@ class AsyncAgentLoop:
             await self._event_queue.put(AsyncTurnToolReturnEvent(result=message))
         return messages, results
 
-    def _check_skill_toolsets(self):
+    def _reconcile_skill_toolsets(self):
+        """Sync ``_skill_toolbox`` with the conversation's *effective* active skills.
+
+        The effective set is ``conversation.active_skills`` intersected with
+        the skills available to the current persona/conversation — stale
+        entries in ``active_skills`` are ignored (and logged), never pruned
+        from the conversation.
+        """
+        assert self._persona is not None
+        effective_available = set(
+            effective_available_skills(self.conversation, self._persona)
+        )
+        effective_active = {
+            name
+            for name in self.conversation.active_skills
+            if name in effective_available
+        }
+        ignored = set(self.conversation.active_skills) - effective_available
+        if ignored:
+            logger.warning(
+                f"Ignoring active skills not in the available skills: "
+                f"{', '.join(sorted(ignored))}"
+            )
+
         saved_skills = set(self._loaded_skill_toolsets.keys())
-        active_skills = set(self.conversation.active_skills)
-        for missing in active_skills - saved_skills:
+        for missing in effective_active - saved_skills:
             skill = self._runtime.get_skill(missing)
             if isinstance(skill, Failure):
                 logger.warning(f"Could not retrieve skill {missing}: {skill.failure()}")
@@ -347,13 +390,14 @@ class AsyncAgentLoop:
                 self._loaded_skill_toolsets[missing] = {ts.name for ts in toolsets}
             except Exception as e:
                 logger.error(f"Could not get toolsets for skill '{missing}': {e}")
-        for old in saved_skills - active_skills:
+        for old in saved_skills - effective_active:
             old_toolsets = self._loaded_skill_toolsets.get(old, [])
             for toolset in old_toolsets:
                 self._skill_toolbox.remove_toolset(toolset)
             del self._loaded_skill_toolsets[old]
 
     def _get_available_tools(self):
+        assert self._persona_toolbox is not None
         persona_tools = self._persona_toolbox.tool_descriptions
         skill_tools = self._skill_toolbox.tool_descriptions
         return persona_tools + skill_tools
