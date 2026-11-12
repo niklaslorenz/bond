@@ -1,9 +1,16 @@
 import json
-from dataclasses import dataclass
+import os
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import (
+    BaseModel,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 from returns.result import Failure, Result, Success
 
 from bond.capabilities.generation import GenerationCapability
@@ -17,6 +24,43 @@ if TYPE_CHECKING:
     from bond.providers.provider import Provider
     from bond.runtime import BondRuntime
 
+MANAGED_DIR_URI_PREFIX = "bond://"
+"""URI prefix for addressing persona-managed directories: ``bond://<name>/<path>``."""
+
+
+class ManagedDirectory(BaseModel):
+    """A directory the persona can always access via ``bond://<name>/<path>``."""
+
+    name: str
+    path: str
+    read_only: bool = False
+
+    @field_validator("name")
+    @classmethod
+    def _validate_name(cls, value: str) -> str:
+        if not value or "/" in value or value in (".", ".."):
+            raise ValueError(
+                f"Invalid managed directory name {value!r}: must be non-empty, "
+                "contain no '/' and not be '.' or '..'"
+            )
+        return value
+
+    @field_validator("path")
+    @classmethod
+    def _validate_path(cls, value: str) -> str:
+        if not value:
+            raise ValueError("Managed directory path must not be empty")
+        return value
+
+
+def _managed_root_of(managed_dir: ManagedDirectory) -> Path:
+    """Normalized absolute root of a managed directory.
+
+    Lexical only — symlinks are deliberately not resolved so that symlinked
+    roots/targets keep working.
+    """
+    return Path(os.path.normpath(Path(managed_dir.path).expanduser().absolute()))
+
 
 @dataclass
 class Persona:
@@ -29,6 +73,7 @@ class Persona:
     memory: MemoryCapability | None
     toolsets: list[str]
     runtime: "BondRuntime"
+    managed_directories: list[ManagedDirectory] = field(default_factory=list)
 
     def release(self):
         if self.memory is not None:
@@ -36,6 +81,44 @@ class Persona:
 
     def build_toolbox(self) -> Toolbox:
         return self.runtime.build_toolbox(self.toolsets)
+
+    def resolve_path(self, path: str | Path) -> Path:
+        """Resolve a path, mapping ``bond://<name>/<sub>`` URIs onto managed directories.
+
+        Paths without the ``bond://`` prefix are returned as-is. Raises
+        ``ValueError`` for unknown managed directory names and for URIs that
+        lexically escape the managed root (e.g. via ``..``). Containment is
+        checked lexically (no symlink resolution), so symlinked roots keep
+        working.
+        """
+        raw = str(path)
+        if not raw.startswith(MANAGED_DIR_URI_PREFIX):
+            return Path(raw)
+        rest = raw[len(MANAGED_DIR_URI_PREFIX) :]
+        name, _, sub = rest.partition("/")
+        for managed_dir in self.managed_directories:
+            if managed_dir.name == name:
+                root = _managed_root_of(managed_dir)
+                break
+        else:
+            raise ValueError(
+                f"Unknown managed directory '{name}'. Available: "
+                f"{[md.name for md in self.managed_directories]}"
+            )
+        target = Path(os.path.normpath(root / sub))
+        if not target.is_relative_to(root):
+            raise ValueError(f"Path '{raw}' escapes managed directory '{name}'")
+        return target
+
+    def managed_directory_for(self, path: Path) -> ManagedDirectory | None:
+        """Return the managed directory whose root lexically contains ``path``."""
+        p = Path(os.path.normpath(Path(path).expanduser()))
+        if not p.is_absolute():
+            return None
+        for managed_dir in self.managed_directories:
+            if p.is_relative_to(_managed_root_of(managed_dir)):
+                return managed_dir
+        return None
 
 
 class ConversationFeatures(BaseModel):
@@ -60,11 +143,21 @@ class PersonaConfig(BaseModel):
 
     toolsets: list[str] = Field(default_factory=list)
     available_skills: list[str] = Field(default_factory=list)
+    managed_directories: list[ManagedDirectory] = Field(default_factory=list)
+    """Managed directories the persona can always access via ``bond://<name>/<path>``."""
     use_local_skills: bool = False
     """When True, all local skills from the closest ``.bond/skills/`` are
     considered available in conversations that do not define their own
     ``available_skills`` list (a conversation-level list still takes
     precedence). When False (default), only ``available_skills`` apply."""
+
+    @model_validator(mode="after")
+    def _unique_managed_directory_names(self) -> "PersonaConfig":
+        names = [md.name for md in self.managed_directories]
+        duplicates = sorted({n for n in names if names.count(n) > 1})
+        if duplicates:
+            raise ValueError(f"Duplicate managed directory names: {duplicates}")
+        return self
 
     @classmethod
     def get_type(cls) -> str:
@@ -195,6 +288,7 @@ class PersonaConfig(BaseModel):
             memory,
             self.toolsets,
             runtime,
+            managed_directories=self.managed_directories,
         )
 
 

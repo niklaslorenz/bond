@@ -81,3 +81,8 @@ Implemented (see [Skills](./docs/skills.md)):
 
 - A unified way to define keymap schemes that can be used for different contexts inside the tui
 - A help popup that shows a key and description table
+
+### Tree tool for file system tools
+
+- With max-depth specifier
+- Line numbers capped at hard coded maximum with a notification of how many lines were omitted
