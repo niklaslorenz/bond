@@ -165,12 +165,10 @@ folders the agent can always access via URIs of the form
       `test_default_system_message_builder.py` (flag default off, section
       present with dirs + flag on, omitted when no dirs / flag off / no
       persona / persona failure, read-only marker)
-- [x] Run full suite: `.bond/scripts/run-tests.sh` — 943 passed, 1 failed;
-      the failure (`test/bond/behaviours/test_cwd_refresh.py::
-      test_cwd_refreshed_before_each_turn`) is pre-existing and unrelated:
-      it expects `AsyncAgentLoop` to refresh `ToolCallContext.cwd` before each
-      turn, but no such code exists in `src/bond/behaviours/` on this branch
-      (untouched by this feature)
+- [x] Run full suite: `.bond/scripts/run-tests.sh` — **944 passed, 0 failed**.
+      (An earlier run had 1 failure in `test_cwd_refresh.py`: the cwd-refresh
+      hunk in `async_loop.py` had been lost in the `fix`-branch rebase
+      `c7f1f448` -> `07c578a6`; the user restored it, unrelated to this feature.)
 - [x] Docs: bullet in `README.md` personas section +
       `docs/personas/managed-directories.md` (config example, URI syntax,
       read-only semantics, symlink/escape behavior, system-prompt wiring)

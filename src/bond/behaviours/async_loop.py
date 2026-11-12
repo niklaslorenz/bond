@@ -310,6 +310,7 @@ class AsyncAgentLoop:
 
         self._tool_call_context.persona = self._persona
         self._tool_call_context.conversation = self._conversation
+        self._tool_call_context.cwd = Path(os.getcwd())
 
         self._reconcile_skill_toolsets()
 
