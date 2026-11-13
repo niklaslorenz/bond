@@ -262,15 +262,19 @@ class AsyncAgentLoop:
         (strictly between turns) and by ``set_persona``/``set_conversation``
         while paused. Rebuilds the persona/toolbox/turn only when the derived
         persona id changed, and reconciles skill toolsets against the
-        conversation's active skills. The only conversation field this writes
-        is ``persona`` (write-back of the default, so a saved conversation
-        resumes with the correct persona); ``active_skills`` is treated as
-        read-only and merely intersected with the effective available skills.
+        conversation's active skills. Conversation fields this writes:
+        ``persona`` (write-back of the default, so a saved conversation
+        resumes with the correct persona) and, for a fresh conversation only
+        (persona was unset and no active skills yet), ``active_skills`` seeded
+        from the persona's ``active_skills`` defaults. Afterwards
+        ``active_skills`` is treated as read-only and merely intersected with
+        the effective available skills.
         """
 
         conversation = self._conversation
         persona_id = conversation.persona or self._default_persona_id
-        if conversation.persona is None:
+        fresh_conversation = conversation.persona is None
+        if fresh_conversation:
             conversation.persona = persona_id
 
         if persona_id != self._persona_id:
@@ -284,6 +288,13 @@ class AsyncAgentLoop:
                 )
             persona = persona_config.unwrap().instantiate()
             persona_toolbox = persona.build_toolbox()
+
+            # Seed persona-default active skills into fresh conversations only;
+            # a saved conversation keeps its persisted active_skills.
+            if fresh_conversation and not conversation.active_skills:
+                defaults = getattr(persona_config.unwrap(), "active_skills", None) or []
+                if defaults:
+                    conversation.active_skills = list(defaults)
 
             if self._agent_turn is not None:
                 self._agent_turn.turn_status.unsubscribe(self._on_turn_status_update)

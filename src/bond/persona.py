@@ -143,6 +143,13 @@ class PersonaConfig(BaseModel):
 
     toolsets: list[str] = Field(default_factory=list)
     available_skills: list[str] = Field(default_factory=list)
+    active_skills: list[str] = Field(default_factory=list)
+    """Skills that start active in new conversations with this persona.
+
+    Must be a subset of ``available_skills``. Applied only when a conversation
+    gets its persona for the first time and has no active skills yet; saved
+    conversations keep their persisted ``active_skills``.
+    """
     managed_directories: list[ManagedDirectory] = Field(default_factory=list)
     """Managed directories the persona can always access via ``bond://<name>/<path>``."""
     use_local_skills: bool = False
@@ -157,6 +164,16 @@ class PersonaConfig(BaseModel):
         duplicates = sorted({n for n in names if names.count(n) > 1})
         if duplicates:
             raise ValueError(f"Duplicate managed directory names: {duplicates}")
+        return self
+
+    @model_validator(mode="after")
+    def _active_skills_subset_of_available(self) -> "PersonaConfig":
+        invalid = [s for s in self.active_skills if s not in self.available_skills]
+        if invalid:
+            raise ValueError(
+                f"active_skills must be a subset of available_skills; "
+                f"invalid entries: {invalid}. available_skills: {self.available_skills}"
+            )
         return self
 
     @classmethod

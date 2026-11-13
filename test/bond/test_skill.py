@@ -3,6 +3,8 @@
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
+from pydantic import ValidationError
 from returns.result import Failure, Success
 
 from bond.config import BondConfig
@@ -272,6 +274,33 @@ class TestEffectiveAvailableSkills:
         assert conv.active_skills == []
         assert _persona_config().available_skills == []
         assert _persona_config().use_local_skills is False
+
+
+class TestPersonaConfigActiveSkills:
+    def test_default_empty(self):
+        assert _persona_config().active_skills == []
+
+    def test_valid_subset_accepted(self):
+        config = PersonaConfig(
+            name="p",
+            generation={},
+            available_skills=["a", "b"],
+            active_skills=["a"],
+        )
+        assert config.active_skills == ["a"]
+
+    def test_not_subset_rejected(self):
+        with pytest.raises(ValidationError, match="subset of available_skills"):
+            PersonaConfig(
+                name="p",
+                generation={},
+                available_skills=["a"],
+                active_skills=["b"],
+            )
+
+    def test_empty_available_with_active_rejected(self):
+        with pytest.raises(ValidationError, match="subset of available_skills"):
+            PersonaConfig(name="p", generation={}, active_skills=["a"])
 
 
 class TestEffectiveAvailableSkillsUseLocalSkills:

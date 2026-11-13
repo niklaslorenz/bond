@@ -79,6 +79,25 @@ def make_runtime(
     return runtime
 
 
+def make_runtime_with_active_skills(
+    personas: dict[str, Persona], active_skills: dict[str, list[str]]
+):
+    """Like make_runtime, but persona configs carry an ``active_skills`` list."""
+    runtime = MagicMock()
+
+    def get_persona(name: str):
+        if name in personas:
+            config = MagicMock()
+            config.instantiate = lambda: personas[name]
+            config.active_skills = list(active_skills.get(name, []))
+            return Success(config)
+        return Failure(f"Unknown persona: {name}")
+
+    runtime.get_persona = get_persona
+    runtime.get_skill = lambda name: Failure(f"Unknown skill: {name}")
+    return runtime
+
+
 @pytest.fixture
 def make_loop() -> Callable[..., tuple[AsyncAgentLoop, ToolCallContext, asyncio.Queue]]:
     event_loops: list[asyncio.AbstractEventLoop] = []
@@ -307,6 +326,63 @@ class TestGuardsAndRelease:
 
         persona_toolbox.release.assert_called_once()
         loop._skill_toolbox.release.assert_called_once()
+
+
+class TestPersonaActiveSkillsSeeding:
+    def test_fresh_conversation_seeded_from_persona_defaults(self, make_loop):
+        p = make_persona("default")
+        runtime = make_runtime_with_active_skills({"default": p}, {"default": ["ffm"]})
+        conversation = Conversation()
+
+        make_loop(runtime, conversation)
+
+        assert conversation.persona == "default"
+        assert conversation.active_skills == ["ffm"]
+
+    def test_fresh_conversation_with_existing_active_skills_not_clobbered(
+        self, make_loop
+    ):
+        p = make_persona("default")
+        runtime = make_runtime_with_active_skills({"default": p}, {"default": ["ffm"]})
+        conversation = Conversation(active_skills=["mine"])
+
+        make_loop(runtime, conversation)
+
+        assert conversation.active_skills == ["mine"]
+
+    def test_saved_conversation_keeps_persisted_active_skills(self, make_loop):
+        p = make_persona("default")
+        runtime = make_runtime_with_active_skills({"default": p}, {"default": ["ffm"]})
+        conversation = Conversation(persona="default", active_skills=["saved"])
+
+        make_loop(runtime, conversation)
+
+        assert conversation.active_skills == ["saved"]
+
+    def test_saved_conversation_without_active_skills_not_seeded(self, make_loop):
+        p = make_persona("default")
+        runtime = make_runtime_with_active_skills({"default": p}, {"default": ["ffm"]})
+        conversation = Conversation(persona="default")  # persona already set = saved
+
+        make_loop(runtime, conversation)
+
+        assert conversation.active_skills == []
+
+    def test_set_persona_does_not_clobber_active_skills(self, make_loop):
+        p1 = make_persona("default")
+        p2 = make_persona("other")
+        runtime = make_runtime_with_active_skills(
+            {"default": p1, "other": p2},
+            {"default": ["a"], "other": ["b"]},
+        )
+        conversation = Conversation(active_skills=["mine"])
+        loop, _, _ = make_loop(runtime, conversation)
+        assert conversation.active_skills == ["mine"]
+
+        run(loop.set_persona("other"))
+
+        assert conversation.persona == "other"
+        assert conversation.active_skills == ["mine"]
 
 
 class TestAvailableTools:

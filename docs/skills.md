@@ -138,6 +138,29 @@ available by default for every conversation with that persona:
 "available_skills": ["research", "git-helpers"]
 ```
 
+### `active_skills`: skills that start active in new conversations
+
+The `active_skills` field of a persona config lists skills that are **loaded
+by default** in every *new* conversation with that persona — their
+instructions appear in the `<active-skills>` system-prompt section right from
+the start, without the agent having to call `load_skill` first:
+
+```json
+"available_skills": ["research", "git-helpers"],
+"active_skills": ["research"]
+```
+
+Rules:
+
+- `active_skills` must be a subset of `available_skills` (the persona config
+  is rejected otherwise).
+- Defaults to `[]` (no skills start active — previous behavior).
+- The defaults are applied only when a conversation gets its persona for the
+  first time and has no active skills yet. A saved conversation keeps its
+  persisted `active_skills`, and switching personas never clobbers them.
+- As with manually loaded skills, entries that are not in the effective
+  available set are ignored (with a warning) at runtime.
+
 ### `use_local_skills`: make all project-local skills available
 
 Setting `use_local_skills: true` on a persona additionally makes **all** local
