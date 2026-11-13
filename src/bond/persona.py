@@ -144,11 +144,13 @@ class PersonaConfig(BaseModel):
     toolsets: list[str] = Field(default_factory=list)
     available_skills: list[str] = Field(default_factory=list)
     active_skills: list[str] = Field(default_factory=list)
-    """Skills that start active in new conversations with this persona.
+    """Skills that are active by default in conversations with this persona.
 
-    Must be a subset of ``available_skills``. Applied only when a conversation
-    gets its persona for the first time and has no active skills yet; saved
-    conversations keep their persisted ``active_skills``.
+    Must be a subset of ``available_skills``. Conversations whose
+    ``active_skills`` is ``None`` (the default, incl. fresh conversations and
+    old saved metadata) inherit this list; an explicit list on the
+    conversation (possibly empty) overrides it. Resolved via
+    :func:`bond.skill.effective_active_skills`.
     """
     managed_directories: list[ManagedDirectory] = Field(default_factory=list)
     """Managed directories the persona can always access via ``bond://<name>/<path>``."""

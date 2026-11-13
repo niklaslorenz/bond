@@ -18,6 +18,7 @@ from bond.runtime import (
 from bond.skill import (
     Skill,
     _parse_skill_md,
+    effective_active_skills,
     effective_available_skills,
     prune_active_skills,
 )
@@ -271,9 +272,59 @@ class TestEffectiveAvailableSkills:
     def test_defaults(self):
         conv = Conversation()
         assert conv.available_skills is None
-        assert conv.active_skills == []
+        assert conv.active_skills is None
         assert _persona_config().available_skills == []
         assert _persona_config().use_local_skills is False
+
+
+class TestEffectiveActiveSkills:
+    def test_conversation_list_wins_over_persona(self):
+        conv = Conversation(active_skills=["a", "b"])
+        persona = PersonaConfig(
+            name="p", generation={}, available_skills=["a", "b", "c"], active_skills=["c"]
+        )
+        assert effective_active_skills(conv, persona) == ["a", "b"]
+
+    def test_conversation_none_inherits_persona_config(self):
+        conv = Conversation()
+        persona = PersonaConfig(
+            name="p", generation={}, available_skills=["c"], active_skills=["c"]
+        )
+        assert effective_active_skills(conv, persona) == ["c"]
+
+    def test_conversation_empty_list_is_explicit_not_none(self):
+        conv = Conversation(active_skills=[])
+        persona = PersonaConfig(
+            name="p", generation={}, available_skills=["c"], active_skills=["c"]
+        )
+        assert effective_active_skills(conv, persona) == []
+
+    def test_accepts_instantiated_persona(self):
+        conv = Conversation()
+        persona = Persona(
+            name="p",
+            config=PersonaConfig(
+                name="p", generation={}, available_skills=["x"], active_skills=["x"]
+            ),
+            generation=None,  # type: ignore[arg-type]
+            summarization=None,
+            thought_condensation=None,
+            tts=None,
+            memory=None,
+            toolsets=[],
+            runtime=MagicMock(),
+        )
+        assert effective_active_skills(conv, persona) == ["x"]
+
+    def test_persona_none_returns_empty(self):
+        conv = Conversation()
+        assert effective_active_skills(conv, None) == []
+
+    def test_no_conversation_uses_persona(self):
+        persona = PersonaConfig(
+            name="p", generation={}, available_skills=["c"], active_skills=["c"]
+        )
+        assert effective_active_skills(None, persona) == ["c"]
 
 
 class TestPersonaConfigActiveSkills:
@@ -421,6 +472,13 @@ class TestPruneActiveSkills:
         assert removed == []
         assert conv.active_skills == []
 
+    def test_none_active_is_left_untouched(self):
+        # inherit mode: pruning must not materialize the persona's list
+        conv = Conversation()
+        removed = prune_active_skills(conv, ["a"])
+        assert removed == []
+        assert conv.active_skills is None
+
     def test_preserves_order(self):
         conv = Conversation(active_skills=["c", "a", "b"])
         removed = prune_active_skills(conv, ["a", "c", "d"])
@@ -445,10 +503,10 @@ class TestConversationSkillFieldsSerialization:
         old_json = '{"name": "old", "persona": "assistant"}'
         conv = Conversation.model_validate_json(old_json)
         assert conv.available_skills is None
-        assert conv.active_skills == []
+        assert conv.active_skills is None  # -> inherits persona defaults
 
     def test_roundtrip_defaults(self):
         conv = Conversation()
         loaded = Conversation.model_validate_json(conv.model_dump_json())
         assert loaded.available_skills is None
-        assert loaded.active_skills == []
+        assert loaded.active_skills is None

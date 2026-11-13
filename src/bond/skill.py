@@ -152,13 +152,38 @@ def effective_available_skills(
     return available
 
 
+def effective_active_skills(
+    conversation: Conversation | None = None,
+    persona: Persona | PersonaConfig | None = None,
+) -> list[str]:
+    """Resolve which skills are active in a conversation.
+
+    Mirrors :func:`effective_available_skills`: an explicit
+    ``conversation.active_skills`` list wins; ``None`` means inherit the
+    persona's ``active_skills`` defaults. ``conversation=None`` or
+    ``persona=None`` (in inherit mode) yields an empty list.
+
+    Accepts either an instantiated :class:`Persona` or a raw
+    :class:`PersonaConfig`.
+    """
+    if conversation is not None and conversation.active_skills is not None:
+        return conversation.active_skills
+    if persona is None:
+        return []
+    config = persona.config if isinstance(persona, Persona) else persona
+    return list(config.active_skills)
+
+
 def prune_active_skills(conversation: Conversation, available: list[str]) -> list[str]:
     """Enforce the invariant ``active_skills ⊆ available`` on a conversation.
 
     Removes every entry of ``conversation.active_skills`` that is not in
     ``available`` (the effective available list) and returns the removed
     names, so callers can report them. Entries are removed in place.
+    ``active_skills=None`` (inherit mode) is left untouched.
     """
+    if conversation.active_skills is None:
+        return []
     removed = [name for name in conversation.active_skills if name not in available]
     if removed:
         conversation.active_skills = [

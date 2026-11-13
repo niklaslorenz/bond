@@ -4,7 +4,8 @@ Two independent states per skill:
 
 - *available* — the skill may be activated (``conversation.available_skills``;
   ``None`` means "inherit the persona's list").
-- *active* — the skill is currently loaded (``conversation.active_skills``);
+- *active* — the skill is currently loaded (the effective active skills,
+  i.e. ``conversation.active_skills`` resolved against the persona when None);
   its SKILL.md is rendered into the system prompt.
 
 Invariant: active skills are always a subset of the available ones. Unchecking

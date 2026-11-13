@@ -59,3 +59,31 @@ scripts, and conversations) — see
 
 - A unified way to define keymap schemes that can be used for different contexts inside the tui
 - A help popup that shows a key and description table
+
+### Environment Details section in system prompt
+
+- Add a new flag in the default system message builder that adds a new environment section which adds the current date (adjusting the date once a day is fine, but more detailed timestamps in the system prompt have a bad impact on prefix cache efficiency) and other useful information
+
+## Extensive documentation
+
+- The current documentation is a loose collection of opportunistic docstrings
+  and some help on how to set up the configuration (in docs/)
+- Make high quality docstrings for every class and method
+- Make a detailed documentation for what the user can configure in ~/.cnfig/bond and local
+  .bond directories
+- Make a simple set up tutorial
+- Make a high level code documentation for the concepts that exist in the architecture and
+  how they interact with each other
+
+## Optional Refinements
+
+### Observable conversation attributes
+
+- make each value held by a conversation private and provide a getter via a propery
+- each held value should be encapsulated by an Observable
+- this allows for behaviours to store and update and internal state instead of having
+  to recompute it every turn from the raw attributes
+  - Examples of this would be active skills for example or other parts that make up
+    the system prompt
+
+> > > > > > > ee856fac (Made the active skills field in Conversation optional and inherit from the persona when not set.)

@@ -536,9 +536,14 @@ def make_mock_runtime(
     return runtime
 
 
-def make_persona_config(available_skills: list[str]) -> PersonaConfig:
+def make_persona_config(
+    available_skills: list[str], active_skills: list[str] | None = None
+) -> PersonaConfig:
     return PersonaConfig(
-        name="p", generation={}, available_skills=available_skills
+        name="p",
+        generation={},
+        available_skills=available_skills,
+        active_skills=active_skills or [],
     )
 
 
@@ -721,6 +726,33 @@ class TestRenderSystemMessageActiveSkills:
         result = builder.render_system_message(conv, "prompt")
 
         assert result.content[0].text == "prompt"
+
+    def test_active_skills_inherited_from_persona_when_none(self):
+        """conversation.active_skills=None inherits the persona's defaults."""
+        runtime = make_mock_runtime(
+            {"pdf": SKILL_PDF},
+            persona_config=make_persona_config(["pdf"], active_skills=["pdf"]),
+        )
+        builder = DefaultSystemMessageBuilder(include_skills=True, runtime=runtime)
+        conv = Conversation(persona="p")  # active_skills=None -> inherit
+
+        result = builder.render_system_message(conv, "prompt")
+
+        text = result.content[0].text
+        assert "<active-skills>" in text
+        assert "Use pdf tools when asked." in text
+
+    def test_empty_active_list_suppresses_persona_defaults(self):
+        runtime = make_mock_runtime(
+            {"pdf": SKILL_PDF},
+            persona_config=make_persona_config(["pdf"], active_skills=["pdf"]),
+        )
+        builder = DefaultSystemMessageBuilder(include_skills=True, runtime=runtime)
+        conv = Conversation(persona="p", active_skills=[])  # explicit override
+
+        result = builder.render_system_message(conv, "prompt")
+
+        assert "<active-skills>" not in result.content[0].text
 
 
 class TestRenderSystemMessageActiveAvailabilityInvariant:

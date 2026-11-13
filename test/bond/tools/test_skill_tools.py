@@ -16,11 +16,16 @@ from bond.tools.tool import ToolCallContext
 # ---------------------------------------------------------------------------
 
 
-def make_persona(available_skills: list[str]) -> Persona:
+def make_persona(
+    available_skills: list[str], active_skills: list[str] | None = None
+) -> Persona:
     return Persona(
         name="p",
         config=PersonaConfig(
-            name="p", generation={}, available_skills=available_skills
+            name="p",
+            generation={},
+            available_skills=available_skills,
+            active_skills=active_skills or [],
         ),
         generation=None,  # type: ignore[arg-type]
         summarization=None,
@@ -108,7 +113,7 @@ class TestLoadSkill:
         assert "Error" in result
         assert "secret-skill" in result
         assert "pdf" in result and "git" in result
-        assert conv.active_skills == []
+        assert conv.active_skills is None  # denied load does not materialize
 
     def test_denied_when_no_skills_available(self, monkeypatch):
         patch_runtime(monkeypatch, {"pdf": SKILL_PDF})
@@ -119,7 +124,7 @@ class TestLoadSkill:
 
         assert "Error" in result
         assert "No skills are available" in result
-        assert conv.active_skills == []
+        assert conv.active_skills is None
 
     def test_allowed_via_persona_list(self, monkeypatch):
         patch_runtime(monkeypatch, {"pdf": SKILL_PDF})
@@ -153,7 +158,7 @@ class TestLoadSkill:
         result = load_skill(context, name="pdf")
 
         assert "Error" in result
-        assert conv.active_skills == []
+        assert conv.active_skills is None
 
     def test_works_without_persona_when_conversation_lists_skill(self, monkeypatch):
         patch_runtime(monkeypatch, {"pdf": SKILL_PDF})
@@ -178,6 +183,28 @@ class TestLoadSkill:
         assert "Use pdf tools when asked." not in second
         assert "activated" in first and "already" not in first
 
+    def test_load_materializes_inherited_persona_defaults(self, monkeypatch):
+        """Loading a skill while in inherit mode turns None into an explicit
+        list that includes the persona's active defaults."""
+        patch_runtime(monkeypatch, {"pdf": SKILL_PDF, "git": SKILL_GIT})
+        conv = Conversation()  # active_skills=None -> inherit persona
+        context = make_context(conv, make_persona(["pdf", "git"], active_skills=["pdf"]))
+
+        result = load_skill(context, name="git")
+
+        assert "activated" in result
+        assert conv.active_skills == ["pdf", "git"]
+
+    def test_already_active_via_inherited_persona_default(self, monkeypatch):
+        patch_runtime(monkeypatch, {"pdf": SKILL_PDF})
+        conv = Conversation()
+        context = make_context(conv, make_persona(["pdf"], active_skills=["pdf"]))
+
+        result = load_skill(context, name="pdf")
+
+        assert "already active" in result
+        assert conv.active_skills is None  # no mutation on the no-op path
+
     def test_runtime_failure_is_returned_not_raised(self, monkeypatch):
         runtime = MagicMock()
         runtime.get_skill.return_value = Failure("Invalid skill name: ghost")
@@ -190,7 +217,7 @@ class TestLoadSkill:
 
         assert "Error" in result
         assert "ghost" in result
-        assert conv.active_skills == []  # not activated on load failure
+        assert conv.active_skills is None  # not activated on load failure
 
 
 # ---------------------------------------------------------------------------
@@ -246,6 +273,19 @@ class TestUnloadSkill:
 
         assert "Error" in result
         assert "No skills are active" in result
+        assert conv.active_skills is None
+
+    def test_unload_inherited_skill_materializes_explicit_list(self):
+        """Unloading an inherited (persona-default) skill materializes the
+        remaining list — here empty, i.e. explicitly 'no active skills'."""
+        conv = Conversation()  # inherit persona active_skills=["pdf"]
+        context = make_context(conv, make_persona(["pdf"], active_skills=["pdf"]))
+
+        result = unload_skill(context, name="pdf")
+
+        assert "unloaded" in result
+        assert "No skills are active anymore" in result
+        assert conv.active_skills == []
 
 
 # ---------------------------------------------------------------------------

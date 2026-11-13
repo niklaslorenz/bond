@@ -6,7 +6,11 @@ from returns.result import Success
 from bond.capabilities.types import SystemMessageBuilder
 from bond.conversation.conversation import Conversation
 from bond.conversation.types import SystemMessage, TextChunk
-from bond.skill import effective_available_skills, render_skill_md
+from bond.skill import (
+    effective_active_skills,
+    effective_available_skills,
+    render_skill_md,
+)
 
 if TYPE_CHECKING:
     from bond.persona import PersonaConfig
@@ -179,9 +183,10 @@ class DefaultSystemMessageBuilder(SystemMessageBuilder):
                     "</available-skills>"
                 )
 
-        if conversation.active_skills:
+        active = effective_active_skills(conversation, persona_config)
+        if active:
             blocks = []
-            for name in conversation.active_skills:
+            for name in active:
                 if name not in available:
                     logger.warning(
                         f"Skipping active skill '{name}': not in the available skills"

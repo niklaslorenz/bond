@@ -2,7 +2,7 @@ import logging
 
 from returns.result import Failure
 
-from bond.skill import effective_available_skills
+from bond.skill import effective_active_skills, effective_available_skills
 from bond.tools import tool
 from bond.tools.tool import ToolCallContext
 
@@ -64,13 +64,16 @@ def load_skill(
         return f"Error: Could not load skill '{name}': {skill.failure()}"
 
     skill = skill.unwrap()
-    if name in conversation.active_skills:
+    # Materialize the inherited list on first mutation: loading a skill turns
+    # "inherit from persona" into an explicit per-conversation list.
+    active = effective_active_skills(conversation, context.persona)
+    if name in active:
         return (
             f"Skill '{name}' is already active. "
             "Its instructions are included in the system prompt."
         )
 
-    conversation.active_skills.append(name)
+    conversation.active_skills = [*active, name]
     logger.debug(f"Activated skill '{name}' ({skill.description}) in conversation")
     return (
         f"Skill '{name}' activated. Its instructions are now included in the "
@@ -101,18 +104,22 @@ def unload_skill(
     if conversation is None:
         return "Error: No conversation context available."
 
-    if name not in conversation.active_skills:
-        if conversation.active_skills:
-            active_str = ", ".join(conversation.active_skills)
+    active = effective_active_skills(conversation, context.persona)
+    if name not in active:
+        if active:
+            active_str = ", ".join(active)
             return (
                 f"Error: Skill '{name}' is not active. " f"Active skills: {active_str}"
             )
         return f"Error: Skill '{name}' is not active. No skills are active."
 
-    conversation.active_skills.remove(name)
+    # Materialize the inherited list before removing, so the result is an
+    # explicit list (possibly empty) rather than None/inherit.
+    remaining = [n for n in active if n != name]
+    conversation.active_skills = remaining
     logger.debug(f"Deactivated skill '{name}' in conversation")
 
-    if conversation.active_skills:
-        remaining = ", ".join(conversation.active_skills)
-        return f"Skill '{name}' unloaded. Active skills: {remaining}"
+    if remaining:
+        remaining_str = ", ".join(remaining)
+        return f"Skill '{name}' unloaded. Active skills: {remaining_str}"
     return f"Skill '{name}' unloaded. No skills are active anymore."

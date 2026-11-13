@@ -12,7 +12,11 @@ from textual.notifications import SeverityLevel
 from bond.behaviours.async_turn import TYPE_CHECKING
 from bond.conversation.conversation import Conversation
 from bond.runtime import BondRuntime
-from bond.skill import effective_available_skills, prune_active_skills
+from bond.skill import (
+    effective_active_skills,
+    effective_available_skills,
+    prune_active_skills,
+)
 from bond.tui.widgets.skills_popup import SkillInfo
 
 if TYPE_CHECKING:
@@ -298,7 +302,7 @@ class TuiCommandHandler:
                     None, persona
                 ),
                 conversation_available_skills=conversation.available_skills,
-                active_skills=conversation.active_skills,
+                active_skills=effective_active_skills(conversation, persona),
             )
             if isinstance(result, Failure):
                 return
@@ -315,7 +319,7 @@ class TuiCommandHandler:
                 avail_str = f"inherit persona '{persona.name}'"
             else:
                 avail_str = ", ".join(new_config.available_skills) or "none"
-            active_str = ", ".join(conversation.active_skills) or "none"
+            active_str = ", ".join(conversation.active_skills or []) or "none"
             message = f"Skills updated — available: {avail_str}; active: {active_str}"
             if removed:
                 message += f" (removed inactive-from-available: {', '.join(removed)})"

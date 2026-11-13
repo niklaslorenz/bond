@@ -34,7 +34,17 @@ class Conversation(BaseModel):
     working_set: WorkingSet | None = None
     task_list: TaskList | None = None
     available_skills: list[str] | None = None
-    active_skills: list[str] = Field(default_factory=list)
+    active_skills: list[str] | None = None
+    """Active skills for this conversation.
+
+    ``None`` (default) means "inherit from the current persona's
+    ``active_skills``" — resolved at read time via
+    :func:`bond.skill.effective_active_skills`, so a persona switch (or a fresh
+    conversation with a configured persona) picks up the new persona's
+    defaults automatically. An explicit list (possibly empty) overrides the
+    persona. Old metadata files without this field load as ``None`` and thus
+    inherit.
+    """
     metadata: ConversationMetadata = Field(default_factory=ConversationMetadata)
 
     _episodes: EpisodeCache | None = PrivateAttr(default=None)

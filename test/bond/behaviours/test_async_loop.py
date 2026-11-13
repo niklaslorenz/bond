@@ -33,11 +33,16 @@ def make_tool(name: str):
     return t
 
 
-def make_persona(name: str, available_skills: list[str] | None = None):
+def make_persona(
+    name: str,
+    available_skills: list[str] | None = None,
+    active_skills: list[str] | None = None,
+):
     runtime = MagicMock()
     runtime.build_toolbox = lambda names: Toolbox([PythonToolset(n, []) for n in names])
     config = MagicMock()
     config.available_skills = list(available_skills or [])
+    config.active_skills = list(active_skills or [])
     return Persona(
         name=name,
         config=config,
@@ -76,25 +81,6 @@ def make_runtime(
 
     runtime.get_persona = get_persona
     runtime.get_skill = get_skill
-    return runtime
-
-
-def make_runtime_with_active_skills(
-    personas: dict[str, Persona], active_skills: dict[str, list[str]]
-):
-    """Like make_runtime, but persona configs carry an ``active_skills`` list."""
-    runtime = MagicMock()
-
-    def get_persona(name: str):
-        if name in personas:
-            config = MagicMock()
-            config.instantiate = lambda: personas[name]
-            config.active_skills = list(active_skills.get(name, []))
-            return Success(config)
-        return Failure(f"Unknown persona: {name}")
-
-    runtime.get_persona = get_persona
-    runtime.get_skill = lambda name: Failure(f"Unknown skill: {name}")
     return runtime
 
 
@@ -328,61 +314,75 @@ class TestGuardsAndRelease:
         loop._skill_toolbox.release.assert_called_once()
 
 
-class TestPersonaActiveSkillsSeeding:
-    def test_fresh_conversation_seeded_from_persona_defaults(self, make_loop):
-        p = make_persona("default")
-        runtime = make_runtime_with_active_skills({"default": p}, {"default": ["ffm"]})
+class TestPersonaActiveSkillsInheritance:
+    """``conversation.active_skills=None`` inherits the persona's defaults,
+    resolved at read time — the loop never writes the field."""
+
+    def test_fresh_conversation_inherits_persona_defaults(self, make_loop):
+        p = make_persona("default", available_skills=["s1"], active_skills=["s1"])
+        s1 = make_skill("s1", "s1_tool")
+        runtime = make_runtime({"default": p}, {"s1": s1})
         conversation = Conversation()
 
-        make_loop(runtime, conversation)
+        loop, _, _ = make_loop(runtime, conversation)
 
         assert conversation.persona == "default"
-        assert conversation.active_skills == ["ffm"]
+        assert conversation.active_skills is None  # stays in inherit mode
+        assert loop._skill_toolbox.has_tool("s1_tool")  # ...but s1 is loaded
 
-    def test_fresh_conversation_with_existing_active_skills_not_clobbered(
-        self, make_loop
-    ):
-        p = make_persona("default")
-        runtime = make_runtime_with_active_skills({"default": p}, {"default": ["ffm"]})
-        conversation = Conversation(active_skills=["mine"])
+    def test_fresh_conversation_with_preset_persona_inherits(self, make_loop):
+        """A fresh conversation may name its persona upfront (e.g.
+        ``:new --to <persona>``); inheritance must still apply."""
+        p = make_persona("default", available_skills=["s1"], active_skills=["s1"])
+        s1 = make_skill("s1", "s1_tool")
+        runtime = make_runtime({"default": p}, {"s1": s1})
+        conversation = Conversation(persona="default")
 
-        make_loop(runtime, conversation)
-
-        assert conversation.active_skills == ["mine"]
-
-    def test_saved_conversation_keeps_persisted_active_skills(self, make_loop):
-        p = make_persona("default")
-        runtime = make_runtime_with_active_skills({"default": p}, {"default": ["ffm"]})
-        conversation = Conversation(persona="default", active_skills=["saved"])
-
-        make_loop(runtime, conversation)
-
-        assert conversation.active_skills == ["saved"]
-
-    def test_saved_conversation_without_active_skills_not_seeded(self, make_loop):
-        p = make_persona("default")
-        runtime = make_runtime_with_active_skills({"default": p}, {"default": ["ffm"]})
-        conversation = Conversation(persona="default")  # persona already set = saved
-
-        make_loop(runtime, conversation)
-
-        assert conversation.active_skills == []
-
-    def test_set_persona_does_not_clobber_active_skills(self, make_loop):
-        p1 = make_persona("default")
-        p2 = make_persona("other")
-        runtime = make_runtime_with_active_skills(
-            {"default": p1, "other": p2},
-            {"default": ["a"], "other": ["b"]},
-        )
-        conversation = Conversation(active_skills=["mine"])
         loop, _, _ = make_loop(runtime, conversation)
-        assert conversation.active_skills == ["mine"]
+
+        assert conversation.active_skills is None
+        assert loop._skill_toolbox.has_tool("s1_tool")
+
+    def test_explicit_conversation_list_wins_over_persona(self, make_loop):
+        p = make_persona("default", available_skills=["s1", "s2"], active_skills=["s1"])
+        s1 = make_skill("s1", "s1_tool")
+        s2 = make_skill("s2", "s2_tool")
+        runtime = make_runtime({"default": p}, {"s1": s1, "s2": s2})
+        conversation = Conversation(active_skills=["s2"])
+
+        loop, _, _ = make_loop(runtime, conversation)
+
+        assert conversation.active_skills == ["s2"]
+        assert loop._skill_toolbox.has_tool("s2_tool")
+        assert not loop._skill_toolbox.has_tool("s1_tool")
+
+    def test_persona_switch_changes_inherited_active_skills(self, make_loop):
+        p1 = make_persona("default", available_skills=["s1"], active_skills=["s1"])
+        p2 = make_persona("other", available_skills=["s2"], active_skills=["s2"])
+        s1 = make_skill("s1", "s1_tool")
+        s2 = make_skill("s2", "s2_tool")
+        runtime = make_runtime({"default": p1, "other": p2}, {"s1": s1, "s2": s2})
+        conversation = Conversation()
+        loop, _, _ = make_loop(runtime, conversation)
+        assert loop._skill_toolbox.has_tool("s1_tool")
+
+        run(loop.set_persona("other"))
+
+        assert conversation.active_skills is None  # still inherit mode
+        assert not loop._skill_toolbox.has_tool("s1_tool")
+        assert loop._skill_toolbox.has_tool("s2_tool")
+
+    def test_explicit_list_not_clobbered_on_persona_switch(self, make_loop):
+        p1 = make_persona("default", available_skills=["s1"], active_skills=["s1"])
+        p2 = make_persona("other", available_skills=["s2"], active_skills=["s2"])
+        runtime = make_runtime({"default": p1, "other": p2}, {})
+        conversation = Conversation(active_skills=["s1"])
+        loop, _, _ = make_loop(runtime, conversation)
 
         run(loop.set_persona("other"))
 
         assert conversation.persona == "other"
-        assert conversation.active_skills == ["mine"]
+        assert conversation.active_skills == ["s1"]  # explicit list untouched
 
 
 class TestAvailableTools:

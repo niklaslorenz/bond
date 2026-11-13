@@ -33,7 +33,7 @@ from bond.conversation.types import (
 from bond.observable import Observable
 from bond.persona import Persona
 from bond.runtime import BondRuntime
-from bond.skill import effective_available_skills
+from bond.skill import effective_active_skills, effective_available_skills
 from bond.tools.shell_tools import allow_shell_commands
 from bond.tools.tool import ToolCallContext
 from bond.tools.toolbox import Toolbox
@@ -262,20 +262,18 @@ class AsyncAgentLoop:
         (strictly between turns) and by ``set_persona``/``set_conversation``
         while paused. Rebuilds the persona/toolbox/turn only when the derived
         persona id changed, and reconciles skill toolsets against the
-        conversation's active skills. Conversation fields this writes:
-        ``persona`` (write-back of the default, so a saved conversation
-        resumes with the correct persona) and, for a fresh conversation only
-        (persona was unset and no active skills yet), ``active_skills`` seeded
-        from the persona's ``active_skills`` defaults. Afterwards
-        ``active_skills`` is treated as read-only and merely intersected with
-        the effective available skills.
+        conversation's effective active skills (see
+        ``effective_active_skills``: an explicit conversation list wins,
+        ``None`` inherits the persona's defaults). The only conversation
+        field this writes is ``persona`` (write-back of the default, so a
+        saved conversation resumes with the correct persona); ``active_skills``
+        is never seeded or mutated here.
         """
 
         conversation = self._conversation
-        persona_id = conversation.persona or self._default_persona_id
-        fresh_conversation = conversation.persona is None
-        if fresh_conversation:
-            conversation.persona = persona_id
+        if conversation.persona is None:
+            conversation.persona = self._default_persona_id
+        persona_id = conversation.persona
 
         if persona_id != self._persona_id:
             persona_config = self._runtime.get_persona(persona_id)
@@ -288,13 +286,6 @@ class AsyncAgentLoop:
                 )
             persona = persona_config.unwrap().instantiate()
             persona_toolbox = persona.build_toolbox()
-
-            # Seed persona-default active skills into fresh conversations only;
-            # a saved conversation keeps its persisted active_skills.
-            if fresh_conversation and not conversation.active_skills:
-                defaults = getattr(persona_config.unwrap(), "active_skills", None) or []
-                if defaults:
-                    conversation.active_skills = list(defaults)
 
             if self._agent_turn is not None:
                 self._agent_turn.turn_status.unsubscribe(self._on_turn_status_update)
@@ -367,21 +358,18 @@ class AsyncAgentLoop:
     def _reconcile_skill_toolsets(self):
         """Sync ``_skill_toolbox`` with the conversation's *effective* active skills.
 
-        The effective set is ``conversation.active_skills`` intersected with
-        the skills available to the current persona/conversation — stale
-        entries in ``active_skills`` are ignored (and logged), never pruned
-        from the conversation.
+        The effective set is ``effective_active_skills(conversation, persona)``
+        intersected with the skills available to the current
+        persona/conversation — stale entries are ignored (and logged), never
+        pruned from the conversation.
         """
         assert self._persona is not None
         effective_available = set(
             effective_available_skills(self.conversation, self._persona)
         )
-        effective_active = {
-            name
-            for name in self.conversation.active_skills
-            if name in effective_available
-        }
-        ignored = set(self.conversation.active_skills) - effective_available
+        active = effective_active_skills(self.conversation, self._persona)
+        effective_active = {name for name in active if name in effective_available}
+        ignored = set(active) - effective_available
         if ignored:
             logger.warning(
                 f"Ignoring active skills not in the available skills: "
