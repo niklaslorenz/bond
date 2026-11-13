@@ -8,6 +8,7 @@ from .list_directory import list_directory
 from .read_file import read_file
 from .remove_file import remove_file
 from .search import search_file
+from .tree import tree
 
 __all__ = [
     "create_file",
@@ -18,4 +19,5 @@ __all__ = [
     "remove_file",
     "search_file",
     "grep",
+    "tree",
 ]

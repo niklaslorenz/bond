@@ -35,6 +35,7 @@ from bond.tools.file_system import (
     list_directory,
     read_file,
     remove_file,
+    tree,
 )
 from bond.tools.file_system.search import search_file
 from bond.tools.local_tools import list_local_scripts, run_local_script
@@ -79,6 +80,7 @@ _default_toolsets: list[Toolset] = [
             get_cwd,
             search_file,
             grep,
+            tree,
         ],
     ),
     PythonToolset("pdf", [pdf_info, read_pdf_text]),

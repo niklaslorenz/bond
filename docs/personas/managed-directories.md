@@ -34,7 +34,7 @@ bond://<name>              # the root of the managed directory
 ```
 
 All file tools accept these URIs: `read_file`, `list_directory`, `create_file`,
-`apply_patch`, `remove_file`, `search_file`, `grep`, `pdf_info`, `read_pdf_text`.
+`apply_patch`, `remove_file`, `search_file`, `grep`, `tree`, `pdf_info`, `read_pdf_text`.
 
 ## Rules
 
