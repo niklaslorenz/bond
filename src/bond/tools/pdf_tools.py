@@ -5,11 +5,13 @@ The import is lazy, so the tools only fail (with a clear error message) when a
 PDF tool is actually called without ``pypdf`` installed.
 """
 
-from pathlib import Path
+import io
 from typing import Any
 
+from returns.result import Failure, Success
+
+from bond.fs_access import AccessMode, AuthorizedPath
 from bond.tools import tool
-from bond.tools.file_system.util import check_access
 
 _PYPDF_MISSING = (
     "Error: the 'pypdf' package is required for PDF tools but is not installed. "
@@ -30,31 +32,33 @@ def _import_pypdf() -> Any:
 
 def _resolve_pdf_path(
     context: tool.ToolCallContext, file_path: str
-) -> tuple[Path | None, str]:
-    """Resolve ``file_path`` (incl. ``bond://`` URIs) and check access.
+) -> tuple[AuthorizedPath | None, str]:
+    """Resolve ``file_path`` (incl. ``bond://`` URIs) and authorize read access.
 
-    Returns ``(path, "")`` on success or ``(None, error_message)``.
+    Returns ``(authorized_path, "")`` on success or ``(None, error_message)``.
     """
-    try:
-        path = context.resolve_path(file_path)
-    except ValueError as e:
-        return None, f"Error: {e}"
-    if path is None:
-        return None, "Error: Tool access to the file system is currently disabled."
-    has_access, why_not = check_access(context, path)
-    if not has_access:
-        return None, why_not
-    if not path.is_file():
+    grant = context.request_fs_access(file_path, AccessMode.READ)
+    if isinstance(grant, Failure):
+        return None, grant.failure()
+    authorized = grant.unwrap()
+    if not authorized.is_file():
         return None, f"Error: not a file: {file_path}"
-    return path, ""
+    return authorized, ""
 
 
-def _open_pdf(pypdf: Any, path: Path) -> tuple[Any, str]:
-    """Open a PDF with pypdf; returns ``(reader, "")`` or ``(None, error)``."""
+def _open_pdf(pypdf: Any, authorized: AuthorizedPath) -> tuple[Any, str]:
+    """Open a PDF with pypdf; returns ``(reader, "")`` or ``(None, error)``.
+
+    The file content goes through the authorized wrapper and is handed to
+    pypdf as a stream, so pypdf never opens the path itself.
+    """
+    data_res = authorized.read_bytes()
+    if isinstance(data_res, Failure):
+        return None, data_res.failure()
     try:
-        reader = pypdf.PdfReader(str(path))
+        reader = pypdf.PdfReader(io.BytesIO(data_res.unwrap()))
     except Exception as e:
-        return None, f"Error: could not read PDF '{path.name}': {e}"
+        return None, f"Error: could not read PDF '{authorized.path.name}': {e}"
     return reader, ""
 
 
@@ -77,17 +81,19 @@ def pdf_info(context: tool.ToolCallContext, file_path: str) -> str:
     pypdf = _import_pypdf()
     if pypdf is None:
         return _PYPDF_MISSING
-    path, err = _resolve_pdf_path(context, file_path)
-    if path is None:
+    authorized, err = _resolve_pdf_path(context, file_path)
+    if authorized is None:
         return err
-    reader, err = _open_pdf(pypdf, path)
+    reader, err = _open_pdf(pypdf, authorized)
     if reader is None:
         return err
 
+    stat_res = authorized.stat()
+    size = stat_res.unwrap().st_size if isinstance(stat_res, Success) else 0
     metadata = reader.metadata or {}
     lines = [
-        f"File: {path}",
-        f"Size: {path.stat().st_size} bytes",
+        f"File: {authorized.path}",
+        f"Size: {size} bytes",
         f"Pages: {len(reader.pages)}",
     ]
     for key, label in [
@@ -144,20 +150,21 @@ def read_pdf_text(
     pypdf = _import_pypdf()
     if pypdf is None:
         return _PYPDF_MISSING
-    path, err = _resolve_pdf_path(context, file_path)
-    if path is None:
+    authorized, err = _resolve_pdf_path(context, file_path)
+    if authorized is None:
         return err
-    reader, err = _open_pdf(pypdf, path)
+    reader, err = _open_pdf(pypdf, authorized)
     if reader is None:
         return err
 
     page_count = len(reader.pages)
+    path_name = authorized.path.name
     if start_page < 1:
         return f"Error: start_page must be >= 1, got {start_page}."
     if start_page > page_count:
         return (
             f"Error: start_page {start_page} is beyond the last page "
-            f"({page_count}) of '{path.name}'."
+            f"({page_count}) of '{path_name}'."
         )
     last_page = min(end_page, page_count) if end_page is not None else page_count
     if end_page is not None and end_page < start_page:
@@ -184,7 +191,7 @@ def read_pdf_text(
             + f"\n\n... [truncated: output exceeded max_chars={max_chars}, "
             f"showing first {max_chars} of the extracted text]"
         )
-    header = f"{path.name}: pages {start_page}-{last_page} of {page_count}"
+    header = f"{path_name}: pages {start_page}-{last_page} of {page_count}"
     if end_page is not None and end_page > page_count:
         header += f" (end_page {end_page} clamped to page count)"
     return f"{header}\n\n{output}"

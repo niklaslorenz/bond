@@ -1,5 +1,7 @@
+from returns.result import Failure
+
+from bond.fs_access import AccessMode
 from bond.tools import tool
-from bond.tools.file_system.util import check_write_access
 
 
 @tool.tool(
@@ -22,18 +24,14 @@ from bond.tools.file_system.util import check_write_access
     required=["file_path"],
 )
 def remove_file(context: tool.ToolCallContext, file_path: str) -> str:
-    try:
-        path = context.resolve_path(file_path)
-    except ValueError as e:
-        return f"Error: {e}"
-    if path is None:
-        return "Error: Tool access to the filesystem is currently disabled."
-    has_access, why_not = check_write_access(context, path)
-    if not has_access:
-        return why_not
-    if not path.exists() and not path.is_symlink():
+    grant = context.request_fs_access(file_path, AccessMode.WRITE)
+    if isinstance(grant, Failure):
+        return grant.failure()
+    authorized = grant.unwrap()
+    path = authorized.path
+    if not authorized.exists() and not authorized.is_symlink():
         return "error: file does not exist"
-    if path.is_dir():
+    if authorized.is_dir():
         return "error: path is a directory, only files can be removed"
 
     skip_confirmation = (
@@ -46,8 +44,7 @@ def remove_file(context: tool.ToolCallContext, file_path: str) -> str:
     ):
         return "Removal cancelled by user."
 
-    try:
-        path.unlink()
-        return f"Removed file {path}"
-    except Exception as e:
-        return f"Error removing file: {str(e)}"
+    unlink_res = authorized.unlink()
+    if isinstance(unlink_res, Failure):
+        return unlink_res.failure()
+    return f"Removed file {path}"

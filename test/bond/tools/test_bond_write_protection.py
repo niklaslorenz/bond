@@ -2,11 +2,21 @@
 
 from pathlib import Path
 
+from returns.result import Failure
+
+from bond.fs_access import AccessMode, path_is_in_bond
 from bond.tools.file_system.apply_patch import apply_patch
 from bond.tools.file_system.create_file import create_file
 from bond.tools.file_system.read_file import read_file
-from bond.tools.file_system.util import check_write_access, path_is_in_bond
 from bond.tools.tool import ToolCallContext
+
+
+def check_write_access(ctx: ToolCallContext, path: Path) -> tuple[bool, str]:
+    """Test helper mirroring the old util function via the new fs_access API."""
+    res = ctx.request_fs_access(path, AccessMode.WRITE)
+    if isinstance(res, Failure):
+        return False, res.failure()
+    return True, ""
 
 
 def make_context(tmp_path: Path, is_interactive: bool = False) -> ToolCallContext:

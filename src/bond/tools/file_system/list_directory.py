@@ -1,5 +1,7 @@
+from returns.result import Failure
+
+from bond.fs_access import AccessMode
 from bond.tools import tool
-from bond.tools.file_system.util import check_access
 
 
 @tool.tool(
@@ -23,17 +25,17 @@ from bond.tools.file_system.util import check_access
     required=["dir_path"],
 )
 def list_directory(context: tool.ToolCallContext, dir_path: str) -> str:
-    try:
-        path = context.resolve_path(dir_path)
-    except ValueError as e:
-        return f"Error: {e}"
-    if path is None:
-        return "Error: Tool access to the filesystem is currently disabled."
-    has_access, why_not = check_access(context, path)
-    if not has_access:
-        return why_not
-    if not path.is_dir():
+    grant = context.request_fs_access(dir_path, AccessMode.READ)
+    if isinstance(grant, Failure):
+        return grant.failure()
+    authorized = grant.unwrap()
+    if not authorized.is_dir():
         return "error: not a directory"
-    children = path.iterdir()
-    results = [f"{child}: {'dir' if child.is_dir() else 'file'}" for child in children]
-    return f"Contents of {path}:\n" + "\n".join(results)
+    children_res = authorized.iterdir()
+    if isinstance(children_res, Failure):
+        return children_res.failure()
+    results = [
+        f"{child.path}: {'dir' if child.is_dir() else 'file'}"
+        for child in children_res.unwrap()
+    ]
+    return f"Contents of {authorized.path}:\n" + "\n".join(results)

@@ -1,7 +1,6 @@
 import asyncio
 import os
 import sys
-from dataclasses import dataclass
 from logging import Logger
 from pathlib import Path
 from typing import (
@@ -16,7 +15,9 @@ from typing import (
 )
 
 from pydantic import BaseModel
+from returns.result import Result
 
+from bond.fs_access import AccessMode, AuthorizedPath
 from bond.util import resolve_path as _resolve_against_cwd
 
 from . import logger
@@ -33,16 +34,81 @@ ToolParameterType = Literal["string", "number", "integer", "boolean", "array", "
 ToolFn = Callable[..., ToolReturnType]
 
 
-@dataclass
 class ToolCallContext:
-    persona: "Persona | None"
-    stdout: TextIO | None
-    stdin: TextIO | None
-    is_interactive: bool
-    cwd: Path | None
-    logger: Logger | None
-    confirmation_prompt: Callable[[str], bool] | None = None
-    conversation: "Conversation | None" = None
+    """Per-conversation context passed to every tool call.
+
+    ``persona`` and ``cwd`` are properties: assigning a *different* value
+    fires :meth:`_on_fs_access_policy_change`, the extension point where a
+    future session-long fs-access grant cache gets invalidated (currently a
+    no-op — access is re-evaluated on every :meth:`request_fs_access` call).
+    """
+
+    def __init__(
+        self,
+        persona: "Persona | None",
+        stdout: TextIO | None,
+        stdin: TextIO | None,
+        is_interactive: bool,
+        cwd: Path | None,
+        logger: Logger | None,
+        confirmation_prompt: Callable[[str], bool] | None = None,
+        conversation: "Conversation | None" = None,
+    ):
+        self._persona = persona
+        self.stdout = stdout
+        self.stdin = stdin
+        self.is_interactive = is_interactive
+        self._cwd = cwd
+        self.logger = logger
+        self.confirmation_prompt = confirmation_prompt
+        self.conversation = conversation
+
+    @property
+    def persona(self) -> "Persona | None":
+        return self._persona
+
+    @persona.setter
+    def persona(self, value: "Persona | None") -> None:
+        if value is not self._persona:
+            self._persona = value
+            self._on_fs_access_policy_change()
+
+    @property
+    def cwd(self) -> Path | None:
+        return self._cwd
+
+    @cwd.setter
+    def cwd(self, value: Path | None) -> None:
+        if value != self._cwd:
+            self._cwd = value
+            self._on_fs_access_policy_change()
+
+    def _on_fs_access_policy_change(self) -> None:
+        """Called when the persona or cwd actually changed.
+
+        No-op for now; a session-long grant cache can be invalidated here later.
+        """
+
+    def request_fs_access(
+        self,
+        raw_path: str | Path,
+        mode: AccessMode = AccessMode.READ,
+        *,
+        recursive: bool = False,
+        purpose: str | None = None,
+    ) -> Result[AuthorizedPath, str]:
+        """Resolve ``raw_path`` and authorize tool access to it under ``mode``.
+
+        Returns ``Success(AuthorizedPath)`` when access is granted and
+        ``Failure(reason)`` otherwise. All file tools must go through this
+        (and the returned wrapper's methods) instead of checking permissions
+        themselves. See :mod:`bond.fs_access` for the policy.
+        """
+        from bond.fs_access import request_fs_access as _request_fs_access
+
+        return _request_fs_access(
+            self, raw_path, mode, recursive=recursive, purpose=purpose
+        )
 
     @classmethod
     def default(

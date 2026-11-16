@@ -1,10 +1,9 @@
 """Recursive directory tree listing tool."""
 
-import os
-from pathlib import Path
+from returns.result import Failure, Success
 
+from bond.fs_access import AccessMode, AuthorizedPath
 from bond.tools import tool
-from bond.tools.file_system.util import check_access
 
 # Hard cap on displayed lines; anything beyond is omitted with a notice.
 MAX_TREE_LINES = 200
@@ -12,44 +11,39 @@ MAX_TREE_LINES = 200
 DEFAULT_MAX_DEPTH = 3
 
 
-def _tree_lines(path: Path, prefix: str, depth: int, max_depth: int) -> list[str]:
-    """Build the tree lines for the entries of ``path`` at the given depth.
+def _tree_lines(
+    node: AuthorizedPath, prefix: str, depth: int, max_depth: int
+) -> list[str]:
+    """Build the tree lines for the entries of ``node`` at the given depth.
 
     Symlinked directories are shown as ``name -> target`` and never recursed
     into, so symlink cycles cannot blow up the listing.
     """
     if depth > max_depth:
         return []
-    try:
-        with os.scandir(path) as it:
-            entries = sorted(
-                list(it),
-                key=lambda e: (not e.is_dir(follow_symlinks=False), e.name.lower()),
-            )
-    except (PermissionError, OSError) as e:
-        return [f"{prefix}[error: {e}]"]
+    children_res = node.iterdir()
+    if isinstance(children_res, Failure):
+        return [f"{prefix}[error: {children_res.failure()}]"]
+    entries = sorted(
+        children_res.unwrap(),
+        key=lambda c: (not c.is_dir(follow_symlinks=False), c.path.name.lower()),
+    )
 
     lines: list[str] = []
     for i, entry in enumerate(entries):
         last = i == len(entries) - 1
         connector = "└── " if last else "├── "
         if entry.is_symlink():
-            try:
-                target = os.readlink(entry.path)
-            except OSError:
-                target = "?"
-            lines.append(f"{prefix}{connector}{entry.name} -> {target}")
+            target_res = entry.readlink()
+            target = target_res.unwrap() if isinstance(target_res, Success) else "?"
+            lines.append(f"{prefix}{connector}{entry.path.name} -> {target}")
             continue
         if entry.is_dir(follow_symlinks=False):
-            lines.append(f"{prefix}{connector}{entry.name}/")
+            lines.append(f"{prefix}{connector}{entry.path.name}/")
             extension = "    " if last else "│   "
-            lines.extend(
-                _tree_lines(
-                    Path(entry.path), prefix + extension, depth + 1, max_depth
-                )
-            )
+            lines.extend(_tree_lines(entry, prefix + extension, depth + 1, max_depth))
         else:
-            lines.append(f"{prefix}{connector}{entry.name}")
+            lines.append(f"{prefix}{connector}{entry.path.name}")
     return lines
 
 
@@ -84,22 +78,17 @@ def _tree_lines(path: Path, prefix: str, depth: int, max_depth: int) -> list[str
 def tree(
     context: tool.ToolCallContext, dir_path: str, max_depth: int = DEFAULT_MAX_DEPTH
 ) -> str:
-    try:
-        path = context.resolve_path(dir_path)
-    except ValueError as e:
-        return f"Error: {e}"
-    if path is None:
-        return "Error: Tool access to the filesystem is currently disabled."
-    has_access, why_not = check_access(context, path)
-    if not has_access:
-        return why_not
+    grant = context.request_fs_access(dir_path, AccessMode.READ, recursive=True)
+    if isinstance(grant, Failure):
+        return grant.failure()
+    authorized = grant.unwrap()
     if max_depth < 0:
         return "Error: max_depth must be >= 0."
-    if not path.is_dir():
+    if not authorized.is_dir():
         return "error: not a directory"
 
-    lines = [f"{path}/"]
-    lines.extend(_tree_lines(path, "", 1, max_depth))
+    lines = [f"{authorized.path}/"]
+    lines.extend(_tree_lines(authorized, "", 1, max_depth))
 
     total = len(lines)
     if total > MAX_TREE_LINES:

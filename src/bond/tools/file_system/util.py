@@ -1,9 +1,11 @@
-"""Utility functions for file system tools."""
+"""Fuzzy-matching helpers for the file system tools.
+
+Access policy (path resolution, permission checks, the AuthorizedPath
+wrapper) lives in :mod:`bond.fs_access` — tools get access exclusively via
+``ToolCallContext.request_fs_access``.
+"""
 
 import difflib
-from pathlib import Path
-
-from bond.tools import tool
 
 
 def normalize(text: str) -> str:
@@ -91,82 +93,3 @@ def fuzzy_contains(text: str, search: str, threshold: float = 0.6) -> bool:
         best_ratio = ratio
     
     return best_ratio >= threshold
-
-
-def path_is_in_git(path: Path) -> bool:
-    """Check if a path is inside a .git folder."""
-    for x in path.parts:
-        if x == ".git":
-            return True
-    return False
-
-
-def path_is_in_bond(path: Path) -> bool:
-    """Check if a path is inside any .bond folder (any path component)."""
-    for x in path.parts:
-        if x == ".bond":
-            return True
-    return False
-
-
-def check_access(context: tool.ToolCallContext, path: Path) -> tuple[bool, str]:
-    """Check if we have access to a path.
-
-    Paths inside a persona-managed directory are pre-authorized (no
-    confirmation needed, also when ``context.cwd is None``).
-    """
-    if context.persona is not None and context.persona.managed_directory_for(
-        path
-    ) is not None:
-        return True, ""
-    work_dir = context.cwd
-    if work_dir is None:
-        return (
-            False,
-            "Permission denied, tool access to the filesystem is currently disabled.",
-        )
-    if path.is_relative_to(work_dir):
-        return True, ""
-    if not context.is_interactive:
-        return (
-            False,
-            f"Permission denied, this tool is not run in interactive mode. Cannot access files outside of '{work_dir}'",
-        )
-    if not context.ask_confirmation(
-        f"Bond wants to access the contents of {path}, which lies outside of the current working directory.\nDo you want to grant access?"
-    ):
-        return False, "Permission denied, the user has declined your request."
-    return True, ""
-
-
-def check_write_access(context: tool.ToolCallContext, path: Path) -> tuple[bool, str]:
-    """Check if a tool may write to a path.
-
-    Like :func:`check_access`, but additionally hard-denies any path inside a
-    ``.bond`` or ``.git`` directory: those directories are read-only for agent
-    tools (``.bond`` is managed by the user, ``.git`` by git), no matter which
-    project is currently active — including inside persona-managed directories.
-    Writes into a ``read_only`` managed directory are denied as well. Reading
-    from them stays allowed.
-    """
-    has_access, why_not = check_access(context, path)
-    if not has_access:
-        return has_access, why_not
-    if path_is_in_bond(path):
-        return (
-            False,
-            "Permission denied: `.bond` directories are read-only for tools.",
-        )
-    if path_is_in_git(path):
-        return (
-            False,
-            "Permission denied: `.git` directories are read-only for tools.",
-        )
-    if context.persona is not None:
-        managed_dir = context.persona.managed_directory_for(path)
-        if managed_dir is not None and managed_dir.read_only:
-            return (
-                False,
-                f"Permission denied: managed directory '{managed_dir.name}' is read-only.",
-            )
-    return True, ""

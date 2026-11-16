@@ -1,7 +1,9 @@
 import re
 
+from returns.result import Failure
+
+from bond.fs_access import AccessMode
 from bond.tools import tool
-from bond.tools.file_system.util import check_write_access
 
 
 @tool.tool(
@@ -24,21 +26,13 @@ from bond.tools.file_system.util import check_write_access
     required=["file_path", "content"],
 )
 def create_file(context: tool.ToolCallContext, file_path: str, content: str) -> str:
-    try:
-        path = context.resolve_path(file_path)
-    except ValueError as e:
-        return f"Error: {e}"
-    if path is None:
-        return "Error: Tool access to the filesystem is currently disabled."
-    has_access, why_not = check_write_access(context, path)
-    if not has_access:
-        return why_not
-    if path.exists():
+    grant = context.request_fs_access(file_path, AccessMode.WRITE)
+    if isinstance(grant, Failure):
+        return grant.failure()
+    authorized = grant.unwrap()
+    if authorized.exists():
         return "error: file already exists"
-    try:
-        if not path.parent.exists():
-            path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content)
-        return f"Created file at {path}"
-    except Exception as e:
-        return f"Error creating file: {str(e)}"
+    write_res = authorized.write_text(content)
+    if isinstance(write_res, Failure):
+        return write_res.failure()
+    return f"Created file at {authorized.path}"

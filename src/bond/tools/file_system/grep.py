@@ -5,8 +5,10 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from returns.result import Failure
+
+from bond.fs_access import AccessMode
 from bond.tools import tool
-from bond.tools.file_system.util import check_access
 
 
 def _build_grep_command(
@@ -116,17 +118,13 @@ def grep(
     context_lines: int = 0,
     show_line_numbers: bool = True,
 ) -> str:
-    try:
-        search_path = context.resolve_path(path)
-    except ValueError as e:
-        return f"Error: {e}"
-    if search_path is None:
-        return "Error: Tool access to the filesystem is currently disabled."
-    has_access, why_not = check_access(context, search_path)
-    if not has_access:
-        return why_not
+    grant = context.request_fs_access(path, AccessMode.READ, recursive=recursive)
+    if isinstance(grant, Failure):
+        return grant.failure()
+    authorized = grant.unwrap()
+    search_path = authorized.path
 
-    if not search_path.exists():
+    if not authorized.exists():
         return f"Error: path does not exist: {search_path}"
 
     # Check for ripgrep first, then grep
@@ -151,21 +149,19 @@ def grep(
     # because grep/rg don't have a clean way to search only files in a directory
     # (not subdirectories) with a single command
     paths_to_search: list[Path] = []
-    if search_path.is_file():
+    if authorized.is_file():
         paths_to_search.append(search_path)
-    elif search_path.is_dir():
+    elif authorized.is_dir():
         if recursive:
             paths_to_search.append(search_path)
         else:
             # Non-recursive: only files directly in this directory
-            try:
-                paths_to_search = [
-                    f
-                    for f in search_path.iterdir()
-                    if f.is_file() and check_access(context, f)[0]
-                ]
-            except (PermissionError, OSError):
+            children_res = authorized.iterdir()
+            if isinstance(children_res, Failure):
                 return f"Error: Cannot read directory: {search_path}"
+            paths_to_search = [
+                c.path for c in children_res.unwrap() if c.is_file()
+            ]
     else:
         return f"Error: path is neither file nor directory: {search_path}"
 

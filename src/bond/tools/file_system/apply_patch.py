@@ -1,10 +1,10 @@
 import re
 
+from returns.result import Failure
+
+from bond.fs_access import AccessMode
 from bond.tools import tool
-from bond.tools.file_system.util import (
-    check_write_access,
-    fuzzy_find_aider_patch_blocks,
-)
+from bond.tools.file_system.util import fuzzy_find_aider_patch_blocks
 
 _BLOCK_RE = re.compile(
     r"(?:(?P<file>[^\n]+)\n)?<<<<<<< SEARCH\n(?P<search>.*?)\n=======\n(?P<replace>.*?)\n>>>>>>> REPLACE",
@@ -119,26 +119,27 @@ def apply_patch(context: tool.ToolCallContext, patch: str) -> str:
             results.append(f"Block {idx}: failed, no file specified.")
             continue
 
-        try:
-            path = context.resolve_path(file)
-        except ValueError as e:
-            results.append(f"Block {idx}: failed, {e}")
+        grant = context.request_fs_access(
+            file,
+            AccessMode.WRITE,
+            purpose=(
+                f"Bond wants to patch the file {file} with this block:\n"
+                f"<<<<<<< SEARCH\n{search}\n=======\n{replace}\n>>>>>>> REPLACE"
+            ),
+        )
+        if isinstance(grant, Failure):
+            results.append(f"Block {idx}: failed, {grant.failure()}")
             continue
-        if path is None:
-            results.append(
-                f"Block {idx}: failed, tool access to the filesystem is currently disabled."
-            )
-            continue
-        if not path.exists():
+        authorized = grant.unwrap()
+        if not authorized.exists():
             results.append(f"Block {idx}: failed, file does not exist.")
             continue
 
-        has_access, why_not = check_write_access(context, path)
-        if not has_access:
-            results.append(f"Block {idx}: failed, {why_not}")
+        read_res = authorized.read_text()
+        if isinstance(read_res, Failure):
+            results.append(f"Block {idx}: failed, {read_res.failure()}")
             continue
-
-        text = path.read_text()
+        text = read_res.unwrap()
         replace_lines = replace.splitlines()
         n_changed = len(replace_lines)
         if search in text:
@@ -155,7 +156,10 @@ def apply_patch(context: tool.ToolCallContext, patch: str) -> str:
             new_lines = lines[:start] + replace_lines + lines[end:]
             new_text = "\n".join(new_lines)
             start_line = start
-        path.write_text(new_text)
+        write_res = authorized.write_text(new_text)
+        if isinstance(write_res, Failure):
+            results.append(f"Block {idx}: failed, {write_res.failure()}")
+            continue
 
         if n_changed > 0:
             header = (

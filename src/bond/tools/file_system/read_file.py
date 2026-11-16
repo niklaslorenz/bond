@@ -1,5 +1,7 @@
+from returns.result import Failure
+
+from bond.fs_access import AccessMode
 from bond.tools import tool
-from bond.tools.file_system.util import check_access
 
 
 def _process_file_content(
@@ -80,16 +82,14 @@ def read_file(
     end_line: int | None = None,
     show_line_numbers: bool = True,
 ) -> str:
-    try:
-        path = context.resolve_path(file_path)
-    except ValueError as e:
-        return f"Error: {e}"
-    if path is None:
-        return "Error: Tool access to the file system is currently disabled."
-    has_access, why_not = check_access(context, path)
-    if not has_access:
-        return why_not
-    if not path.is_file():
+    grant = context.request_fs_access(file_path, AccessMode.READ)
+    if isinstance(grant, Failure):
+        return grant.failure()
+    authorized = grant.unwrap()
+    if not authorized.is_file():
         return "error: not a file"
-    content = path.read_text()
+    content_res = authorized.read_text()
+    if isinstance(content_res, Failure):
+        return content_res.failure()
+    content = content_res.unwrap()
     return _process_file_content(content, start_line, end_line, show_line_numbers)

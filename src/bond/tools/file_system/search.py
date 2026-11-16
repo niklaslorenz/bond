@@ -2,9 +2,12 @@
 """File search tool."""
 import re
 
+from returns.result import Failure
+
+from bond.fs_access import AccessMode
 from bond.tools import tool
 
-from .util import check_access, fuzzy_contains
+from .util import fuzzy_contains
 
 
 @tool.tool(
@@ -56,20 +59,17 @@ def search_file(
     show_line_numbers: bool = True,
     context_lines: int = 0,
 ) -> str:
-    try:
-        path = context.resolve_path(file_path)
-    except ValueError as e:
-        return f"Error: {e}"
-    if path is None:
-        return "Error: Tool access to the filesystem is currently disabled."
-    has_access, why_not = check_access(context, path)
-    if not has_access:
-        return why_not
-    if not path.is_file():
+    grant = context.request_fs_access(file_path, AccessMode.READ)
+    if isinstance(grant, Failure):
+        return grant.failure()
+    authorized = grant.unwrap()
+    if not authorized.is_file():
         return "error: not a file"
 
-    content = path.read_text()
-    lines = content.splitlines(keepends=False)
+    content_res = authorized.read_text()
+    if isinstance(content_res, Failure):
+        return content_res.failure()
+    lines = content_res.unwrap().splitlines(keepends=False)
 
     if not lines:
         return "No matches found (file is empty)"
