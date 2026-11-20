@@ -17,7 +17,10 @@ class ConfirmationPopup(TuiPopup[bool], Vertical):
             "Deny", variant="error", id="confirmation-request-deny-button"
         )
 
-        self.request_field = Static(request)
+        # markup=False: the request contains arbitrary tool arguments (paths,
+        # commands, patch text) which may contain square brackets. Parsing
+        # them as markup would raise MarkupError and crash the app.
+        self.request_field = Static(request, markup=False)
 
     def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "confirmation-request-accept-button":

@@ -50,8 +50,15 @@ class MarkdownBlock(Static):
         self.text += delta
         self.refresh(layout=True)
 
-    def render(self) -> Markdown:
-        return Markdown(self.text)
+    def render(self) -> Markdown | Text:
+        try:
+            return Markdown(self.text)
+        except Exception:
+            # Defensive: chat content is arbitrary text and must never crash
+            # the app. If rich's markdown parser chokes on some input, fall
+            # back to rendering it as plain text.
+            logger.exception("Failed to parse markdown; rendering as plain text")
+            return Text(self.text)
 
 
 class ThinkBlock(FoldableBlock):
@@ -73,7 +80,15 @@ class ChatMessage(Vertical):
         self.author = author
         self.role = role
         border_color = self.styles.border_left[1].hex
-        self.header = Static(f"[b][{border_color}]{self.author}[/{border_color}][/b]:")
+        # Build the header as a Text object instead of a markup string: the
+        # author name is arbitrary text and must not be parsed as markup
+        # (a name containing '[' would raise MarkupError and crash the app).
+        self.header = Static(
+            Text.assemble(
+                (self.author, f"bold {border_color}"),
+                (":", ""),
+            )
+        )
         self.elements: list[Static] = []
         self.add_class(self.role)
 

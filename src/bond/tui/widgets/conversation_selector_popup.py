@@ -1,6 +1,7 @@
 from difflib import SequenceMatcher
 
 from textual.containers import Horizontal, ScrollableContainer, Vertical
+from textual.content import Content
 from textual.events import Key
 from textual.timer import Timer
 from textual.widgets import Button, Input, Static
@@ -67,8 +68,11 @@ class ConversationSelectorPopup(TuiPopup[str], Vertical):
         for index, name in enumerate(filtered):
             btn_id = f"conversation-selector-option-{self._next_option_id}"
             self._next_option_id += 1
+            # Content(...) disables markup parsing: conversation names come
+            # from filenames and may contain '[' which would otherwise raise
+            # MarkupError and crash the app.
             button = Button(
-                name,
+                Content(name),
                 id=btn_id,
                 variant="primary",
                 classes="conversation-selector-option",

@@ -31,6 +31,7 @@ from difflib import SequenceMatcher
 
 from pydantic import BaseModel
 from textual.containers import Horizontal, ScrollableContainer, Vertical
+from textual.content import Content
 from textual.events import DescendantFocus, Key
 from textual.timer import Timer
 from textual.widgets import Button, Input, Static
@@ -101,7 +102,9 @@ class SkillsPopup(TuiPopup[SkillsPopupResult], Vertical):
         self._row_buttons: list[Button] = []
 
         self._title = Static("Manage Skills", classes="skills-popup-title")
-        self._mode_label = Static("", classes="skills-popup-mode")
+        # markup=False: the label text embeds persona/skill names (arbitrary
+        # text, may contain '[') — never parse it as markup.
+        self._mode_label = Static("", classes="skills-popup-mode", markup=False)
         self._search_field = Input(
             placeholder="Search skills", id="skills-popup-search"
         )
@@ -279,8 +282,10 @@ class SkillsPopup(TuiPopup[SkillsPopupResult], Vertical):
             option_id = f"skills-popup-option-{self._next_option_id}"
             active_id = f"skills-popup-active-{self._next_option_id}"
             self._next_option_id += 1
+            # Content(...) disables markup parsing: skill names/descriptions
+            # are arbitrary text and may contain '['.
             option_button = Button(
-                self._row_label(info),
+                Content(self._row_label(info)),
                 id=option_id,
                 classes="skill-option",
             )
